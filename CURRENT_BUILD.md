@@ -14,20 +14,59 @@ An exact source-surface capture was taken from the live server on 2026-09-07 at 
 - all captured PHP files passed `php -l`
 - live server is not a Git worktree
 
-The binary archive is evidence only and is not kept in the current branch tip. Exact file hashes and classification are stored in `snapshots/20260907-152138/MANIFEST.tsv`; source is being imported as plain UTF-8.
+The binary archive is evidence only and is not kept in the current branch tip. Exact file hashes and classification are stored in `snapshots/20260907-152138/MANIFEST.tsv`; durable source is plain UTF-8 plus deterministic deltas against upstream.
 
 ## Upstream baseline
 
-Official baseline: signed phpipam/phpipam tag `v1.8.2`, commit `6e11367e5f43eb9f50bde7f7b25bf65fc53d844d`.
+Official baseline: signed `phpipam/phpipam` tag `v1.8.2`, commit `6e11367e5f43eb9f50bde7f7b25bf65fc53d844d`.
 
-Current capture classification:
+Official release archive used by the reproduction gate:
+
+- `phpipam-v1.8.2.tgz`
+- SHA256: `12745b9cc9f937b219043cc39ee6533b95f9e8ed8b4381ea6f6d96005487bf8d`
+
+Exact capture classification:
 
 - 12 modified upstream files;
 - 1 captured upstream file is unchanged: `app/tools/tools-menu.php`;
-- 6 custom new files;
-- normalized overlay candidate: 18 files before dead-code cleanup.
+- 6 custom new files.
 
-The old server hotfix backup directories were deleted after the exact runtime capture. They are no longer required for normalization; pristine source is taken from the official v1.8.2 Git state.
+## Normalized build
+
+Phase 0 cleanup keeps the accepted behavior and removes obsolete cumulative hotfix residue.
+
+The normalized build consists of:
+
+- 14 exact UTF-8 source files retained from the verified runtime capture;
+- a deterministic Rackspace `force_no_overlap` delta against pristine v1.8.2;
+- deterministic sidebar wrapping CSS deltas for light and dark themes;
+- pristine upstream `app/tools/racks/draw_rack.php`;
+- pristine upstream `app/tools/tools-menu.php`;
+- no database schema changes.
+
+Superseded V3.3.3 SVG `data-device-id` / no-cache logic is deliberately not carried forward.
+
+## Reproducibility verification
+
+On 2026-09-07 the Owner ran `tests/reproduce-clean-v1.8.2.sh` from exact branch commit `81c0ed1a888113e6b6090d10de2bdb856c29b04e` on the phpIPAM server.
+
+The test did **not** touch `/var/www/html`. It downloaded the official 1.8.2 release into `/tmp`, verified the release SHA256, applied the normalized installer to the disposable pristine tree and ran the verifier.
+
+Verified result:
+
+- official release SHA256: OK;
+- pristine v1.8.2 target preconditions: OK;
+- candidate PHP lint: OK;
+- exact normalized source files: OK (14);
+- normalized cleanup invariants: OK;
+- PHP lint: OK (15 files);
+- behavioral source invariants: OK;
+- `VERIFY_OK`;
+- `REPRODUCE_OK`.
+
+This establishes a clean static reproduction path from official phpIPAM 1.8.2 to the normalized phpIPAM Custom source state.
+
+A GitHub Actions workflow now repeats the same clean reproduction gate for the Phase 0 PR.
 
 ## Runtime-verified behavior
 
@@ -41,13 +80,10 @@ The old server hotfix backup directories were deleted after the exact runtime ca
 - cross-rack device data is loaded live from backend using exact visible rack IDs;
 - long translated sidebar labels wrap correctly.
 
-## Normalization work now in progress
+## Phase 0 completion gate
 
-1. Preserve exact runtime capture metadata.
-2. Import the effective runtime source surface to the feature branch as plain UTF-8 and verify each Git blob against the manifest.
-3. Remove superseded/dead experimental residue without changing accepted behavior.
-4. Produce an 18-file-or-smaller overlay on top of pristine v1.8.2.
-5. Build deterministic `install.sh`, `verify.sh`, and rollback workflow.
-6. Validate on a disposable v1.8.2 tree before proposing merge to `master`.
+Remaining before merge to `master`:
 
-Known dead-code candidate: `RACK_V333_DEVICE_ID` plus SVG no-cache headers were introduced for explicit SVG identity but are no longer required after V3.1.4/V3.3.5 switched to occupied-U hit testing.
+1. GitHub Actions reproduction workflow must pass on the current PR head.
+2. PR #1 is marked Ready for review.
+3. Merge to `master` only after explicit Owner approval with exact head SHA.
