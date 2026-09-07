@@ -1,0 +1,4 @@
+captured_at=20260907-152138
+source_root=/var/www/html
+php=PHP 8.2.30 (cli) (built: Dec 18 2025 23:15:10) (NTS)
+git_worktree=false

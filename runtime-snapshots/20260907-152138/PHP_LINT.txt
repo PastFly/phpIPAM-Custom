@@ -1,0 +1,34 @@
+=== functions/classes/class.Rackspace.php ===
+No syntax errors detected in /var/www/html/functions/classes/class.Rackspace.php
+=== app/admin/racks/edit-rack-devices.php ===
+No syntax errors detected in /var/www/html/app/admin/racks/edit-rack-devices.php
+=== app/admin/racks/edit-rack-devices-result.php ===
+No syntax errors detected in /var/www/html/app/admin/racks/edit-rack-devices-result.php
+=== app/admin/racks/edit-rack-devices-free-u.php ===
+No syntax errors detected in /var/www/html/app/admin/racks/edit-rack-devices-free-u.php
+=== app/admin/devices/edit.php ===
+No syntax errors detected in /var/www/html/app/admin/devices/edit.php
+=== app/admin/devices/edit-rack-dropdown.php ===
+No syntax errors detected in /var/www/html/app/admin/devices/edit-rack-dropdown.php
+=== app/admin/devices/edit-result.php ===
+No syntax errors detected in /var/www/html/app/admin/devices/edit-result.php
+=== app/tools/racks/print-single-rack.php ===
+No syntax errors detected in /var/www/html/app/tools/racks/print-single-rack.php
+=== app/tools/racks/rack-v3.1-controller.php ===
+No syntax errors detected in /var/www/html/app/tools/racks/rack-v3.1-controller.php
+=== app/tools/racks/rack-v3-move.php ===
+No syntax errors detected in /var/www/html/app/tools/racks/rack-v3-move.php
+=== app/tools/racks/print-racks-map.php ===
+No syntax errors detected in /var/www/html/app/tools/racks/print-racks-map.php
+=== app/tools/racks/rack-v3.3-map-controller.php ===
+No syntax errors detected in /var/www/html/app/tools/racks/rack-v3.3-map-controller.php
+=== app/tools/racks/rack-v3.3-move.php ===
+No syntax errors detected in /var/www/html/app/tools/racks/rack-v3.3-move.php
+=== app/tools/racks/rack-v3.3-data.php ===
+No syntax errors detected in /var/www/html/app/tools/racks/rack-v3.3-data.php
+=== app/tools/racks/draw_rack.php ===
+No syntax errors detected in /var/www/html/app/tools/racks/draw_rack.php
+=== app/tools/tools-menu-config.php ===
+No syntax errors detected in /var/www/html/app/tools/tools-menu-config.php
+=== app/tools/tools-menu.php ===
+No syntax errors detected in /var/www/html/app/tools/tools-menu.php

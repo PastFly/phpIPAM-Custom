@@ -1,0 +1,33 @@
+name: Phase 0 Reproducibility
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches:
+      - phase0/runtime-normalization
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install PHP CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y php-cli
+
+      - name: Validate shell syntax
+        run: |
+          bash -n installer/install-clean-v1.8.2.sh
+          bash -n installer/verify.sh
+          bash -n tests/reproduce-clean-v1.8.2.sh
+
+      - name: Reproduce from official phpIPAM 1.8.2
+        run: bash tests/reproduce-clean-v1.8.2.sh
