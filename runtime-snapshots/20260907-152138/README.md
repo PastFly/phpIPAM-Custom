@@ -7,6 +7,7 @@ Evidence:
 - PHP CLI: 8.2.30
 - capture root: `/var/www/html`
 - archive SHA256: `b01ab9b650d6ff312b244f1591d2c019f311eb58cf39c2094f5cbdb35c0ef64f`
+- archive Git blob: `2037e97d92e1527181674533feabcc35697b8e2c`
 - expected customized files missing: none
 - PHP lint: all captured PHP files passed
 - live tree is not a Git worktree
