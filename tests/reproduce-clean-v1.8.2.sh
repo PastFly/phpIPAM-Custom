@@ -4,8 +4,8 @@ set -euo pipefail
 # Clean reproducibility gate.
 # Downloads the official phpIPAM 1.8.2 release into /tmp, verifies its SHA256,
 # installs the normalized overlay into that throw-away tree, runs verify.sh,
-# then executes Phase 1 rack placement regression tests against the actual
-# normalized Rackspace method bodies. The live /var/www/html tree is never touched.
+# then executes Phase 1 rack regression tests against the actual normalized
+# source. The live /var/www/html tree is never touched.
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STAMP="$(date +%Y%m%d-%H%M%S)"
@@ -24,6 +24,7 @@ bash -n "$REPO_ROOT/installer/install-clean-v1.8.2.sh"
 bash -n "$REPO_ROOT/installer/verify.sh"
 php -l "$REPO_ROOT/tests/rack-free-u-regression.php" >/dev/null
 php -l "$REPO_ROOT/tests/rack-backend-regression.php" >/dev/null
+php -l "$REPO_ROOT/tests/rack-endpoint-security-regression.php" >/dev/null
 echo "  installer/test syntax: OK"
 
 if command -v curl >/dev/null 2>&1; then
@@ -75,9 +76,10 @@ done
 bash "$REPO_ROOT/installer/install-clean-v1.8.2.sh" "$TARGET"
 bash "$REPO_ROOT/installer/verify.sh" "$TARGET"
 
-# Phase 1: exercise actual normalized rack placement methods.
+# Phase 1: exercise actual normalized rack placement methods and endpoint guards.
 php "$REPO_ROOT/tests/rack-free-u-regression.php" "$TARGET"
 php "$REPO_ROOT/tests/rack-backend-regression.php" "$TARGET"
+php "$REPO_ROOT/tests/rack-endpoint-security-regression.php" "$TARGET"
 
 echo
 echo "REPRODUCE_OK: clean official phpIPAM 1.8.2 -> normalized phpIPAM Custom reproduction and rack regressions passed."
