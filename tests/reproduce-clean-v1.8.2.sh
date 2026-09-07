@@ -5,7 +5,7 @@ set -euo pipefail
 # Downloads the official phpIPAM 1.8.2 release into /tmp, verifies its SHA256,
 # installs the normalized overlay into that throw-away tree, runs verify.sh,
 # then executes Phase 1 rack placement regression tests against the actual
-# normalized Rackspace method body. The live /var/www/html tree is never touched.
+# normalized Rackspace method bodies. The live /var/www/html tree is never touched.
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STAMP="$(date +%Y%m%d-%H%M%S)"
@@ -23,6 +23,7 @@ echo "  work: $WORK"
 bash -n "$REPO_ROOT/installer/install-clean-v1.8.2.sh"
 bash -n "$REPO_ROOT/installer/verify.sh"
 php -l "$REPO_ROOT/tests/rack-free-u-regression.php" >/dev/null
+php -l "$REPO_ROOT/tests/rack-backend-regression.php" >/dev/null
 echo "  installer/test syntax: OK"
 
 if command -v curl >/dev/null 2>&1; then
@@ -74,10 +75,11 @@ done
 bash "$REPO_ROOT/installer/install-clean-v1.8.2.sh" "$TARGET"
 bash "$REPO_ROOT/installer/verify.sh" "$TARGET"
 
-# Phase 1: exercise the actual normalized free_u() implementation.
+# Phase 1: exercise actual normalized rack placement methods.
 php "$REPO_ROOT/tests/rack-free-u-regression.php" "$TARGET"
+php "$REPO_ROOT/tests/rack-backend-regression.php" "$TARGET"
 
 echo
-echo "REPRODUCE_OK: clean official phpIPAM 1.8.2 -> normalized phpIPAM Custom reproduction and rack placement regressions passed."
+echo "REPRODUCE_OK: clean official phpIPAM 1.8.2 -> normalized phpIPAM Custom reproduction and rack regressions passed."
 echo "Throw-away test tree retained at: $WORK"
 echo "Delete it when no longer needed: rm -rf '$WORK'"
