@@ -61,6 +61,20 @@ function require_text(string $name, string $source, string $needle, string $mess
     }
 }
 
+function compact_php(string $source): string
+{
+    return preg_replace('/\s+/', '', $source) ?? $source;
+}
+
+function require_compact(string $name, string $source, string $needle, string $message): void
+{
+    if (strpos(compact_php($source), compact_php($needle)) !== false) {
+        pass_case($name);
+    } else {
+        fail_case($name, $message);
+    }
+}
+
 function forbid_text(string $name, string $source, string $needle, string $message): void
 {
     if (strpos($source, $needle) === false) {
@@ -119,23 +133,24 @@ require_text(
 );
 
 // Cross-rack endpoint must derive source rack from current DB state and enforce
-// same-Location semantics before write.
-require_text(
+// same-Location semantics before write. These checks are whitespace-insensitive
+// because the endpoint intentionally uses heavily wrapped formatting.
+require_compact(
     'cross-source-rack-from-current-device',
     $cross,
-    '$Racks->fetch_rack_details(\n        (int)$device->rack',
+    '$Racks->fetch_rack_details((int)$device->rack)',
     'cross-rack source rack must come from the current stored device rack'
 );
-require_text(
+require_compact(
     'cross-same-location-guard',
     $cross,
-    '$source_location !==\n    $target_location',
+    '$source_location !== $target_location',
     'cross-rack move must reject source/target Location mismatch'
 );
-require_text(
+require_compact(
     'cross-target-location-matches-page-context',
     $cross,
-    '$target_location !==\n    $location_id',
+    '$target_location !== $location_id',
     'target rack must match the Location context used for the request'
 );
 require_text(
