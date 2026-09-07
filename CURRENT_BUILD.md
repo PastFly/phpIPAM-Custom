@@ -14,7 +14,7 @@ An exact source-surface capture was taken from the live server on 2026-09-07 at 
 - all captured PHP files passed `php -l`
 - live server is not a Git worktree
 
-The binary archive is not committed. Exact file hashes and classification are stored in `snapshots/20260907-152138/MANIFEST.tsv`; source is handled as plain UTF-8.
+The binary archive is evidence only and is not kept in the current branch tip. Exact file hashes and classification are stored in `snapshots/20260907-152138/MANIFEST.tsv`; source is being imported as plain UTF-8.
 
 ## Upstream baseline
 
@@ -44,7 +44,7 @@ The old server hotfix backup directories were deleted after the exact runtime ca
 ## Normalization work now in progress
 
 1. Preserve exact runtime capture metadata.
-2. Import the effective runtime source surface to the feature branch.
+2. Import the effective runtime source surface to the feature branch as plain UTF-8 and verify each Git blob against the manifest.
 3. Remove superseded/dead experimental residue without changing accepted behavior.
 4. Produce an 18-file-or-smaller overlay on top of pristine v1.8.2.
 5. Build deterministic `install.sh`, `verify.sh`, and rollback workflow.
