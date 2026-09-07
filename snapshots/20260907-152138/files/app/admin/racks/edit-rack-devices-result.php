@@ -86,7 +86,7 @@ switch ($POST->devicetype) {
 
     # update rack
     if(!$Admin->object_modify("devices", "edit", "id", $values))	        { $Result->show("danger", _("Failed to add device to rack").'!', false); }
-    else																		{ $Result->show("success", _("Device added to rack").'!', false); }
+    else																	{ $Result->show("success", _("Device added to rack").'!', false); }
     break;
 
     case 'content':
