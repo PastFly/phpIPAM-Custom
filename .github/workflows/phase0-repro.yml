@@ -30,6 +30,7 @@ jobs:
           bash -n installer/verify.sh
           bash -n installer/install-integrations-framework-v1.sh
           bash -n installer/verify-integrations-framework-v1.sh
+          bash -n tools/live-integrations-preflight.sh
           bash -n tests/reproduce-clean-v1.8.2.sh
           php -l tests/rack-free-u-regression.php
           php -l tests/rack-backend-regression.php
