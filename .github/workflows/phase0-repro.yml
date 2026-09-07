@@ -1,17 +1,17 @@
-name: Phase 0 Reproducibility
+name: Reproducibility and Rack Regression
 
 on:
   pull_request:
     branches: [master]
   push:
     branches:
-      - phase0/runtime-normalization
+      - phase1/rack-regression-tests
 
 permissions:
   contents: read
 
 jobs:
-  reproduce:
+  reproduce-and-test:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -23,11 +23,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y php-cli
 
-      - name: Validate shell syntax
+      - name: Validate test and installer syntax
         run: |
           bash -n installer/install-clean-v1.8.2.sh
           bash -n installer/verify.sh
           bash -n tests/reproduce-clean-v1.8.2.sh
+          php -l tests/rack-free-u-regression.php
 
-      - name: Reproduce from official phpIPAM 1.8.2
+      - name: Reproduce from official phpIPAM 1.8.2 and run rack regressions
         run: bash tests/reproduce-clean-v1.8.2.sh

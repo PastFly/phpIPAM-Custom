@@ -48,9 +48,11 @@ CSS_DARK="$TARGET/css/bootstrap/bootstrap-custom-dark.css"
 [[ -f "$DRAW_RACK" ]] || fail "missing draw_rack.php"
 [[ -f "$TOOLS_MENU" ]] || fail "missing tools-menu.php"
 
-# Normalized Rackspace keeps strict free-U support but removes superseded SVG ID injection.
+# Normalized Rackspace keeps strict free-U support, mirrors Full Depth rack-content
+# occupancy server-side, and removes superseded SVG ID injection.
 grep -Fq 'public function free_u($rack, $rack_devices, $rack_contents, $current_device = null, $force_no_overlap = false)' "$RACKSPACE" || fail "force_no_overlap signature missing"
 grep -Fq 'if ($force_no_overlap || !$this->settings->rackAllowOverlap) {' "$RACKSPACE" || fail "strict free-U guard missing"
+grep -Fq 'PHPIPAM_CUSTOM_DEEP_RACK_CONTENT_OVERLAP' "$RACKSPACE" || fail "Full Depth rack-content backend overlap protection missing"
 ! grep -Fq 'RACK_V333_DEVICE_ID' "$RACKSPACE" || fail "superseded RACK_V333_DEVICE_ID still present in Rackspace"
 ! grep -Fq 'data-device-id' "$RACKSPACE" || fail "superseded SVG data-device-id still present"
 
@@ -102,4 +104,4 @@ grep -Fq 'rack_v2_json_error' "$TARGET/app/admin/racks/edit-rack-devices-free-u.
 
 echo "Behavioral source invariants: OK"
 echo
-echo "VERIFY_OK: normalized phpIPAM Custom source passes Phase 0 static verification."
+echo "VERIFY_OK: normalized phpIPAM Custom source passes static verification."

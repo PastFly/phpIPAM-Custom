@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Phase 0 reproducibility gate.
+# Clean reproducibility gate.
 # Downloads the official phpIPAM 1.8.2 release into /tmp, verifies its SHA256,
-# installs the normalized overlay into that throw-away tree, then runs verify.sh.
-# The live /var/www/html tree is never touched.
+# installs the normalized overlay into that throw-away tree, runs verify.sh,
+# then executes Phase 1 rack regression tests against the actual normalized
+# source. The live /var/www/html tree is never touched.
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STAMP="$(date +%Y%m%d-%H%M%S)"
@@ -16,12 +17,16 @@ EXPECTED_SHA256="12745b9cc9f937b219043cc39ee6533b95f9e8ed8b4381ea6f6d96005487bf8
 
 mkdir -p "$WORK" "$EXTRACT"
 
-echo "Phase 0 clean reproduction"
+echo "phpIPAM Custom clean reproduction"
 echo "  work: $WORK"
 
 bash -n "$REPO_ROOT/installer/install-clean-v1.8.2.sh"
 bash -n "$REPO_ROOT/installer/verify.sh"
-echo "  installer shell syntax: OK"
+php -l "$REPO_ROOT/tests/rack-free-u-regression.php" >/dev/null
+php -l "$REPO_ROOT/tests/rack-backend-regression.php" >/dev/null
+php -l "$REPO_ROOT/tests/rack-endpoint-security-regression.php" >/dev/null
+php -l "$REPO_ROOT/tests/rack-dnd-source-regression.php" >/dev/null
+echo "  installer/test syntax: OK"
 
 if command -v curl >/dev/null 2>&1; then
     curl -fL --retry 3 --connect-timeout 15 -o "$ARCHIVE" "$URL"
@@ -59,7 +64,7 @@ fi
 
 echo "  pristine tree: $TARGET"
 
-# Record pristine hashes for the three files normalized as deltas.
+# Record pristine hashes for normalized delta/upstream-preserved files.
 for rel in \
     functions/classes/class.Rackspace.php \
     css/bootstrap/bootstrap-custom.css \
@@ -72,7 +77,13 @@ done
 bash "$REPO_ROOT/installer/install-clean-v1.8.2.sh" "$TARGET"
 bash "$REPO_ROOT/installer/verify.sh" "$TARGET"
 
+# Phase 1: exercise actual normalized rack placement methods and source guards.
+php "$REPO_ROOT/tests/rack-free-u-regression.php" "$TARGET"
+php "$REPO_ROOT/tests/rack-backend-regression.php" "$TARGET"
+php "$REPO_ROOT/tests/rack-endpoint-security-regression.php" "$TARGET"
+php "$REPO_ROOT/tests/rack-dnd-source-regression.php" "$TARGET"
+
 echo
-echo "REPRODUCE_OK: clean official phpIPAM 1.8.2 -> normalized phpIPAM Custom static reproduction passed."
+echo "REPRODUCE_OK: clean official phpIPAM 1.8.2 -> normalized phpIPAM Custom reproduction and rack regressions passed."
 echo "Throw-away test tree retained at: $WORK"
 echo "Delete it when no longer needed: rm -rf '$WORK'"

@@ -160,13 +160,35 @@ new_sig = "public function free_u($rack, $rack_devices, $rack_contents, $current
 old_guard = "if (!$this->settings->rackAllowOverlap) {"
 new_guard = "if ($force_no_overlap || !$this->settings->rackAllowOverlap) {"
 
+old_content_overlap = """\t\t\tforeach (range($c->rack_start,$c->rack_start + $c->rack_size - 1) as $ru) {
+\t\t\t\tif (in_array($ru,$request)) return True;
+\t\t\t}
+"""
+new_content_overlap = old_content_overlap + """\t\t\t// PHPIPAM_CUSTOM_DEEP_RACK_CONTENT_OVERLAP
+\t\t\t// Full Depth rack content occupies the same physical U on both sides.
+\t\t\tif ($c->rack_deep && $c->rack_start>$rack->size) {
+\t\t\t\tforeach (range($c->rack_start - $rack->size,$c->rack_start - $rack->size + $c->rack_size - 1) as $ru) {
+\t\t\t\t\tif (in_array($ru,$request)) return True;
+\t\t\t\t}
+\t\t\t} elseif ($c->rack_deep) {
+\t\t\t\tforeach (range($c->rack_start + $rack->size,$c->rack_start + $rack->size + $c->rack_size - 1) as $ru) {
+\t\t\t\t\tif (in_array($ru,$request)) return True;
+\t\t\t\t}
+\t\t\t}
+"""
+
 if s.count(old_sig) != 1:
     raise SystemExit("Rackspace free_u signature precondition mismatch")
 if s.count(old_guard) != 1:
     raise SystemExit("Rackspace overlap guard precondition mismatch")
+if s.count(old_content_overlap) != 1:
+    raise SystemExit("Rackspace rack-content overlap precondition mismatch")
+if "PHPIPAM_CUSTOM_DEEP_RACK_CONTENT_OVERLAP" in s:
+    raise SystemExit("Rackspace deep rack-content overlap patch already present")
 
 s = s.replace(old_sig, new_sig, 1)
 s = s.replace(old_guard, new_guard, 1)
+s = s.replace(old_content_overlap, new_content_overlap, 1)
 
 # Deliberately do NOT reintroduce superseded RACK_V333_DEVICE_ID/data-device-id code.
 if "RACK_V333_DEVICE_ID" in s or "data-device-id" in s:
