@@ -2,7 +2,32 @@
 
 Current live baseline: phpIPAM 1.8.2 on Linux, application root `/var/www/html`.
 
-The live server is the current authoritative runtime. It was assembled incrementally through tested hotfix installers. Exact customized source files have not yet been imported into this repository, so this repository is not yet a byte-for-byte representation of the server.
+## Exact runtime capture
+
+An exact source-surface capture was taken from the live server on 2026-09-07 at 15:21:38 +03.
+
+- archive: `phpipam-custom-runtime-20260907-152138.tar.gz`
+- archive SHA256: `b01ab9b650d6ff312b244f1591d2c019f311eb58cf39c2094f5cbdb35c0ef64f`
+- captured files: 19
+- missing expected files: 0
+- PHP CLI: 8.2.30
+- all captured PHP files passed `php -l`
+- live server is not a Git worktree
+
+The binary archive is not committed. Exact file hashes and classification are stored in `snapshots/20260907-152138/MANIFEST.tsv`; source is handled as plain UTF-8.
+
+## Upstream baseline
+
+Official baseline: signed phpipam/phpipam tag `v1.8.2`, commit `6e11367e5f43eb9f50bde7f7b25bf65fc53d844d`.
+
+Current capture classification:
+
+- 12 modified upstream files;
+- 1 captured upstream file is unchanged: `app/tools/tools-menu.php`;
+- 6 custom new files;
+- normalized overlay candidate: 18 files before dead-code cleanup.
+
+The old server hotfix backup directories were deleted after the exact runtime capture. They are no longer required for normalization; pristine source is taken from the official v1.8.2 Git state.
 
 ## Runtime-verified behavior
 
@@ -16,8 +41,13 @@ The live server is the current authoritative runtime. It was assembled increment
 - cross-rack device data is loaded live from backend using exact visible rack IDs;
 - long translated sidebar labels wrap correctly.
 
-See `PastFly/phpIPAM-Custom-Continuity/CURRENT_BUILD.md` and `VERIFIED_HISTORY.md` for the exact history/evidence boundary.
+## Normalization work now in progress
 
-## Next build task
+1. Preserve exact runtime capture metadata.
+2. Import the effective runtime source surface to the feature branch.
+3. Remove superseded/dead experimental residue without changing accepted behavior.
+4. Produce an 18-file-or-smaller overlay on top of pristine v1.8.2.
+5. Build deterministic `install.sh`, `verify.sh`, and rollback workflow.
+6. Validate on a disposable v1.8.2 tree before proposing merge to `master`.
 
-Capture exact modified runtime files, compare them with pristine phpIPAM 1.8.2, commit the consolidated source diff here, and produce one clean verified installation path.
+Known dead-code candidate: `RACK_V333_DEVICE_ID` plus SVG no-cache headers were introduced for explicit SVG identity but are no longer required after V3.1.4/V3.3.5 switched to occupied-U hit testing.
