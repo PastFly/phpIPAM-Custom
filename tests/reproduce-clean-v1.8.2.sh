@@ -25,6 +25,7 @@ bash -n "$REPO_ROOT/installer/verify.sh"
 php -l "$REPO_ROOT/tests/rack-free-u-regression.php" >/dev/null
 php -l "$REPO_ROOT/tests/rack-backend-regression.php" >/dev/null
 php -l "$REPO_ROOT/tests/rack-endpoint-security-regression.php" >/dev/null
+php -l "$REPO_ROOT/tests/rack-dnd-source-regression.php" >/dev/null
 echo "  installer/test syntax: OK"
 
 if command -v curl >/dev/null 2>&1; then
@@ -76,10 +77,11 @@ done
 bash "$REPO_ROOT/installer/install-clean-v1.8.2.sh" "$TARGET"
 bash "$REPO_ROOT/installer/verify.sh" "$TARGET"
 
-# Phase 1: exercise actual normalized rack placement methods and endpoint guards.
+# Phase 1: exercise actual normalized rack placement methods and source guards.
 php "$REPO_ROOT/tests/rack-free-u-regression.php" "$TARGET"
 php "$REPO_ROOT/tests/rack-backend-regression.php" "$TARGET"
 php "$REPO_ROOT/tests/rack-endpoint-security-regression.php" "$TARGET"
+php "$REPO_ROOT/tests/rack-dnd-source-regression.php" "$TARGET"
 
 echo
 echo "REPRODUCE_OK: clean official phpIPAM 1.8.2 -> normalized phpIPAM Custom reproduction and rack regressions passed."
