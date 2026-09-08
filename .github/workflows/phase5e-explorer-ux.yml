@@ -1,0 +1,48 @@
+name: Phase 5E VMware Explorer UX Regression
+
+on:
+  push:
+    branches:
+      - phase5e/vmware-explorer-ux
+  pull_request:
+    branches:
+      - phase5d/vmware-topology-details
+    paths:
+      - 'design/PHASE5E_VMWARE_EXPLORER_UX.md'
+      - 'layers/phase5e/**'
+      - 'tests/vmware-vcenter-phase5e-ux-regression.sh'
+      - '.github/workflows/phase5e-explorer-ux.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  phase5e-ux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install PHP CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y php-cli php-curl
+
+      - name: Validate syntax
+        run: |
+          php -l layers/phase5e/app/integrations/index.php
+          php -l layers/phase5e/app/integrations/registry.php
+          php -l layers/phase5e/app/integrations/vmware/index.php
+          php -l layers/phase5e/app/integrations/vmware/workspace-result.php
+          php -l layers/phase5e/app/integrations/vmware/vm-card-result.php
+          bash -n tests/vmware-vcenter-phase5e-ux-regression.sh
+
+      - name: Run Phase 5E UX/security regression
+        run: bash tests/vmware-vcenter-phase5e-ux-regression.sh
+
+      - name: Re-run inherited Phase 5D model/UI regression
+        run: |
+          php tests/vmware-vcenter-explorer-model-regression.php
+          php tests/vmware-vcenter-explorer-ui-regression.php
+          bash tests/vmware-vcenter-phase5d-installer-source-regression.sh
