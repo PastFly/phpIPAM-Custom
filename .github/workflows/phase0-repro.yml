@@ -51,6 +51,7 @@ jobs:
           bash -n installer/verify-vmware-vcenter-phase5b-repository.sh
           bash -n tools/live-integrations-preflight.sh
           bash -n tools/live-vmware-phase5a-preflight.sh
+          bash -n tools/live-vmware-phase5b-preflight.sh
           bash -n tests/reproduce-clean-v1.8.2.sh
           bash -n tests/live-integrations-updater-regression.sh
           bash -n tests/phase5b-migration-regression.sh
