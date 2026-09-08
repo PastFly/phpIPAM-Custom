@@ -3,9 +3,8 @@ set -euo pipefail
 
 # Clean reproducibility gate.
 # Downloads the official phpIPAM 1.8.2 release into /tmp, verifies its SHA256,
-# installs the normalized Phase 0/1 build, the Phase 4 Integrations framework
-# and the Phase 5A transient VMware vCenter connection-test layer into that
-# throw-away tree. It runs all verifiers and regression suites. The live
+# installs and verifies each historical layer in order, then installs the
+# Phase 5A transient VMware vCenter connection-test layer. The live
 # /var/www/html tree is never touched.
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -96,14 +95,10 @@ bash "$REPO_ROOT/installer/install-clean-v1.8.2.sh" "$TARGET"
 # Phase 4 Integrations shell layered on the normalized build.
 bash "$REPO_ROOT/installer/install-integrations-framework-v1.sh" "$TARGET"
 
-# Phase 5A transient VMware connection-test layer. No network request occurs
-# during installation; executable tests use an injected fake transport.
-bash "$REPO_ROOT/installer/install-vmware-vcenter-phase5a.sh" "$TARGET"
-
-# Verify all layers.
+# Verify Phase 0/1 + Phase 4 before the next layer intentionally replaces two
+# Phase 4 source files.
 bash "$REPO_ROOT/installer/verify.sh" "$TARGET"
 bash "$REPO_ROOT/installer/verify-integrations-framework-v1.sh" "$TARGET"
-bash "$REPO_ROOT/installer/verify-vmware-vcenter-phase5a.sh" "$TARGET"
 
 # Phase 1: exercise actual normalized rack placement methods and source guards.
 php "$REPO_ROOT/tests/rack-free-u-regression.php" "$TARGET"
@@ -111,11 +106,13 @@ php "$REPO_ROOT/tests/rack-backend-regression.php" "$TARGET"
 php "$REPO_ROOT/tests/rack-endpoint-security-regression.php" "$TARGET"
 php "$REPO_ROOT/tests/rack-dnd-source-regression.php" "$TARGET"
 
-# Phase 4: lock Integrations routing/authentication/registry semantics.
+# Phase 4 historical contract is checked against the exact Phase 4 state.
 php "$REPO_ROOT/tests/integrations-framework-regression.php" "$TARGET"
 
-# Phase 5A: execute VMware API negotiation/security behavior without a real
-# vCenter and without any credentials leaving the test process.
+# Phase 5A transient VMware connection-test layer. No real network request
+# occurs during installation or regression testing.
+bash "$REPO_ROOT/installer/install-vmware-vcenter-phase5a.sh" "$TARGET"
+bash "$REPO_ROOT/installer/verify-vmware-vcenter-phase5a.sh" "$TARGET"
 php "$REPO_ROOT/tests/vmware-vcenter-connector-regression.php" "$TARGET"
 
 echo
