@@ -8,6 +8,7 @@ on:
       - phase1/rack-regression-tests
       - phase4/integrations-framework
       - phase5/vmware-vcenter-readonly
+      - phase5b/vcenter-secure-config
 
 permissions:
   contents: read
@@ -16,14 +17,27 @@ jobs:
   reproduce-and-test:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: phase5b-ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mariadb-admin ping -h 127.0.0.1 -uroot -pphase5b-ci --silent"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install PHP CLI
+      - name: Install PHP CLI and Phase 5B DB client
         run: |
           sudo apt-get update
-          sudo apt-get install -y php-cli
+          sudo apt-get install -y php-cli php-mysql mariadb-client
 
       - name: Validate test and installer syntax
         run: |
@@ -34,16 +48,19 @@ jobs:
           bash -n installer/install-live-integrations-exact-20260907.sh
           bash -n installer/install-vmware-vcenter-phase5a.sh
           bash -n installer/verify-vmware-vcenter-phase5a.sh
+          bash -n installer/verify-vmware-vcenter-phase5b-repository.sh
           bash -n tools/live-integrations-preflight.sh
           bash -n tools/live-vmware-phase5a-preflight.sh
           bash -n tests/reproduce-clean-v1.8.2.sh
           bash -n tests/live-integrations-updater-regression.sh
+          bash -n tests/phase5b-migration-regression.sh
           php -l tests/rack-free-u-regression.php
           php -l tests/rack-backend-regression.php
           php -l tests/rack-endpoint-security-regression.php
           php -l tests/rack-dnd-source-regression.php
           php -l tests/integrations-framework-regression.php
           php -l tests/vmware-vcenter-connector-regression.php
+          php -l tests/phase5b-secure-config-regression.php
           php -l src/app/integrations/registry.php
           php -l src/app/integrations/index.php
           php -l src/app/admin/integrations/index.php
@@ -51,6 +68,22 @@ jobs:
           php -l layers/phase5/app/integrations/registry.php
           php -l layers/phase5/app/admin/integrations/index.php
           php -l layers/phase5/app/admin/integrations/vmware-test-result.php
+          php -l layers/phase5b/functions/classes/class.IntegrationSecretCipher.php
+          php -l layers/phase5b/functions/classes/class.IntegrationVmwareVcenterConfigStore.php
+
+      - name: Verify Phase 5B repository security contract
+        run: bash installer/verify-vmware-vcenter-phase5b-repository.sh
+
+      - name: Run Phase 5B secret/config regression
+        run: php tests/phase5b-secure-config-regression.php
+
+      - name: Run Phase 5B disposable MariaDB migration/rollback regression
+        env:
+          PHASE5B_DB_HOST: 127.0.0.1
+          PHASE5B_DB_PORT: 3306
+          PHASE5B_DB_USER: root
+          PHASE5B_DB_PASSWORD: phase5b-ci
+        run: bash tests/phase5b-migration-regression.sh
 
       - name: Reproduce from official phpIPAM 1.8.2 and run regressions
         run: bash tests/reproduce-clean-v1.8.2.sh
