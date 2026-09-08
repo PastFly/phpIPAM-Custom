@@ -90,7 +90,7 @@ grep -Fq '$guestLimit > 250' "$TARGET/$RESULT_REL" || fail "Phase 5C interactive
 grep -Fq 'read_core_inventory(' "$TARGET/$RESULT_REL" || fail "Phase 5C core inventory call missing"
 grep -Fq 'read_vm_interfaces(' "$TARGET/$RESULT_REL" || fail "Phase 5C guest network call missing"
 grep -Fq 'read_projection()' "$TARGET/$RESULT_REL" || fail "Phase 5C phpIPAM projection call missing"
-grep -Fq '->reconcile(' "$TARGET/$RESULT_REL" || fail "Phase 5C advisory reconciliation call missing"
+grep -Fq -- '->reconcile(' "$TARGET/$RESULT_REL" || fail "Phase 5C advisory reconciliation call missing"
 grep -Fq 'Sensitive exception details were suppressed' "$TARGET/$RESULT_REL" || fail "Phase 5C sanitized exception response missing"
 grep -Fq 'phase5c_inventory_zero_secret' "$TARGET/$RESULT_REL" || fail "Phase 5C secret zeroing missing"
 
