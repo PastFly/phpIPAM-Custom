@@ -49,12 +49,14 @@ grep -Fq 'IntegrationVmwareVcenterConfigStore::PROVIDER' "$TARGET/$ACTION_REL" |
 grep -Fq 'Sensitive exception details were suppressed.' "$TARGET/$ACTION_REL" || fail "generic exception suppression response missing"
 
 # The persistent UI must never render secret envelope/key material fields and
-# must preserve the transient password-clear behavior.
+# must preserve the transient password-clear behavior. Escape '$' in these
+# double-quoted shell literals so jQuery selectors cannot be interpreted as
+# shell command substitution.
 if grep -Eq 'secret_envelope|secret_key_id' "$TARGET/$INDEX_REL"; then
     fail "Administration UI references secret database fields"
 fi
-grep -Fq "$('#vmware-config-password').val('');" "$TARGET/$INDEX_REL" || fail "persistent password field clear behavior missing"
-grep -Fq "$('#vmware-vcenter-password').val('');" "$TARGET/$INDEX_REL" || fail "transient password field clear behavior missing"
+grep -Fq "\$('#vmware-config-password').val('');" "$TARGET/$INDEX_REL" || fail "persistent password field clear behavior missing"
+grep -Fq "\$('#vmware-vcenter-password').val('');" "$TARGET/$INDEX_REL" || fail "transient password field clear behavior missing"
 grep -Fq 'allow_insecure_tls' "$TARGET/$INDEX_REL" || fail "explicit insecure TLS acknowledgement UI missing"
 grep -Fq 'verify_tls' "$TARGET/$INDEX_REL" || fail "TLS verification control missing"
 
