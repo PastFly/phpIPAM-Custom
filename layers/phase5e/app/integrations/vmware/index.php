@@ -15,6 +15,7 @@ if (!$User->is_admin(false)) {
 }
 
 // PHPIPAM_CUSTOM_VMWARE_PHASE5E_WORKSPACE_V1
+// PHPIPAM_CUSTOM_VMWARE_PHASE5E1_TLS_FROM_CONNECTOR_SETTINGS_V1
 require_once(dirname(__FILE__) . "/../../../functions/classes/class.IntegrationVmwareVcenter.php");
 require_once(dirname(__FILE__) . "/../../../functions/classes/class.IntegrationSecretCipher.php");
 require_once(dirname(__FILE__) . "/../../../functions/classes/class.IntegrationVmwareVcenterConfigStore.php");
@@ -76,7 +77,6 @@ $phase5eCsrf = $User->Crypto->csrf_cookie('create', 'integration_vmware_vcenter_
     <?php } else { ?>
         <form id="phase5e-workspace-form" class="phase5e-toolbar" autocomplete="off">
             <input type="hidden" name="csrf_cookie" value="<?php print phase5e_workspace_h($phase5eCsrf); ?>">
-            <input type="hidden" name="allow_insecure_tls" id="phase5e-allow-insecure" value="0">
             <input type="hidden" name="view" id="phase5e-view" value="overview">
             <input type="hidden" name="scope" id="phase5e-scope" value="">
             <input type="hidden" name="scope_id" id="phase5e-scope-id" value="">
@@ -122,11 +122,9 @@ $phase5eCsrf = $User->Crypto->csrf_cookie('create', 'integration_vmware_vcenter_
                     </div>
 
                     <div class="alert alert-warning" id="phase5e-insecure-row" style="display:none; margin-bottom:0;">
-                        <label style="font-weight:normal; margin-bottom:0;">
-                            <input type="checkbox" id="phase5e-insecure-ack">
-                            Я явно разрешаю этот ручной read-only Explorer с отключённой TLS verification.
-                        </label>
-                        <div class="small">Это не разрешает scheduler. Для автоматизации по-прежнему требуется исправить CA trust и включить TLS verification.</div>
+                        <i class="fa fa-warning"></i>
+                        TLS verification отключена в сохранённых настройках этого connector. Ручной read-only Explorer использует эту настройку без дополнительного подтверждения.
+                        <div class="small">Scheduler по-прежнему запрещён, пока CA trust не исправлен и TLS verification не включена.</div>
                     </div>
                 </div>
             </div>
@@ -172,18 +170,9 @@ $phase5eCsrf = $User->Crypto->csrf_cookie('create', 'integration_vmware_vcenter_
 <?php if ($phase5eStorageReady && count($phase5eConfigs) > 0) { ?>
 <script type="text/javascript">
 $(document).ready(function () {
-    function phase5eSyncTls() {
+    function phase5eSyncTlsNotice() {
         var verifyTls = $('#phase5e-config option:selected').attr('data-verify-tls') === '1';
-        if (verifyTls) {
-            $('#phase5e-insecure-ack').prop('checked', false);
-        }
         $('#phase5e-insecure-row').toggle(!verifyTls);
-        $('#phase5e-allow-insecure').val(!verifyTls && $('#phase5e-insecure-ack').is(':checked') ? '1' : '0');
-        return verifyTls || $('#phase5e-insecure-ack').is(':checked');
-    }
-
-    function phase5eShowBlocked() {
-        $('#phase5e-client-warning').html('<div class="alert alert-warning">Для TLS INSECURE connector требуется явное подтверждение ручного read-only запуска.</div>');
     }
 
     function phase5eSetView(view) {
@@ -197,10 +186,7 @@ $(document).ready(function () {
 
     function phase5eRunWorkspace() {
         $('#phase5e-client-warning').empty();
-        if (!phase5eSyncTls()) {
-            phase5eShowBlocked();
-            return;
-        }
+        phase5eSyncTlsNotice();
         var $button = $('#phase5e-refresh');
         $button.prop('disabled', true);
         $('#phase5e-list-result').html('<div class="alert alert-info"><i class="fa fa-spinner fa-spin"></i> Чтение topology/datastore inventory...</div>');
@@ -227,10 +213,7 @@ $(document).ready(function () {
     }
 
     function phase5eLoadVm(vmId) {
-        if (!phase5eSyncTls()) {
-            phase5eShowBlocked();
-            return;
-        }
+        phase5eSyncTlsNotice();
         $('#phase5e-detail-result').html('<div class="alert alert-info"><i class="fa fa-spinner fa-spin"></i> Чтение VM card...</div>');
         $.ajax({
             url: 'app/integrations/vmware/vm-card-result.php',
@@ -238,7 +221,6 @@ $(document).ready(function () {
             data: {
                 csrf_cookie: $('#phase5e-workspace-form input[name=csrf_cookie]').val(),
                 config_id: $('#phase5e-config').val(),
-                allow_insecure_tls: $('#phase5e-allow-insecure').val(),
                 vm_id: vmId,
                 include_tags: '1'
             },
@@ -251,14 +233,12 @@ $(document).ready(function () {
     }
 
     $('#phase5e-config').on('change', function () {
-        $('#phase5e-insecure-ack').prop('checked', false);
         $('#phase5e-scope, #phase5e-scope-id').val('');
         $('#phase5e-page').val('1');
         $('#phase5e-detail-result').html('<div class="text-muted phase5e-detail-empty">Выберите VM после загрузки нового connector.</div>');
-        phase5eSyncTls();
+        phase5eSyncTlsNotice();
     });
 
-    $('#phase5e-insecure-ack').on('change', phase5eSyncTls);
     $('#phase5e-search, #phase5e-page-size').on('change', function () { $('#phase5e-page').val('1'); });
 
     $('#phase5e-workspace-form').on('submit', function (event) {
@@ -307,7 +287,7 @@ $(document).ready(function () {
         phase5eRunWorkspace();
     });
 
-    phase5eSyncTls();
+    phase5eSyncTlsNotice();
 });
 </script>
 <?php } ?>
