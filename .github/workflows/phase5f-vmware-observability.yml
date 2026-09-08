@@ -35,10 +35,28 @@ jobs:
       - name: Validate syntax
         run: |
           php -l layers/phase5f/functions/classes/class.IntegrationVmwareVcenterSoapReadOnly.php
+          php -l layers/phase5f/functions/classes/class.IntegrationVmwareVcenterPerformance.php
           php -l tests/vmware-vcenter-phase5f-soap-host-summary-regression.php
+          php -l tests/vmware-vcenter-phase5f-performance-regression.php
 
       - name: Run SOAP host-summary regression
         run: php tests/vmware-vcenter-phase5f-soap-host-summary-regression.php
+
+      - name: Run PerformanceManager regression
+        run: php tests/vmware-vcenter-phase5f-performance-regression.php
+
+      - name: Enforce dynamic counter discovery
+        run: |
+          grep -Fq '<pathSet>perfCounter</pathSet>' layers/phase5f/functions/classes/class.IntegrationVmwareVcenterPerformance.php
+          grep -Fq "cpu.usage.average" layers/phase5f/functions/classes/class.IntegrationVmwareVcenterPerformance.php
+          grep -Fq "mem.usage.average" layers/phase5f/functions/classes/class.IntegrationVmwareVcenterPerformance.php
+          grep -Fq '<QueryPerfProviderSummary' layers/phase5f/functions/classes/class.IntegrationVmwareVcenterPerformance.php
+          grep -Fq '<QueryAvailablePerfMetric' layers/phase5f/functions/classes/class.IntegrationVmwareVcenterPerformance.php
+          grep -Fq '<QueryPerf ' layers/phase5f/functions/classes/class.IntegrationVmwareVcenterPerformance.php
+          if grep -Eq "counterId[^\n]*(=|=>)[[:space:]]*[0-9]+" layers/phase5f/functions/classes/class.IntegrationVmwareVcenterPerformance.php; then
+            echo 'Hardcoded numeric performance counter ID detected' >&2
+            exit 1
+          fi
 
       - name: Enforce read-only source boundary
         run: |
