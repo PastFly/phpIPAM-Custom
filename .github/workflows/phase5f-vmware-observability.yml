@@ -38,6 +38,7 @@ jobs:
           php -l layers/phase5f/functions/classes/class.IntegrationVmwareVcenterPerformance.php
           php -l tests/vmware-vcenter-phase5f-soap-host-summary-regression.php
           php -l tests/vmware-vcenter-phase5f-performance-regression.php
+          php -l tools/live-vmware-phase5f-observability-preview.php
 
       - name: Run SOAP host-summary regression
         run: php tests/vmware-vcenter-phase5f-soap-host-summary-regression.php
@@ -58,9 +59,22 @@ jobs:
             exit 1
           fi
 
+      - name: Enforce live preview safety contract
+        run: |
+          grep -Fq 'IntegrationVmwareVcenter();' tools/live-vmware-phase5f-observability-preview.php
+          grep -Fq 'normalize_endpoint($runtime' tools/live-vmware-phase5f-observability-preview.php
+          grep -Fq 'PHASE5F_PREVIEW_PERSISTENCE=0' tools/live-vmware-phase5f-observability-preview.php
+          grep -Fq 'PHASE5F_PREVIEW_VCENTER_MUTATIONS=0' tools/live-vmware-phase5f-observability-preview.php
+          grep -Fq "--host-name is required; the preview never guesses a production Host" tools/live-vmware-phase5f-observability-preview.php
+          grep -Fq 'max-samples must be between 2 and 60 for the live preview' tools/live-vmware-phase5f-observability-preview.php
+          if grep -Eqi '\b(INSERT|UPDATE|DELETE|REPLACE|ALTER|DROP|TRUNCATE)[[:space:]]' tools/live-vmware-phase5f-observability-preview.php; then
+            echo 'SQL mutation verb in Phase 5F live preview' >&2
+            exit 1
+          fi
+
       - name: Enforce read-only source boundary
         run: |
-          if grep -REni '\b(ReconfigVM_Task|PowerOnVM_Task|PowerOffVM_Task|ResetVM_Task|ShutdownGuest|RebootGuest|EnterMaintenanceMode_Task|ExitMaintenanceMode_Task|Destroy_Task|CreateVM_Task|RelocateVM_Task|MigrateVM_Task|UpdateOptions|UpdateConfig|CreatePerfInterval|RemovePerfInterval|UpdatePerfInterval)\b' layers/phase5f; then
+          if grep -REni '\b(ReconfigVM_Task|PowerOnVM_Task|PowerOffVM_Task|ResetVM_Task|ShutdownGuest|RebootGuest|EnterMaintenanceMode_Task|ExitMaintenanceMode_Task|Destroy_Task|CreateVM_Task|RelocateVM_Task|MigrateVM_Task|UpdateOptions|UpdateConfig|CreatePerfInterval|RemovePerfInterval|UpdatePerfInterval)\b' layers/phase5f tools/live-vmware-phase5f-observability-preview.php; then
             echo 'Forbidden VMware mutation method in Phase 5F' >&2
             exit 1
           fi
