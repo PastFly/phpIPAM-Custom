@@ -79,7 +79,7 @@ $transport = function ($method, $url, $headers, $username, $password, $verifyTls
     if ($method === 'DELETE' && substr($url, -12) === '/api/session') {
         return array('status' => 204, 'body' => '');
     }
-    if ($method === 'GET' && substr($url, -19) === '/api/vcenter/vm/vm-501') {
+    if ($method === 'GET' && parse_url($url, PHP_URL_PATH) === '/api/vcenter/vm/vm-501') {
         return array('status' => 200, 'body' => json_encode(array(
             'guest_os' => 'RHEL_8_64',
             'name' => 'app-01',
