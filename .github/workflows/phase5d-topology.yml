@@ -11,6 +11,7 @@ on:
       - 'layers/phase5d/**'
       - 'tests/vmware-vcenter-topology-regression.php'
       - 'tests/vmware-vcenter-datastore-regression.php'
+      - 'tests/vmware-vcenter-datastore-resolver-regression.php'
       - 'tests/vmware-vcenter-vm-detail-regression.php'
       - '.github/workflows/phase5d-topology.yml'
 
@@ -34,9 +35,11 @@ jobs:
         run: |
           php -l layers/phase5d/functions/classes/class.IntegrationVmwareVcenterTopology.php
           php -l layers/phase5d/functions/classes/class.IntegrationVmwareVcenterDatastore.php
+          php -l layers/phase5d/functions/classes/class.IntegrationVmwareVcenterDatastoreResolver.php
           php -l layers/phase5d/functions/classes/class.IntegrationVmwareVcenterVmDetail.php
           php -l tests/vmware-vcenter-topology-regression.php
           php -l tests/vmware-vcenter-datastore-regression.php
+          php -l tests/vmware-vcenter-datastore-resolver-regression.php
           php -l tests/vmware-vcenter-vm-detail-regression.php
 
       - name: Run Phase 5D topology regression
@@ -44,6 +47,9 @@ jobs:
 
       - name: Run Phase 5D datastore regression
         run: php tests/vmware-vcenter-datastore-regression.php
+
+      - name: Run Phase 5D datastore correlation regression
+        run: php tests/vmware-vcenter-datastore-resolver-regression.php
 
       - name: Run Phase 5D VM detail regression
         run: php tests/vmware-vcenter-vm-detail-regression.php
