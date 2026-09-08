@@ -63,6 +63,7 @@ jobs:
           bash -n tests/phase5b-migration-regression.sh
           bash -n tests/phase5b3-foundation-deployment-regression.sh
           bash -n tests/phase5b3-ui-deployment-regression.sh
+          php -l tools/live-vmware-phase5c-preview.php
           php -l tests/rack-free-u-regression.php
           php -l tests/rack-backend-regression.php
           php -l tests/rack-endpoint-security-regression.php
@@ -75,6 +76,7 @@ jobs:
           php -l tests/vmware-vcenter-core-inventory-regression.php
           php -l tests/vmware-vcenter-guest-network-regression.php
           php -l tests/vmware-vcenter-reconciliation-regression.php
+          php -l tests/vmware-vcenter-live-preview-regression.php
           php -l src/app/integrations/registry.php
           php -l src/app/integrations/index.php
           php -l src/app/admin/integrations/index.php
@@ -134,6 +136,9 @@ jobs:
 
       - name: Run Phase 5C advisory reconciliation regression
         run: php tests/vmware-vcenter-reconciliation-regression.php
+
+      - name: Run Phase 5C live preview safety regression
+        run: php tests/vmware-vcenter-live-preview-regression.php
 
       - name: Reproduce from official phpIPAM 1.8.2 and run regressions
         run: bash tests/reproduce-clean-v1.8.2.sh
