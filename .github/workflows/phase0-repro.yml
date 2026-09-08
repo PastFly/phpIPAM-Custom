@@ -77,6 +77,8 @@ jobs:
           php -l tests/vmware-vcenter-guest-network-regression.php
           php -l tests/vmware-vcenter-reconciliation-regression.php
           php -l tests/vmware-vcenter-live-preview-regression.php
+          php -l tests/phpipam-inventory-snapshot-regression.php
+          php -l tests/phase5c-admin-inventory-ui-regression.php
           php -l src/app/integrations/registry.php
           php -l src/app/integrations/index.php
           php -l src/app/admin/integrations/index.php
@@ -91,6 +93,9 @@ jobs:
           php -l layers/phase5c/functions/classes/class.IntegrationVmwareVcenterInventory.php
           php -l layers/phase5c/functions/classes/class.IntegrationVmwareVcenterGuestNetwork.php
           php -l layers/phase5c/functions/classes/class.IntegrationVmwareVcenterReconciler.php
+          php -l layers/phase5c/functions/classes/class.IntegrationPhpIpamInventorySnapshot.php
+          php -l layers/phase5c/app/admin/integrations/vmware-inventory-panel.php
+          php -l layers/phase5c/app/admin/integrations/vmware-inventory-result.php
 
       - name: Verify Phase 5B repository security contract
         run: bash installer/verify-vmware-vcenter-phase5b-repository.sh
@@ -139,6 +144,12 @@ jobs:
 
       - name: Run Phase 5C live preview safety regression
         run: php tests/vmware-vcenter-live-preview-regression.php
+
+      - name: Run Phase 5C phpIPAM read-only projection regression
+        run: php tests/phpipam-inventory-snapshot-regression.php
+
+      - name: Run Phase 5C Administration inventory UI security regression
+        run: php tests/phase5c-admin-inventory-ui-regression.php
 
       - name: Reproduce from official phpIPAM 1.8.2 and run regressions
         run: bash tests/reproduce-clean-v1.8.2.sh
