@@ -1,89 +1,107 @@
 # Current build
 
-Current live baseline: phpIPAM 1.8.2 on Linux, application root `/var/www/html`.
+Current upstream baseline: official phpIPAM 1.8.2, signed tag `v1.8.2`, commit `6e11367e5f43eb9f50bde7f7b25bf65fc53d844d`.
 
-## Exact runtime capture
+Current stable development `master`: `d5a14986f32df4796fd41e963fd0d7bc359afeff` (Phase 1 squash result).
 
-An exact source-surface capture was taken from the live server on 2026-09-07 at 15:21:38 +03.
+Active feature branch: `phase4/integrations-framework`.
 
-- archive: `phpipam-custom-runtime-20260907-152138.tar.gz`
-- archive SHA256: `b01ab9b650d6ff312b244f1591d2c019f311eb58cf39c2094f5cbdb35c0ef64f`
-- captured files: 19
-- missing expected files: 0
-- PHP CLI: 8.2.30
-- all captured PHP files passed `php -l`
-- live server is not a Git worktree
+## Exact runtime evidence
 
-The binary archive is evidence only and is not kept in the current branch tip. Exact file hashes and classification are stored in `snapshots/20260907-152138/MANIFEST.tsv`; durable source is plain UTF-8 plus deterministic deltas against upstream.
+The accepted rack/UI runtime source surface was captured from `/var/www/html` on 2026-09-07 at 15:21:38 +03.
 
-## Upstream baseline
+- capture ID: `20260907-152138`;
+- archive SHA256: `b01ab9b650d6ff312b244f1591d2c019f311eb58cf39c2094f5cbdb35c0ef64f`;
+- captured files: 19/19 expected;
+- missing expected files: 0;
+- PHP CLI on capture host: 8.2.30;
+- all captured PHP files passed `php -l`;
+- the live application tree is not a Git worktree.
 
-Official baseline: signed `phpipam/phpipam` tag `v1.8.2`, commit `6e11367e5f43eb9f50bde7f7b25bf65fc53d844d`.
+The binary archive is evidence only and is not durable source in the repository. Durable source is plain UTF-8 plus deterministic deltas and hashes.
 
-Official release archive used by the reproduction gate:
+## Normalized rack build — merged
 
-- `phpipam-v1.8.2.tgz`
-- SHA256: `12745b9cc9f937b219043cc39ee6533b95f9e8ed8b4381ea6f6d96005487bf8d`
+Phase 0 established a reproducible clean transformation from official phpIPAM 1.8.2 to the accepted rack/UI build. Phase 1 then added regression coverage and one backend correctness fix.
 
-Exact capture classification:
+Current merged behavior includes:
 
-- 12 modified upstream files;
-- 1 captured upstream file is unchanged: `app/tools/tools-menu.php`;
-- 6 custom new files.
+- strict occupied-U filtering in Add-to-rack, Create Device and Edit Device;
+- backend overlap/overflow rejection;
+- multi-U and Full Depth placement semantics;
+- native SVG single-rack drag-and-drop;
+- Front↔Rear moves in all directions;
+- accepted single-rack details/layout refinement;
+- same-Location rack-to-rack drag-and-drop on Rack scheme;
+- live rack/device data for cross-rack drag using exact visible rack IDs;
+- long translated sidebar label wrapping;
+- authoritative Full Depth `rackContents` overlap protection on both physical sides.
 
-## Normalized build
+Phase 1 regression gate contains 121 assertions, all passing:
 
-Phase 0 cleanup keeps the accepted behavior and removes obsolete cumulative hotfix residue.
+- `rack-free-u-regression.php`: 14;
+- `rack-backend-regression.php`: 22;
+- `rack-endpoint-security-regression.php`: 45;
+- `rack-dnd-source-regression.php`: 40.
 
-The normalized build consists of:
+Cross-Location rack drag/drop is intentionally not planned; manual Location relocation remains the supported workflow.
 
-- 14 exact UTF-8 source files retained from the verified runtime capture;
-- a deterministic Rackspace `force_no_overlap` delta against pristine v1.8.2;
-- deterministic sidebar wrapping CSS deltas for light and dark themes;
-- pristine upstream `app/tools/racks/draw_rack.php`;
-- pristine upstream `app/tools/tools-menu.php`;
-- no database schema changes.
+## Phase 4 — Integrations framework
 
-Superseded V3.3.3 SVG `data-device-id` / no-cache logic is deliberately not carried forward.
+Phase 4 introduces a separate Integrations product area without changing the database schema and without introducing credential storage yet.
 
-## Reproducibility verification
+Current feature-branch foundation provides:
 
-On 2026-09-07 the Owner ran `tests/reproduce-clean-v1.8.2.sh` from exact branch commit `81c0ed1a888113e6b6090d10de2bdb856c29b04e` on the phpIPAM server.
+- top-level `Integrations` route and navigation entry;
+- support for both dynamic and Static phpIPAM menu modes;
+- shared metadata-only connector registry;
+- `Administration → Integrations` overview guarded by administrator access;
+- connector cards for VMware vCenter, Hyper-V, Active Directory, DNS and DHCP;
+- VMware vCenter marked as the first implementation target;
+- every connector currently read-only;
+- no endpoint, username, password, token, private key or bind-secret fields;
+- no configuration form, POST handler or object write in the foundation shell.
 
-The test did **not** touch `/var/www/html`. It downloaded the official 1.8.2 release into `/tmp`, verified the release SHA256, applied the normalized installer to the disposable pristine tree and ran the verifier.
+Exact custom source files:
 
-Verified result:
+- `src/app/integrations/registry.php`;
+- `src/app/integrations/index.php`;
+- `src/app/admin/integrations/index.php`.
 
-- official release SHA256: OK;
-- pristine v1.8.2 target preconditions: OK;
+Deployment/reproduction artifacts:
+
+- `installer/install-integrations-framework-v1.sh` — fail-closed installer layered on the normalized Phase 1 tree, with backup and rollback;
+- `installer/verify-integrations-framework-v1.sh` — route/auth/registry/static verification;
+- `tests/integrations-framework-regression.php` — 31 regression assertions;
+- `tests/reproduce-clean-v1.8.2.sh` — now reproduces both the normalized rack build and the Integrations framework from official phpIPAM 1.8.2.
+
+## Phase 4 verification
+
+GitHub Actions run `34156334497` succeeded on exact feature head `d3a94936504a0de14f6d47aff334e2a0275b9e21`.
+
+Observed gates:
+
+- official phpIPAM 1.8.2 release SHA256: OK;
+- normalized Phase 0/1 installation: OK;
+- Phase 4 source blobs/preconditions: OK;
 - candidate PHP lint: OK;
-- exact normalized source files: OK (14);
-- normalized cleanup invariants: OK;
-- PHP lint: OK (15 files);
-- behavioral source invariants: OK;
-- `VERIFY_OK`;
-- `REPRODUCE_OK`.
+- base `VERIFY_OK`;
+- `INTEGRATIONS_VERIFY_OK`;
+- rack regressions: 121 passed, 0 failed;
+- Integrations regressions: 31 passed, 0 failed;
+- total regression assertions: 152 passed, 0 failed;
+- final clean `REPRODUCE_OK`.
 
-This establishes a clean static reproduction path from official phpIPAM 1.8.2 to the normalized phpIPAM Custom source state.
+Therefore the Phase 4 foundation is `repository_verified` and reproducible on a clean official 1.8.2 test tree. It is **not yet `runtime_verified` on the live `/var/www/html` server**.
 
-A GitHub Actions workflow now repeats the same clean reproduction gate for the Phase 0 PR.
+## Next gate
 
-## Runtime-verified behavior
+Before any live deployment:
 
-- occupied U ranges are excluded in Add-to-rack, Create Device and Edit Device;
-- backend rejects overlap/overflow;
-- multi-U and Full Depth are respected;
-- native SVG single-rack drag-and-drop works;
-- single-rack drag supports Front↔Rear in all directions;
-- rack details layout is customized;
-- Rack scheme supports same-Location rack-to-rack drag-and-drop;
-- cross-rack device data is loaded live from backend using exact visible rack IDs;
-- long translated sidebar labels wrap correctly.
+1. perform a read-only live preflight against the current `/var/www/html` tree;
+2. determine whether the live tree already contains the Phase 1 Rackspace Full Depth correction or still matches the earlier runtime capture;
+3. prepare a backup/rollback-safe incremental live updater for the exact detected state;
+4. install only after explicit Owner approval for the production-impacting update;
+5. Owner verifies the new Integrations navigation and Administration view in the browser.
 
-## Phase 0 completion gate
-
-Remaining before merge to `master`:
-
-1. GitHub Actions reproduction workflow must pass on the current PR head.
-2. PR #1 is marked Ready for review.
-3. Merge to `master` only after explicit Owner approval with exact head SHA.
+After runtime verification, proceed to the VMware/vCenter read-only connector contract and secure configuration storage design.

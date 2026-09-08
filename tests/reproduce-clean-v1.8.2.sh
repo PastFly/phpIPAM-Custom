@@ -3,9 +3,10 @@ set -euo pipefail
 
 # Clean reproducibility gate.
 # Downloads the official phpIPAM 1.8.2 release into /tmp, verifies its SHA256,
-# installs the normalized overlay into that throw-away tree, runs verify.sh,
-# then executes Phase 1 rack regression tests against the actual normalized
-# source. The live /var/www/html tree is never touched.
+# installs the normalized Phase 0/1 build and then the Phase 4 Integrations
+# framework into that throw-away tree. It runs the base verifier, the
+# Integrations verifier, all Phase 1 rack regressions and the Phase 4
+# Integrations regression suite. The live /var/www/html tree is never touched.
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STAMP="$(date +%Y%m%d-%H%M%S)"
@@ -22,10 +23,13 @@ echo "  work: $WORK"
 
 bash -n "$REPO_ROOT/installer/install-clean-v1.8.2.sh"
 bash -n "$REPO_ROOT/installer/verify.sh"
+bash -n "$REPO_ROOT/installer/install-integrations-framework-v1.sh"
+bash -n "$REPO_ROOT/installer/verify-integrations-framework-v1.sh"
 php -l "$REPO_ROOT/tests/rack-free-u-regression.php" >/dev/null
 php -l "$REPO_ROOT/tests/rack-backend-regression.php" >/dev/null
 php -l "$REPO_ROOT/tests/rack-endpoint-security-regression.php" >/dev/null
 php -l "$REPO_ROOT/tests/rack-dnd-source-regression.php" >/dev/null
+php -l "$REPO_ROOT/tests/integrations-framework-regression.php" >/dev/null
 echo "  installer/test syntax: OK"
 
 if command -v curl >/dev/null 2>&1; then
@@ -70,12 +74,24 @@ for rel in \
     css/bootstrap/bootstrap-custom.css \
     css/bootstrap/bootstrap-custom-dark.css \
     app/tools/racks/draw_rack.php \
-    app/tools/tools-menu.php; do
+    app/tools/tools-menu.php \
+    index.php \
+    app/sections/index.php \
+    app/sections/menu/menu-tools.php \
+    app/sections/menu/menu-static.php \
+    app/admin/admin-menu-config.php; do
     printf '  upstream %-52s %s\n' "$rel" "$(git hash-object "$TARGET/$rel")"
 done
 
+# Phase 0/1 normalized rack build.
 bash "$REPO_ROOT/installer/install-clean-v1.8.2.sh" "$TARGET"
+
+# Phase 4 Integrations shell layered on the normalized build.
+bash "$REPO_ROOT/installer/install-integrations-framework-v1.sh" "$TARGET"
+
+# Verify both layers.
 bash "$REPO_ROOT/installer/verify.sh" "$TARGET"
+bash "$REPO_ROOT/installer/verify-integrations-framework-v1.sh" "$TARGET"
 
 # Phase 1: exercise actual normalized rack placement methods and source guards.
 php "$REPO_ROOT/tests/rack-free-u-regression.php" "$TARGET"
@@ -83,7 +99,10 @@ php "$REPO_ROOT/tests/rack-backend-regression.php" "$TARGET"
 php "$REPO_ROOT/tests/rack-endpoint-security-regression.php" "$TARGET"
 php "$REPO_ROOT/tests/rack-dnd-source-regression.php" "$TARGET"
 
+# Phase 4: lock Integrations routing/authentication/registry semantics.
+php "$REPO_ROOT/tests/integrations-framework-regression.php" "$TARGET"
+
 echo
-echo "REPRODUCE_OK: clean official phpIPAM 1.8.2 -> normalized phpIPAM Custom reproduction and rack regressions passed."
+echo "REPRODUCE_OK: clean official phpIPAM 1.8.2 -> normalized phpIPAM Custom + Integrations framework reproduction passed."
 echo "Throw-away test tree retained at: $WORK"
 echo "Delete it when no longer needed: rm -rf '$WORK'"
