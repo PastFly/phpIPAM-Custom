@@ -10,11 +10,16 @@ on:
     paths:
       - 'design/PHASE5E_VMWARE_EXPLORER_UX.md'
       - 'layers/phase5e/**'
+      - 'layers/phase5e1/**'
       - 'tools/live-vmware-phase5e-ux-preflight.sh'
+      - 'tools/live-vmware-phase5e1-feedback-preflight.sh'
       - 'installer/install-vmware-vcenter-phase5e-ux.sh'
+      - 'installer/install-vmware-vcenter-phase5e1-feedback.sh'
       - 'installer/verify-vmware-vcenter-phase5e-ux.sh'
+      - 'installer/verify-vmware-vcenter-phase5e1-feedback.sh'
       - 'tests/vmware-vcenter-phase5e-ux-regression.sh'
       - 'tests/vmware-vcenter-phase5e-installer-source-regression.sh'
+      - 'tests/phpipam-address-link-resolver-regression.php'
       - '.github/workflows/phase5e-explorer-ux.yml'
 
 permissions:
@@ -42,16 +47,25 @@ jobs:
           php -l layers/phase5e/app/integrations/vmware/index.php
           php -l layers/phase5e/app/integrations/vmware/workspace-result.php
           php -l layers/phase5e/app/integrations/vmware/vm-card-result.php
+          php -l layers/phase5e/functions/classes/class.IntegrationPhpIpamAddressLinkResolver.php
+          php -l layers/phase5e1/app/sections/menu/menu-tools-admin.php
+          php -l tests/phpipam-address-link-resolver-regression.php
           bash -n tools/live-vmware-phase5e-ux-preflight.sh
+          bash -n tools/live-vmware-phase5e1-feedback-preflight.sh
           bash -n installer/install-vmware-vcenter-phase5e-ux.sh
+          bash -n installer/install-vmware-vcenter-phase5e1-feedback.sh
           bash -n installer/verify-vmware-vcenter-phase5e-ux.sh
+          bash -n installer/verify-vmware-vcenter-phase5e1-feedback.sh
           bash -n tests/vmware-vcenter-phase5e-ux-regression.sh
           bash -n tests/vmware-vcenter-phase5e-installer-source-regression.sh
 
       - name: Run Phase 5E UX/security regression
         run: bash tests/vmware-vcenter-phase5e-ux-regression.sh
 
-      - name: Run Phase 5E installer source-pin regression
+      - name: Run phpIPAM address-link resolver regression
+        run: php tests/phpipam-address-link-resolver-regression.php
+
+      - name: Run Phase 5E deployment source-pin regression
         run: bash tests/vmware-vcenter-phase5e-installer-source-regression.sh
 
       - name: Re-run inherited Phase 5D model/UI regression
