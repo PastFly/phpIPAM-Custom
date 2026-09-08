@@ -8,8 +8,11 @@
  * database writes and persists no inventory. Output is summary-only by default.
  *
  * Usage:
- *   php tools/live-vmware-phase5c-preview.php /var/www/html <connector-id>
+ *   php tools/live-vmware-phase5c-preview.php /var/www/html [connector-id]
  *       [--guest-limit=N] [--allow-insecure-tls]
+ *
+ * If connector-id is omitted, exactly one enabled VMware connector must exist;
+ * otherwise the preview fails closed and requires an explicit id.
  */
 
 if (PHP_SAPI !== 'cli') {
@@ -19,11 +22,11 @@ if (PHP_SAPI !== 'cli') {
 
 $repoRoot = dirname(__DIR__);
 $target = isset($argv[1]) ? rtrim((string)$argv[1], '/') : '';
-$connectorId = isset($argv[2]) ? (string)$argv[2] : '';
+$connectorId = null;
 $guestLimit = 0;
 $allowInsecureTls = false;
 
-for ($i = 3; $i < count($argv); $i++) {
+for ($i = 2; $i < count($argv); $i++) {
     $arg = (string)$argv[$i];
     if ($arg === '--allow-insecure-tls') {
         $allowInsecureTls = true;
@@ -42,7 +45,11 @@ for ($i = 3; $i < count($argv); $i++) {
         }
         continue;
     }
-    fwrite(STDERR, "ERROR: unknown argument: " . $arg . "\n");
+    if ($connectorId === null && preg_match('/^[1-9][0-9]*$/', $arg)) {
+        $connectorId = (int)$arg;
+        continue;
+    }
+    fwrite(STDERR, "ERROR: unknown or duplicate argument: " . $arg . "\n");
     exit(2);
 }
 
@@ -50,11 +57,6 @@ if ($target === '' || !is_dir($target) || !is_file($target . '/config.php')) {
     fwrite(STDERR, "ERROR: valid phpIPAM target root is required.\n");
     exit(2);
 }
-if (filter_var($connectorId, FILTER_VALIDATE_INT, array('options' => array('min_range' => 1))) === false) {
-    fwrite(STDERR, "ERROR: valid persistent VMware connector id is required.\n");
-    exit(2);
-}
-$connectorId = (int)$connectorId;
 
 function phase5c_preview_zero_secret(&$value)
 {
@@ -109,6 +111,34 @@ function phase5c_preview_count_vm_statuses(array $vms)
     return $counts;
 }
 
+function phase5c_preview_autoselect_connector(IntegrationVmwareVcenterConfigStore $Store)
+{
+    $enabled = array();
+    foreach ($Store->list_configs() as $config) {
+        if (!empty($config['enabled'])) {
+            $enabled[] = $config;
+        }
+    }
+
+    if (count($enabled) === 0) {
+        fwrite(STDERR, "PREVIEW_BLOCKED=NO_ENABLED_CONNECTOR\n");
+        fwrite(STDERR, "No enabled VMware connector exists. Enable one connector or provide an explicit connector id after reviewing its state.\n");
+        exit(3);
+    }
+    if (count($enabled) > 1) {
+        fwrite(STDERR, "PREVIEW_BLOCKED=AMBIGUOUS_CONNECTOR_SELECTION\n");
+        fwrite(STDERR, "Multiple enabled VMware connectors exist. Re-run with an explicit connector id.\n");
+        exit(3);
+    }
+
+    $id = isset($enabled[0]['id']) ? $enabled[0]['id'] : null;
+    if (filter_var($id, FILTER_VALIDATE_INT, array('options' => array('min_range' => 1))) === false) {
+        throw new RuntimeException('The enabled VMware connector has an invalid id');
+    }
+
+    return (int)$id;
+}
+
 $runtime = null;
 $originalCwd = getcwd();
 try {
@@ -128,6 +158,12 @@ try {
     $Database = new Database_PDO;
     $Cipher = IntegrationSecretCipher::from_keyring_file();
     $Store = new IntegrationVmwareVcenterConfigStore($Database, $Cipher);
+
+    if ($connectorId === null) {
+        $connectorId = phase5c_preview_autoselect_connector($Store);
+        fwrite(STDERR, "PREVIEW_CONNECTOR_AUTOSELECTED=" . $connectorId . "\n");
+    }
+
     $runtime = $Store->load_runtime_config($connectorId, true);
 
     if (empty($runtime['verify_tls']) && !$allowInsecureTls) {
