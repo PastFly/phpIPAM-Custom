@@ -26,6 +26,7 @@ if ($User->Crypto->csrf_cookie('validate', 'integration_vmware_vcenter_explorer'
 
 // PHPIPAM_CUSTOM_VMWARE_PHASE5E_VM_CARD_RESULT_V1
 // PHPIPAM_CUSTOM_VMWARE_PHASE5E1_GUEST_OS_IP_LINKS_TLS_SETTINGS_V1
+// PHPIPAM_CUSTOM_VMWARE_PHASE5E2_NATIVE_IP_LINK_STYLE_V1
 
 function phase5e_vmcard_h($value)
 {
@@ -99,9 +100,9 @@ function phase5e_vmcard_ip_html($resolver, $ip, &$cache)
     $escaped = phase5e_vmcard_h($ip);
     $match = $cache[$ip];
     if (is_array($match) && isset($match['url'])) {
-        return '<a href="' . phase5e_vmcard_h($match['url']) . '" title="Открыть адрес в phpIPAM"><code>' . $escaped . '</code></a>';
+        return '<a href="' . phase5e_vmcard_h($match['url']) . '" class="phase5e-ip-link" title="Открыть адрес в phpIPAM">' . $escaped . '</a>';
     }
-    return '<code>' . $escaped . '</code>';
+    return '<span class="phase5e-ip-text">' . $escaped . '</span>';
 }
 
 $configId = isset($POST->config_id) ? (string)$POST->config_id : '';
