@@ -9,11 +9,13 @@ on:
     paths:
       - 'design/PHASE5D_VMWARE_TOPOLOGY_DETAILS.md'
       - 'layers/phase5d/**'
+      - 'tools/live-vmware-phase5d-preview.php'
       - 'tests/vmware-vcenter-topology-regression.php'
       - 'tests/vmware-vcenter-datastore-regression.php'
       - 'tests/vmware-vcenter-datastore-resolver-regression.php'
       - 'tests/vmware-vcenter-vm-detail-regression.php'
       - 'tests/vmware-vcenter-metadata-regression.php'
+      - 'tests/vmware-vcenter-phase5d-live-preview-regression.php'
       - '.github/workflows/phase5d-topology.yml'
 
 permissions:
@@ -39,11 +41,13 @@ jobs:
           php -l layers/phase5d/functions/classes/class.IntegrationVmwareVcenterDatastoreResolver.php
           php -l layers/phase5d/functions/classes/class.IntegrationVmwareVcenterVmDetail.php
           php -l layers/phase5d/functions/classes/class.IntegrationVmwareVcenterMetadata.php
+          php -l tools/live-vmware-phase5d-preview.php
           php -l tests/vmware-vcenter-topology-regression.php
           php -l tests/vmware-vcenter-datastore-regression.php
           php -l tests/vmware-vcenter-datastore-resolver-regression.php
           php -l tests/vmware-vcenter-vm-detail-regression.php
           php -l tests/vmware-vcenter-metadata-regression.php
+          php -l tests/vmware-vcenter-phase5d-live-preview-regression.php
 
       - name: Run Phase 5D topology regression
         run: php tests/vmware-vcenter-topology-regression.php
@@ -59,3 +63,6 @@ jobs:
 
       - name: Run Phase 5D VM tags and categories regression
         run: php tests/vmware-vcenter-metadata-regression.php
+
+      - name: Run Phase 5D live preview safety regression
+        run: php tests/vmware-vcenter-phase5d-live-preview-regression.php
