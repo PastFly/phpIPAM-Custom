@@ -52,6 +52,8 @@ jobs:
           bash -n installer/verify-vmware-vcenter-phase5b-repository.sh
           bash -n installer/install-vmware-vcenter-phase5b3-foundation.sh
           bash -n installer/verify-vmware-vcenter-phase5b3-foundation.sh
+          bash -n installer/install-vmware-vcenter-phase5b3-ui.sh
+          bash -n installer/verify-vmware-vcenter-phase5b3-ui.sh
           bash -n tools/live-integrations-preflight.sh
           bash -n tools/live-vmware-phase5a-preflight.sh
           bash -n tools/live-vmware-phase5b-preflight.sh
@@ -59,6 +61,7 @@ jobs:
           bash -n tests/live-integrations-updater-regression.sh
           bash -n tests/phase5b-migration-regression.sh
           bash -n tests/phase5b3-foundation-deployment-regression.sh
+          bash -n tests/phase5b3-ui-deployment-regression.sh
           php -l tests/rack-free-u-regression.php
           php -l tests/rack-backend-regression.php
           php -l tests/rack-endpoint-security-regression.php
@@ -66,6 +69,7 @@ jobs:
           php -l tests/integrations-framework-regression.php
           php -l tests/vmware-vcenter-connector-regression.php
           php -l tests/phase5b-secure-config-regression.php
+          php -l tests/phase5b3-admin-ui-regression.php
           php -l src/app/integrations/registry.php
           php -l src/app/integrations/index.php
           php -l src/app/admin/integrations/index.php
@@ -75,6 +79,8 @@ jobs:
           php -l layers/phase5/app/admin/integrations/vmware-test-result.php
           php -l layers/phase5b/functions/classes/class.IntegrationSecretCipher.php
           php -l layers/phase5b/functions/classes/class.IntegrationVmwareVcenterConfigStore.php
+          php -l layers/phase5b3/app/admin/integrations/index.php
+          php -l layers/phase5b3/app/admin/integrations/vmware-config-action.php
 
       - name: Verify Phase 5B repository security contract
         run: bash installer/verify-vmware-vcenter-phase5b-repository.sh
@@ -97,6 +103,17 @@ jobs:
           PHASE5B_DB_USER: root
           PHASE5B_DB_PASSWORD: phase5b-ci
         run: bash tests/phase5b3-foundation-deployment-regression.sh
+
+      - name: Run Phase 5B.3 persistent Administration UI security regression
+        run: php tests/phase5b3-admin-ui-regression.php
+
+      - name: Run Phase 5B.3 foundation plus UI apply/verify/rollback regression
+        env:
+          PHASE5B_DB_HOST: 127.0.0.1
+          PHASE5B_DB_PORT: 3306
+          PHASE5B_DB_USER: root
+          PHASE5B_DB_PASSWORD: phase5b-ci
+        run: bash tests/phase5b3-ui-deployment-regression.sh
 
       - name: Reproduce from official phpIPAM 1.8.2 and run regressions
         run: bash tests/reproduce-clean-v1.8.2.sh
