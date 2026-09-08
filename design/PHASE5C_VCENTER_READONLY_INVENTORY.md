@@ -1,6 +1,6 @@
 # Phase 5C — VMware vCenter read-only inventory and reconciliation
 
-Status: repository-only design and implementation branch.
+Status: repository-only implementation branch.
 
 Base stable master: `e029493d37c133121949cf2678a9d36c7576d757` (Phase 5B.3 squash merge result).
 
@@ -21,7 +21,7 @@ Phase 5C must not:
 - enable scheduled synchronization while the production connector remains `INSECURE`;
 - introduce cross-Location rack behavior or touch Rackspace.
 
-All vCenter API requests are GET-only except session create/delete needed for authentication/session cleanup.
+All vCenter inventory requests are GET-only except session create/delete needed for authentication/session cleanup.
 
 ## Inventory order
 
@@ -37,18 +37,53 @@ Implement incrementally:
 8. reconciliation views against phpIPAM Device/IP state;
 9. connector health, last inventory timestamp and sanitized error categories.
 
-## Phase 5C.1 — repository foundation
+## Phase 5C.1 — Datacenter and Cluster inventory
 
-First slice:
+Implemented repository-only:
 
-- extend the existing VMware client with read-only inventory methods;
-- support modern `/api` first and preserve legacy `/rest` fallback where practical;
-- use the existing persistent connector/config-store and encrypted credential path;
-- keep response-size and timeout limits;
-- preserve redirect blocking and HTTPS-only endpoints;
-- normalize inventory into stable internal arrays without persisting raw vCenter payloads;
-- add fake-transport regression coverage for request ordering, auth/session cleanup, pagination or filtering behavior where relevant, malformed responses and permission failures;
-- add no new production schema in the first slice unless a later repository review demonstrates it is required.
+- `IntegrationVmwareVcenterInventory` client;
+- modern `/api` session first and legacy `/rest` fallback;
+- bounded GET-only Datacenter and Cluster list collection;
+- stable vCenter IDs used as external identity;
+- Cluster HA/DRS observations;
+- existing Phase 5A HTTPS endpoint validation reused;
+- redirects disabled, response-size and collection limits retained;
+- best-effort session cleanup on success and failure;
+- no raw response, credential or token persistence;
+- fake-transport regression coverage for modern/legacy paths, malformed JSON, permissions, collection bounds, TLS propagation and secret suppression.
+
+## Phase 5C.2 — ESXi Host and VM inventory
+
+Implemented repository-only:
+
+- bounded `GET /vcenter/host` and `GET /vcenter/vm` collection in the existing authenticated session;
+- modern `/api` and legacy `/rest` list paths;
+- Host stable external id, name, connection state and power state observations;
+- VM stable external id, name, power state, CPU count and memory MiB observations;
+- state tokens normalized without relying on display names as identity;
+- numeric VM fields validated and bounded;
+- no parent Host/Cluster/Datacenter relationship is guessed when the list response does not supply it;
+- result contains no username, password or session token;
+- no schema or phpIPAM object writes.
+
+Current list-level hierarchy fields intentionally remain nullable. Parent relationships will be established only from authoritative API filters/details in a later slice, never inferred from names.
+
+## Phase 5C.3 — VM network observations
+
+Next repository slice.
+
+The modern vSphere API exposes guest network interfaces per VM through a GET-only guest networking interface endpoint. The response can provide guest NIC identity, MAC address and guest-observed IP/prefix/state/origin data. This data is suitable for advisory IPAM reconciliation but must be treated as an observation, not authoritative configuration.
+
+Design constraints:
+
+- per-VM requests must be explicitly bounded to prevent an unbounded N+1 crawl;
+- VM IDs must be validated and path-encoded before use;
+- VMware Tools unavailable responses must be represented as a sanitized observation state rather than leaking raw API bodies;
+- MAC addresses must be canonicalized before matching;
+- IPv4/IPv6 addresses and prefix lengths must be validated before entering normalized observations;
+- no DNS/WINS/raw guest payload persistence in the first slice;
+- no automatic creation or update of phpIPAM addresses;
+- legacy compatibility must be evidence-driven and must not be guessed if the endpoint is unavailable on an older API family.
 
 ## Identity model
 
@@ -57,10 +92,10 @@ Use vCenter stable IDs as the primary external identity whenever the API supplie
 Expected normalized identity fields include:
 
 - provider: `vmware_vcenter`;
-- connector id;
+- connector id at the caller/persistence boundary;
 - object type;
 - external id;
-- parent external id where applicable;
+- parent external id where supplied authoritatively;
 - display name;
 - relevant observed metadata.
 
