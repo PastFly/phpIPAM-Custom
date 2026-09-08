@@ -16,6 +16,13 @@ for file in "${php_files[@]}"; do php -l "$file" >/dev/null; done
 grep -Fq 'PHPIPAM_CUSTOM_VMWARE_PHASE5E_WORKSPACE_V1' layers/phase5e/app/integrations/vmware/index.php
 grep -Fq 'PHPIPAM_CUSTOM_VMWARE_PHASE5E_WORKSPACE_RESULT_V1' layers/phase5e/app/integrations/vmware/workspace-result.php
 grep -Fq 'PHPIPAM_CUSTOM_VMWARE_PHASE5E_VM_CARD_RESULT_V1' layers/phase5e/app/integrations/vmware/vm-card-result.php
+
+vmware_client_line="$(grep -nF 'class.IntegrationVmwareVcenter.php' layers/phase5e/app/integrations/vmware/index.php | head -n1 | cut -d: -f1)"
+config_store_line="$(grep -nF 'class.IntegrationVmwareVcenterConfigStore.php' layers/phase5e/app/integrations/vmware/index.php | head -n1 | cut -d: -f1)"
+[[ -n "$vmware_client_line" && -n "$config_store_line" && "$vmware_client_line" -lt "$config_store_line" ]] || {
+  echo 'VMware client must be loaded before ConfigStore in dedicated Phase 5E workspace' >&2; exit 1
+}
+
 grep -Fq "csrf_cookie('validate', 'integration_vmware_vcenter_explorer'" layers/phase5e/app/integrations/vmware/workspace-result.php
 grep -Fq "csrf_cookie('validate', 'integration_vmware_vcenter_explorer'" layers/phase5e/app/integrations/vmware/vm-card-result.php
 grep -Fq 'phase5e-scope-link' layers/phase5e/app/integrations/vmware/workspace-result.php
