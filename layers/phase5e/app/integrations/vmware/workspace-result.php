@@ -14,6 +14,7 @@ $User = new User($Database);
 $User->check_user_session();
 
 // PHPIPAM_CUSTOM_VMWARE_PHASE5E_WORKSPACE_RESULT_V1
+// PHPIPAM_CUSTOM_VMWARE_PHASE5E1_TLS_SETTINGS_GIB_V1
 
 function phase5e_result_json($payload, $status = 200)
 {
@@ -54,13 +55,6 @@ function phase5e_result_error_category($error)
     if (strpos($message, 'json') !== false || strpos($message, 'response') !== false || strpos($message, 'safety limit') !== false || strpos($message, 'unknown external id') !== false) return 'invalid_response';
     if ($error instanceof InvalidArgumentException || strpos($message, 'connector') !== false || strpos($message, 'credential') !== false) return 'configuration';
     return 'unknown';
-}
-
-function phase5e_result_post_bool($post, $field)
-{
-    $value = isset($post->{$field}) ? (string)$post->{$field} : '0';
-    if ($value !== '0' && $value !== '1') throw new InvalidArgumentException('Invalid boolean field');
-    return $value === '1';
 }
 
 function phase5e_result_name_sort(&$rows)
@@ -256,9 +250,9 @@ function phase5e_result_render_overview($projection, $topology)
     return $html;
 }
 
-function phase5e_result_memory_mib($value)
+function phase5e_result_memory_gib($value)
 {
-    return $value === null ? '—' : number_format((int)$value, 0, '.', ' ');
+    return $value === null ? '—' : number_format(((float)$value) / 1024, 2, '.', ' ');
 }
 
 function phase5e_result_render_scope_cell($scope, $id, $name)
@@ -294,7 +288,7 @@ function phase5e_result_render_vms($projection, $scope, $scopeId, $search, $page
 
     $html = phase5e_result_render_breadcrumb($projection, $scope, $scopeId);
     $html .= '<div class="text-muted" style="margin-bottom:8px;">Найдено VM: ' . (int)$vmPage['total'] . '</div>';
-    $html .= '<div class="table-responsive"><table class="table table-hover table-condensed phase5e-table"><thead><tr><th>VM</th><th>Power</th><th>CPU</th><th>Memory MiB</th><th>Datacenter</th><th>Cluster</th><th>ESXi Host</th></tr></thead><tbody>';
+    $html .= '<div class="table-responsive"><table class="table table-hover table-condensed phase5e-table"><thead><tr><th>VM</th><th>Power</th><th>CPU</th><th>Memory GiB</th><th>Datacenter</th><th>Cluster</th><th>ESXi Host</th></tr></thead><tbody>';
     foreach ($vmPage['items'] as $vm) {
         $power = $vm['power_state'] === null ? '—' : $vm['power_state'];
         $powerClass = $power === 'powered_on' ? 'label label-success' : 'label label-default';
@@ -302,7 +296,7 @@ function phase5e_result_render_vms($projection, $scope, $scopeId, $search, $page
         $html .= '<td><a href="#" class="phase5e-vm-link" data-vm-id="' . phase5e_result_h($vm['external_id']) . '"><strong>' . phase5e_result_h($vm['name']) . '</strong></a><br><code class="phase5e-id">' . phase5e_result_h($vm['external_id']) . '</code></td>';
         $html .= '<td><span class="' . $powerClass . '">' . phase5e_result_h($power) . '</span></td>';
         $html .= '<td>' . ($vm['cpu_count'] === null ? '—' : (int)$vm['cpu_count']) . '</td>';
-        $html .= '<td>' . phase5e_result_h(phase5e_result_memory_mib($vm['memory_size_mib'])) . '</td>';
+        $html .= '<td>' . phase5e_result_h(phase5e_result_memory_gib($vm['memory_size_mib'])) . '</td>';
         $html .= '<td>' . phase5e_result_render_scope_cell('datacenter', $vm['datacenter_external_id'], $vm['datacenter_name']) . '</td>';
         if ($vm['cluster_external_id'] === null) $html .= '<td><span class="text-muted">Standalone / unknown</span></td>';
         else $html .= '<td>' . phase5e_result_render_scope_cell('cluster', $vm['cluster_external_id'], $vm['cluster_name']) . '</td>';
@@ -384,12 +378,6 @@ $page = (int)$pageRaw;
 $pageSize = (int)$pageSizeRaw;
 if ($pageSize > 100) phase5e_result_json(array('ok' => false, 'error' => 'page_size_too_large'), 400);
 
-try {
-    $allowInsecureTls = phase5e_result_post_bool($POST, 'allow_insecure_tls');
-} catch (Exception $e) {
-    phase5e_result_json(array('ok' => false, 'error' => 'invalid_tls_acknowledgement'), 400);
-}
-
 require_once(dirname(__FILE__) . "/../../../functions/classes/class.IntegrationVmwareVcenter.php");
 require_once(dirname(__FILE__) . "/../../../functions/classes/class.IntegrationSecretCipher.php");
 require_once(dirname(__FILE__) . "/../../../functions/classes/class.IntegrationVmwareVcenterConfigStore.php");
@@ -402,10 +390,6 @@ try {
     $Cipher = IntegrationSecretCipher::from_keyring_file();
     $Store = new IntegrationVmwareVcenterConfigStore($Database, $Cipher);
     $runtime = $Store->load_runtime_config($configId, true);
-
-    if (empty($runtime['verify_tls']) && !$allowInsecureTls) {
-        phase5e_result_json(array('ok' => false, 'error' => 'tls_acknowledgement_required'), 403);
-    }
 
     $Topology = new IntegrationVmwareVcenterTopology();
     $topology = $Topology->read_topology($runtime['endpoint'], $runtime['username'], $runtime['password'], $runtime['verify_tls']);
@@ -427,7 +411,10 @@ try {
     elseif ($view === 'datastores') $contentHtml = phase5e_result_render_datastores($projection, $scope, $scopeId, $search, $page, $pageSize);
     else $contentHtml = phase5e_result_render_vms($projection, $scope, $scopeId, $search, $page, $pageSize);
 
-    $summaryHtml = '<div class="alert alert-info"><strong>VMware Explorer:</strong> connector #' . (int)$configId . '; API=modern; TLS=' . (!empty($runtime['verify_tls']) ? 'VERIFY' : 'INSECURE') . '. Результат существует только в памяти текущего запроса.</div>';
+    $summaryClass = !empty($runtime['verify_tls']) ? 'alert alert-info' : 'alert alert-warning';
+    $summaryHtml = '<div class="' . $summaryClass . '"><strong>VMware Explorer:</strong> connector #' . (int)$configId . '; API=modern; TLS=' . (!empty($runtime['verify_tls']) ? 'VERIFY' : 'INSECURE') . '. Результат существует только в памяти текущего запроса.';
+    if (empty($runtime['verify_tls'])) $summaryHtml .= ' TLS mode взят из сохранённых настроек connector; scheduler запрещён.';
+    $summaryHtml .= '</div>';
     $summaryHtml .= '<div class="text-muted phase5e-safety-note">persistent_inventory_written=false · phpipam_objects_modified=false · vcenter_objects_modified=false</div>';
 
     phase5e_result_zero_secret($runtime['password']);
