@@ -35,9 +35,9 @@ phase5c_ui_check('result-marker', strpos($result, 'PHPIPAM_CUSTOM_VMWARE_PHASE5C
 phase5c_ui_check('admin-required', strpos($result, '$User->is_admin(false)') !== false);
 phase5c_ui_check('dedicated-csrf-create', strpos($panel, 'integration_vmware_vcenter_inventory') !== false);
 phase5c_ui_check('dedicated-csrf-validate', strpos($result, 'csrf_cookie("validate", "integration_vmware_vcenter_inventory"') !== false);
-phase5c_ui_check('enabled-connectors-only-in-panel', strpos($panel, "!empty($config['enabled'])") !== false && strpos($panel, "!empty($config['has_credential'])") !== false);
+phase5c_ui_check('enabled-connectors-only-in-panel', strpos($panel, '!empty($config[\'enabled\'])') !== false && strpos($panel, '!empty($config[\'has_credential\'])') !== false);
 phase5c_ui_check('runtime-config-requires-enabled', strpos($result, 'load_runtime_config($configId, true)') !== false);
-phase5c_ui_check('insecure-tls-explicit-ack', strpos($result, "empty($runtime['verify_tls']) && !$allowInsecureTls") !== false && strpos($panel, 'vmware-phase5c-insecure-ack') !== false);
+phase5c_ui_check('insecure-tls-explicit-ack', strpos($result, 'empty($runtime[\'verify_tls\']) && !$allowInsecureTls') !== false && strpos($panel, 'vmware-phase5c-insecure-ack') !== false);
 phase5c_ui_check('scheduler-remains-blocked-copy', strpos($panel, 'scheduled inventory') !== false && strpos($result, 'Scheduled sync') !== false);
 phase5c_ui_check('interactive-guest-limit-250', strpos($result, '$guestLimit > 250') !== false && strpos($panel, '250 VMs') !== false);
 phase5c_ui_check('core-inventory-get-path-used', strpos($result, 'read_core_inventory(') !== false);
@@ -48,7 +48,7 @@ phase5c_ui_check('partial-network-warning', strpos($result, 'bounded sample') !=
 phase5c_ui_check('secret-zeroing', strpos($result, 'phase5c_inventory_zero_secret') !== false);
 phase5c_ui_check('sanitized-error-category', strpos($result, 'Sensitive exception details were suppressed') !== false);
 phase5c_ui_check('no-password-render-input', strpos($panel, 'name="password"') === false && strpos($panel, 'type="password"') === false);
-phase5c_ui_check('no-username-render-from-runtime', strpos($result, "$runtime['username']") !== false && strpos($result, 'phase5c_inventory_h($runtime[\'username\'])') === false);
+phase5c_ui_check('runtime-username-used-only-for-api', strpos($result, '$runtime[\'username\']') !== false && strpos($result, 'phase5c_inventory_h($runtime[\'username\'])') === false);
 phase5c_ui_check('no-health-metadata-write', strpos($result, 'mark_test_success') === false && strpos($result, 'mark_test_failure') === false);
 phase5c_ui_check('result-no-object-modify', strpos($result, 'object_modify') === false && strpos($result, 'modify_object') === false);
 phase5c_ui_check('snapshot-select-only', strpos($snapshot, 'SELECT `id`,`hostname` FROM `devices`') !== false && strpos($snapshot, 'SELECT `id`,`ip_addr`,`switch`,`mac` FROM `ipaddresses`') !== false);
