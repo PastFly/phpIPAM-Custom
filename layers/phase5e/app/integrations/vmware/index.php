@@ -15,6 +15,7 @@ if (!$User->is_admin(false)) {
 }
 
 // PHPIPAM_CUSTOM_VMWARE_PHASE5E_WORKSPACE_V1
+require_once(dirname(__FILE__) . "/../../../functions/classes/class.IntegrationVmwareVcenter.php");
 require_once(dirname(__FILE__) . "/../../../functions/classes/class.IntegrationSecretCipher.php");
 require_once(dirname(__FILE__) . "/../../../functions/classes/class.IntegrationVmwareVcenterConfigStore.php");
 
