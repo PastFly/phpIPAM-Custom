@@ -55,6 +55,8 @@ jobs:
           bash -n installer/verify-vmware-vcenter-phase5b3-foundation.sh
           bash -n installer/install-vmware-vcenter-phase5b3-ui.sh
           bash -n installer/verify-vmware-vcenter-phase5b3-ui.sh
+          bash -n installer/install-vmware-vcenter-phase5c-ui.sh
+          bash -n installer/verify-vmware-vcenter-phase5c-ui.sh
           bash -n tools/live-integrations-preflight.sh
           bash -n tools/live-vmware-phase5a-preflight.sh
           bash -n tools/live-vmware-phase5b-preflight.sh
@@ -63,6 +65,7 @@ jobs:
           bash -n tests/phase5b-migration-regression.sh
           bash -n tests/phase5b3-foundation-deployment-regression.sh
           bash -n tests/phase5b3-ui-deployment-regression.sh
+          bash -n tests/phase5c-ui-deployment-regression.sh
           php -l tools/live-vmware-phase5c-preview.php
           php -l tests/rack-free-u-regression.php
           php -l tests/rack-backend-regression.php
@@ -94,6 +97,7 @@ jobs:
           php -l layers/phase5c/functions/classes/class.IntegrationVmwareVcenterGuestNetwork.php
           php -l layers/phase5c/functions/classes/class.IntegrationVmwareVcenterReconciler.php
           php -l layers/phase5c/functions/classes/class.IntegrationPhpIpamInventorySnapshot.php
+          php -l layers/phase5c/app/admin/integrations/index-phase5c-append.php
           php -l layers/phase5c/app/admin/integrations/vmware-inventory-panel.php
           php -l layers/phase5c/app/admin/integrations/vmware-inventory-result.php
 
@@ -150,6 +154,9 @@ jobs:
 
       - name: Run Phase 5C Administration inventory UI security regression
         run: php tests/phase5c-admin-inventory-ui-regression.php
+
+      - name: Run Phase 5C Administration UI apply verify rollback regression
+        run: bash tests/phase5c-ui-deployment-regression.sh
 
       - name: Reproduce from official phpIPAM 1.8.2 and run regressions
         run: bash tests/reproduce-clean-v1.8.2.sh
