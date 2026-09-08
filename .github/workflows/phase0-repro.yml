@@ -14,7 +14,7 @@ permissions:
 jobs:
   reproduce-and-test:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,8 +30,10 @@ jobs:
           bash -n installer/verify.sh
           bash -n installer/install-integrations-framework-v1.sh
           bash -n installer/verify-integrations-framework-v1.sh
+          bash -n installer/install-live-integrations-exact-20260907.sh
           bash -n tools/live-integrations-preflight.sh
           bash -n tests/reproduce-clean-v1.8.2.sh
+          bash -n tests/live-integrations-updater-regression.sh
           php -l tests/rack-free-u-regression.php
           php -l tests/rack-backend-regression.php
           php -l tests/rack-endpoint-security-regression.php
@@ -43,3 +45,6 @@ jobs:
 
       - name: Reproduce from official phpIPAM 1.8.2 and run regressions
         run: bash tests/reproduce-clean-v1.8.2.sh
+
+      - name: Simulate exact live runtime, deploy Integrations and rollback
+        run: bash tests/live-integrations-updater-regression.sh
