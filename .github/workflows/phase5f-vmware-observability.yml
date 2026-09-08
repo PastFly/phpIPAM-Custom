@@ -1,0 +1,52 @@
+name: Phase 5F VMware Observability Regression
+
+on:
+  push:
+    branches:
+      - phase5f/vmware-observability
+  pull_request:
+    branches:
+      - phase5e/vmware-explorer-ux
+    paths:
+      - 'layers/phase5f/**'
+      - 'tools/live-vmware-phase5f-**'
+      - 'installer/*phase5f*'
+      - 'tests/vmware-vcenter-phase5f-*'
+      - '.github/workflows/phase5f-vmware-observability.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  phase5f-observability:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install PHP CLI/XML/cURL
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y php-cli php-curl php-xml
+
+      - name: Validate syntax
+        run: |
+          php -l layers/phase5f/functions/classes/class.IntegrationVmwareVcenterSoapReadOnly.php
+          php -l tests/vmware-vcenter-phase5f-soap-host-summary-regression.php
+
+      - name: Run SOAP host-summary regression
+        run: php tests/vmware-vcenter-phase5f-soap-host-summary-regression.php
+
+      - name: Enforce read-only source boundary
+        run: |
+          if grep -REni '\b(ReconfigVM_Task|PowerOnVM_Task|PowerOffVM_Task|ResetVM_Task|ShutdownGuest|RebootGuest|EnterMaintenanceMode_Task|ExitMaintenanceMode_Task|Destroy_Task|CreateVM_Task|RelocateVM_Task|MigrateVM_Task|UpdateOptions|UpdateConfig|CreatePerfInterval|RemovePerfInterval|UpdatePerfInterval)\b' layers/phase5f; then
+            echo 'Forbidden VMware mutation method in Phase 5F' >&2
+            exit 1
+          fi
+          if grep -REni '\b(INSERT|UPDATE|DELETE|REPLACE|ALTER|DROP|TRUNCATE)[[:space:]]' layers/phase5f; then
+            echo 'Forbidden SQL mutation verb in Phase 5F' >&2
+            exit 1
+          fi
