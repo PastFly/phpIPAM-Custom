@@ -2,8 +2,13 @@
 set -euo pipefail
 
 # Regression gate for the state-specific production Integrations updater.
-# Builds a throw-away phpIPAM 1.8.2 tree, overlays the exact 2026-09-07 live
-# runtime capture, applies the updater, verifies it, then exercises rollback.
+#
+# The exact live Rackspace source is intentionally not durable normalized source
+# in the current repository. The production updater nevertheless hard-pins its
+# proven live blob. For CI mutation/rollback testing we create a deterministic
+# Rackspace surrogate with the same strict-free-U / no-Phase1-deep-marker state,
+# then patch only a temporary copy of the updater's expected Rackspace blob.
+# All other live sentinels are overlaid from the durable 2026-09-07 snapshot.
 # Never touches /var/www/html.
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -15,16 +20,22 @@ URL="https://github.com/phpipam/phpipam/releases/download/v1.8.2/phpipam-v1.8.2.
 EXPECTED_SHA256="12745b9cc9f937b219043cc39ee6533b95f9e8ed8b4381ea6f6d96005487bf8d"
 SNAPSHOT="$REPO_ROOT/snapshots/20260907-152138/files"
 UPDATER="$REPO_ROOT/installer/install-live-integrations-exact-20260907.sh"
+TEST_UPDATER="$REPO_ROOT/installer/.install-live-integrations-regression-$STAMP.sh"
 VERIFIER="$REPO_ROOT/installer/verify-integrations-framework-v1.sh"
+PRODUCTION_RACKSPACE_BLOB="c2c9a7424e6caf996633688dea87dfbc594d7eb4"
 
 fail() { echo "ERROR: $*" >&2; exit 1; }
 hash_file() { git hash-object "$1"; }
+cleanup() { rm -f "$TEST_UPDATER"; }
+trap cleanup EXIT
 
 mkdir -p "$WORK" "$EXTRACT"
 
 bash -n "$UPDATER"
 bash -n "$VERIFIER"
 [[ -d "$SNAPSHOT" ]] || fail "snapshot source tree missing: $SNAPSHOT"
+grep -Fq "RACKSPACE_LIVE_BLOB=\"$PRODUCTION_RACKSPACE_BLOB\"" "$UPDATER" || \
+    fail "production updater no longer pins the proven live Rackspace blob"
 
 echo "Live Integrations updater regression"
 echo "  work: $WORK"
@@ -54,23 +65,68 @@ fi
 
 echo "  pristine tree: $TARGET"
 
-# Overlay the exact captured cumulative custom source surface. The five core
-# files used by Integrations were not customized in that capture and therefore
-# remain pristine official v1.8.2, matching the real live preflight.
+# Overlay the exact captured cumulative source files that are retained in the
+# normalized repository (rack controllers, tools menu config and CSS sentinels).
+# The Integrations core files remain pristine official v1.8.2, matching the
+# Owner's live preflight.
 cp -a "$SNAPSHOT/." "$TARGET/"
 
-[[ "$(hash_file "$TARGET/functions/classes/class.Rackspace.php")" == "c2c9a7424e6caf996633688dea87dfbc594d7eb4" ]] || \
-    fail "simulated live Rackspace blob mismatch"
-! grep -Fq 'PHPIPAM_CUSTOM_DEEP_RACK_CONTENT_OVERLAP' "$TARGET/functions/classes/class.Rackspace.php" || \
+# Build a deterministic test-only Rackspace state: strict free_u is present,
+# while the later Phase 1 Full Depth rack-content marker is absent. Production
+# does NOT use this surrogate; it is only to exercise updater/rollback mechanics.
+SIM_RACKSPACE="$TARGET/functions/classes/class.Rackspace.php"
+python3 - "$SIM_RACKSPACE" <<'PY'
+from pathlib import Path
+import sys
+
+p = Path(sys.argv[1])
+s = p.read_text(encoding="utf-8")
+old_sig = "public function free_u($rack, $rack_devices, $rack_contents, $current_device = null) {"
+new_sig = "public function free_u($rack, $rack_devices, $rack_contents, $current_device = null, $force_no_overlap = false) {"
+old_guard = "if (!$this->settings->rackAllowOverlap) {"
+new_guard = "if ($force_no_overlap || !$this->settings->rackAllowOverlap) {"
+if s.count(old_sig) != 1:
+    raise SystemExit(f"test Rackspace signature precondition mismatch: {s.count(old_sig)}")
+if s.count(old_guard) != 1:
+    raise SystemExit(f"test Rackspace guard precondition mismatch: {s.count(old_guard)}")
+if "PHPIPAM_CUSTOM_DEEP_RACK_CONTENT_OVERLAP" in s:
+    raise SystemExit("test Rackspace unexpectedly already has Phase 1 deep marker")
+s = s.replace(old_sig, new_sig, 1)
+s = s.replace(old_guard, new_guard, 1)
+p.write_text(s, encoding="utf-8")
+PY
+
+SIM_RACKSPACE_BLOB="$(hash_file "$SIM_RACKSPACE")"
+grep -Fq 'public function free_u($rack, $rack_devices, $rack_contents, $current_device = null, $force_no_overlap = false)' "$SIM_RACKSPACE" || \
+    fail "simulated strict free_u marker missing"
+! grep -Fq 'PHPIPAM_CUSTOM_DEEP_RACK_CONTENT_OVERLAP' "$SIM_RACKSPACE" || \
     fail "simulated live state unexpectedly contains Phase 1 deep marker"
 
-echo "  exact live-state simulation: OK"
+# Use a temporary updater copy so the production script keeps its exact live
+# blob pin unchanged in Git and in real deployments.
+cp "$UPDATER" "$TEST_UPDATER"
+python3 - "$TEST_UPDATER" "$PRODUCTION_RACKSPACE_BLOB" "$SIM_RACKSPACE_BLOB" <<'PY'
+from pathlib import Path
+import sys
 
-bash "$UPDATER" "$TARGET"
+p = Path(sys.argv[1])
+production_blob = sys.argv[2]
+sim_blob = sys.argv[3]
+s = p.read_text(encoding="utf-8")
+needle = f'RACKSPACE_LIVE_BLOB="{production_blob}"'
+replacement = f'RACKSPACE_LIVE_BLOB="{sim_blob}"'
+if s.count(needle) != 1:
+    raise SystemExit(f"temporary updater Rackspace pin precondition mismatch: {s.count(needle)}")
+p.write_text(s.replace(needle, replacement, 1), encoding="utf-8")
+PY
+bash -n "$TEST_UPDATER"
+
+echo "  live-state mutation surrogate: OK ($SIM_RACKSPACE_BLOB)"
+
+bash "$TEST_UPDATER" "$TARGET"
 bash "$VERIFIER" "$TARGET"
 
-[[ "$(hash_file "$TARGET/functions/classes/class.Rackspace.php")" == "c2c9a7424e6caf996633688dea87dfbc594d7eb4" ]] || \
-    fail "updater changed Rackspace"
+[[ "$(hash_file "$SIM_RACKSPACE")" == "$SIM_RACKSPACE_BLOB" ]] || fail "updater changed Rackspace"
 
 echo "  live updater apply + verify: OK"
 
@@ -103,8 +159,7 @@ done
 
 [[ ! -d "$TARGET/app/integrations" ]] || fail "rollback left created app/integrations directory"
 [[ ! -d "$TARGET/app/admin/integrations" ]] || fail "rollback left created app/admin/integrations directory"
-[[ "$(hash_file "$TARGET/functions/classes/class.Rackspace.php")" == "c2c9a7424e6caf996633688dea87dfbc594d7eb4" ]] || \
-    fail "rollback altered Rackspace"
+[[ "$(hash_file "$SIM_RACKSPACE")" == "$SIM_RACKSPACE_BLOB" ]] || fail "rollback altered Rackspace"
 
 echo "  rollback exact restoration: OK"
 echo
