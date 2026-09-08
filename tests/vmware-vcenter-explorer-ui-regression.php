@@ -51,8 +51,8 @@ explorer_ui_check('result-sanitized-error', strpos($result, 'Sensitive exception
 explorer_ui_check('result-zero-secret', strpos($result, 'phase5d_explorer_zero_secret') !== false);
 explorer_ui_check('result-no-db-write', strpos($result, 'INSERT INTO') === false && strpos($result, 'UPDATE ') === false && strpos($result, 'DELETE FROM') === false);
 explorer_ui_check('result-no-object-write', strpos($result, 'object_modify') === false && strpos($result, 'modify_object') === false);
-explorer_ui_check('result-no-password-render', strpos($result, "print $runtime['password']") === false);
-explorer_ui_check('result-no-raw-exception-render', strpos($result, "print $e->getMessage()") === false);
+explorer_ui_check('result-no-password-render', strpos($result, 'print $runtime') === false);
+explorer_ui_check('result-no-raw-exception-render', strpos($result, 'print $e->getMessage()') === false);
 explorer_ui_check('result-declares-no-persistence', strpos($result, 'persistent_inventory_written=false') !== false && strpos($result, 'phpipam_objects_modified=false') !== false && strpos($result, 'vcenter_objects_modified=false') !== false);
 
 explorer_ui_check('card-marker', strpos($card, 'PHPIPAM_CUSTOM_VMWARE_PHASE5D_VM_CARD_RESULT_V1') !== false);
@@ -66,11 +66,11 @@ explorer_ui_check('card-provenance-warning', strpos($card, 'correlation-only') !
 explorer_ui_check('card-no-db-write', strpos($card, 'INSERT INTO') === false && strpos($card, 'UPDATE ') === false && strpos($card, 'DELETE FROM') === false);
 explorer_ui_check('card-no-vcenter-write-words', strpos($card, 'power_on') === false && strpos($card, 'reconfigure') === false && strpos($card, 'migrate') === false);
 explorer_ui_check('card-zero-secret', strpos($card, 'phase5d_vmcard_zero_secret') !== false);
-explorer_ui_check('card-no-raw-exception-render', strpos($card, "print $e->getMessage()") === false && strpos($card, 'Sensitive exception details were suppressed') !== false);
+explorer_ui_check('card-no-raw-exception-render', strpos($card, 'print $e->getMessage()') === false && strpos($card, 'Sensitive exception details were suppressed') !== false);
 explorer_ui_check('card-declares-no-persistence', strpos($card, 'persistent_inventory_written=false') !== false && strpos($card, 'phpipam_objects_modified=false') !== false && strpos($card, 'vcenter_objects_modified=false') !== false);
 
 explorer_ui_check('append-marker', strpos($append, 'PHPIPAM_CUSTOM_VMWARE_PHASE5D_EXPLORER_INDEX_APPEND_V1') !== false);
-explorer_ui_check('append-panel', strpos($append, "vmware-explorer-panel.php") !== false);
+explorer_ui_check('append-panel', strpos($append, 'vmware-explorer-panel.php') !== false);
 
 print "\nPhase 5D.5 Explorer UI regression summary: $passed passed, $failed failed.\n";
 exit($failed === 0 ? 0 : 1);
