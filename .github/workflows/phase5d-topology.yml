@@ -1,4 +1,4 @@
-name: Phase 5D VMware Topology and Datastore Regression
+name: Phase 5D VMware Explorer Regression
 
 on:
   push:
@@ -11,13 +11,14 @@ on:
       - 'layers/phase5d/**'
       - 'tests/vmware-vcenter-topology-regression.php'
       - 'tests/vmware-vcenter-datastore-regression.php'
+      - 'tests/vmware-vcenter-vm-detail-regression.php'
       - '.github/workflows/phase5d-topology.yml'
 
 permissions:
   contents: read
 
 jobs:
-  topology-datastore-regression:
+  explorer-regression:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -33,11 +34,16 @@ jobs:
         run: |
           php -l layers/phase5d/functions/classes/class.IntegrationVmwareVcenterTopology.php
           php -l layers/phase5d/functions/classes/class.IntegrationVmwareVcenterDatastore.php
+          php -l layers/phase5d/functions/classes/class.IntegrationVmwareVcenterVmDetail.php
           php -l tests/vmware-vcenter-topology-regression.php
           php -l tests/vmware-vcenter-datastore-regression.php
+          php -l tests/vmware-vcenter-vm-detail-regression.php
 
       - name: Run Phase 5D topology regression
         run: php tests/vmware-vcenter-topology-regression.php
 
       - name: Run Phase 5D datastore regression
         run: php tests/vmware-vcenter-datastore-regression.php
+
+      - name: Run Phase 5D VM detail regression
+        run: php tests/vmware-vcenter-vm-detail-regression.php
