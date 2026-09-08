@@ -3,10 +3,10 @@
 /**
  * phpIPAM Custom — VMware vCenter read-only inventory client.
  *
- * Phase 5C.1 scope is deliberately bounded to Datacenter and Cluster list
- * operations. The class authenticates, performs GET-only inventory calls and
- * closes the vCenter session. It never persists credentials, tokens or raw
- * response bodies and never performs vCenter inventory writes.
+ * Phase 5C collects bounded inventory summaries using authenticated GET-only
+ * vCenter API calls and best-effort session cleanup. It never persists
+ * credentials, tokens or raw response bodies and never performs vCenter or
+ * phpIPAM inventory writes.
  */
 class IntegrationVmwareVcenterInventory
 {
@@ -16,7 +16,7 @@ class IntegrationVmwareVcenterInventory
     private $maxResponseBytes;
     private $maxCollectionItems;
 
-    public function __construct($transport = null, $connectTimeout = 8, $requestTimeout = 20, $maxResponseBytes = 2097152, $maxCollectionItems = 1000)
+    public function __construct($transport = null, $connectTimeout = 8, $requestTimeout = 20, $maxResponseBytes = 2097152, $maxCollectionItems = 10000)
     {
         if ($transport !== null && !is_callable($transport)) {
             throw new InvalidArgumentException("VMware inventory transport must be callable");
@@ -26,10 +26,32 @@ class IntegrationVmwareVcenterInventory
         $this->connectTimeout = max(1, (int)$connectTimeout);
         $this->requestTimeout = max($this->connectTimeout, (int)$requestTimeout);
         $this->maxResponseBytes = max(4096, (int)$maxResponseBytes);
-        $this->maxCollectionItems = max(1, min(1000, (int)$maxCollectionItems));
+        $this->maxCollectionItems = max(1, min(20000, (int)$maxCollectionItems));
     }
 
     public function read_datacenters_and_clusters($endpoint, $username, $password, $verifyTls = true)
+    {
+        return $this->read_inventory_resources(
+            $endpoint,
+            $username,
+            $password,
+            $verifyTls,
+            array('datacenter', 'cluster')
+        );
+    }
+
+    public function read_core_inventory($endpoint, $username, $password, $verifyTls = true)
+    {
+        return $this->read_inventory_resources(
+            $endpoint,
+            $username,
+            $password,
+            $verifyTls,
+            array('datacenter', 'cluster', 'host', 'vm')
+        );
+    }
+
+    private function read_inventory_resources($endpoint, $username, $password, $verifyTls, array $resources)
     {
         $endpoint = $this->normalize_endpoint($endpoint);
         $username = trim((string)$username);
@@ -43,38 +65,43 @@ class IntegrationVmwareVcenterInventory
             throw new InvalidArgumentException("vCenter password is required");
         }
 
+        $allowed = array('datacenter', 'cluster', 'host', 'vm');
+        foreach ($resources as $resource) {
+            if (!in_array($resource, $allowed, true)) {
+                throw new InvalidArgumentException('Unsupported VMware inventory resource');
+            }
+        }
+
         $started = microtime(true);
         $session = null;
         $apiFamily = null;
         $authStatus = 0;
+        $collections = array(
+            'datacenter' => array(),
+            'cluster' => array(),
+            'host' => array(),
+            'vm' => array()
+        );
 
         try {
             $auth = $this->authenticate($endpoint, $username, $password, $verifyTls);
             $session = $auth['session'];
             $apiFamily = $auth['api_family'];
             $authStatus = $auth['auth_http_status'];
-
             $headers = $this->session_headers($session);
 
-            $datacenterResponse = $this->inventory_request(
-                $endpoint,
-                'datacenter',
-                $apiFamily,
-                $headers,
-                $verifyTls
-            );
-            $datacenterRows = $this->decode_collection($datacenterResponse['body'], $apiFamily, 'Datacenter');
-            $datacenters = $this->normalize_datacenters($datacenterRows);
-
-            $clusterResponse = $this->inventory_request(
-                $endpoint,
-                'cluster',
-                $apiFamily,
-                $headers,
-                $verifyTls
-            );
-            $clusterRows = $this->decode_collection($clusterResponse['body'], $apiFamily, 'Cluster');
-            $clusters = $this->normalize_clusters($clusterRows);
+            foreach ($resources as $resource) {
+                $response = $this->inventory_request(
+                    $endpoint,
+                    $resource,
+                    $apiFamily,
+                    $headers,
+                    $verifyTls
+                );
+                $label = $this->resource_label($resource);
+                $rows = $this->decode_collection($response['body'], $apiFamily, $label);
+                $collections[$resource] = $this->normalize_resource_collection($resource, $rows);
+            }
         } finally {
             if (is_string($session) && $session !== '' && is_string($apiFamily)) {
                 $this->cleanup_session($endpoint, $session, $apiFamily, $verifyTls);
@@ -88,10 +115,14 @@ class IntegrationVmwareVcenterInventory
             'api_family' => $apiFamily,
             'auth_http_status' => $authStatus,
             'verify_tls' => $verifyTls,
-            'datacenter_count' => count($datacenters),
-            'cluster_count' => count($clusters),
-            'datacenters' => $datacenters,
-            'clusters' => $clusters,
+            'datacenter_count' => count($collections['datacenter']),
+            'cluster_count' => count($collections['cluster']),
+            'host_count' => count($collections['host']),
+            'vm_count' => count($collections['vm']),
+            'datacenters' => $collections['datacenter'],
+            'clusters' => $collections['cluster'],
+            'hosts' => $collections['host'],
+            'vms' => $collections['vm'],
             'duration_ms' => (int)round((microtime(true) - $started) * 1000)
         );
     }
@@ -217,6 +248,23 @@ class IntegrationVmwareVcenterInventory
         return array_values($decoded);
     }
 
+    private function normalize_resource_collection($resource, array $rows)
+    {
+        if ($resource === 'datacenter') {
+            return $this->normalize_datacenters($rows);
+        }
+        if ($resource === 'cluster') {
+            return $this->normalize_clusters($rows);
+        }
+        if ($resource === 'host') {
+            return $this->normalize_hosts($rows);
+        }
+        if ($resource === 'vm') {
+            return $this->normalize_vms($rows);
+        }
+        throw new RuntimeException('Unsupported VMware inventory normalization resource');
+    }
+
     private function normalize_datacenters(array $rows)
     {
         $result = array();
@@ -252,6 +300,56 @@ class IntegrationVmwareVcenterInventory
         return $result;
     }
 
+    private function normalize_hosts(array $rows)
+    {
+        $result = array();
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                throw new RuntimeException('vCenter Host inventory row has an invalid shape');
+            }
+            $result[] = array(
+                'object_type' => 'host',
+                'external_id' => $this->require_identifier($row, 'host', 'Host'),
+                'name' => $this->require_name($row, 'name', 'Host'),
+                'connection_state' => $this->optional_token($row, 'connection_state', 'Host connection state'),
+                'power_state' => $this->optional_token($row, 'power_state', 'Host power state'),
+                'cluster_external_id' => null,
+                'datacenter_external_id' => null
+            );
+        }
+        return $result;
+    }
+
+    private function normalize_vms(array $rows)
+    {
+        $result = array();
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                throw new RuntimeException('vCenter VM inventory row has an invalid shape');
+            }
+
+            $memory = null;
+            if (array_key_exists('memory_size_MiB', $row)) {
+                $memory = $this->optional_nonnegative_int_value($row['memory_size_MiB'], 'VM memory size');
+            } elseif (array_key_exists('memory_size_mib', $row)) {
+                $memory = $this->optional_nonnegative_int_value($row['memory_size_mib'], 'VM memory size');
+            }
+
+            $result[] = array(
+                'object_type' => 'vm',
+                'external_id' => $this->require_identifier($row, 'vm', 'VM'),
+                'name' => $this->require_name($row, 'name', 'VM'),
+                'power_state' => $this->optional_token($row, 'power_state', 'VM power state'),
+                'cpu_count' => array_key_exists('cpu_count', $row) ? $this->optional_nonnegative_int_value($row['cpu_count'], 'VM CPU count') : null,
+                'memory_size_mib' => $memory,
+                'host_external_id' => null,
+                'cluster_external_id' => null,
+                'datacenter_external_id' => null
+            );
+        }
+        return $result;
+    }
+
     private function require_identifier(array $row, $field, $label)
     {
         $value = isset($row[$field]) ? trim((string)$row[$field]) : '';
@@ -268,6 +366,56 @@ class IntegrationVmwareVcenterInventory
             throw new RuntimeException('vCenter ' . $label . ' inventory row has an invalid name');
         }
         return $value;
+    }
+
+    private function optional_token(array $row, $field, $label)
+    {
+        if (!array_key_exists($field, $row) || $row[$field] === null || $row[$field] === '') {
+            return null;
+        }
+        if (!is_scalar($row[$field])) {
+            throw new RuntimeException('vCenter ' . $label . ' has an invalid value');
+        }
+        $value = strtoupper(trim((string)$row[$field]));
+        if ($value === '' || strlen($value) > 128 || !preg_match('/^[A-Z0-9_.:-]+$/', $value)) {
+            throw new RuntimeException('vCenter ' . $label . ' has an invalid value');
+        }
+        return strtolower($value);
+    }
+
+    private function optional_nonnegative_int_value($value, $label)
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (is_int($value)) {
+            $integer = $value;
+        } elseif (is_string($value) && preg_match('/^[0-9]+$/', $value)) {
+            $integer = (int)$value;
+        } else {
+            throw new RuntimeException('vCenter ' . $label . ' has an invalid value');
+        }
+        if ($integer < 0 || $integer > 2147483647) {
+            throw new RuntimeException('vCenter ' . $label . ' has an invalid value');
+        }
+        return $integer;
+    }
+
+    private function resource_label($resource)
+    {
+        if ($resource === 'datacenter') {
+            return 'Datacenter';
+        }
+        if ($resource === 'cluster') {
+            return 'Cluster';
+        }
+        if ($resource === 'host') {
+            return 'Host';
+        }
+        if ($resource === 'vm') {
+            return 'VM';
+        }
+        return 'Inventory';
     }
 
     private function request($method, $url, $headers, $username, $password, $verifyTls)
@@ -419,7 +567,7 @@ class IntegrationVmwareVcenterInventory
     private function inventory_failure_message($resource, $status)
     {
         $status = (int)$status;
-        $label = $resource === 'cluster' ? 'Cluster' : 'Datacenter';
+        $label = $this->resource_label($resource);
         if ($status === 401) {
             return 'vCenter session was not accepted for ' . $label . ' inventory access (HTTP 401)';
         }
