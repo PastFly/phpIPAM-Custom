@@ -11,14 +11,19 @@ on:
       - 'design/PHASE5E_VMWARE_EXPLORER_UX.md'
       - 'layers/phase5e/**'
       - 'layers/phase5e1/**'
+      - 'layers/phase5e2/**'
       - 'tools/live-vmware-phase5e-ux-preflight.sh'
       - 'tools/live-vmware-phase5e1-feedback-preflight.sh'
+      - 'tools/live-vmware-phase5e2-ip-style-preflight.sh'
       - 'installer/install-vmware-vcenter-phase5e-ux.sh'
       - 'installer/install-vmware-vcenter-phase5e1-feedback.sh'
+      - 'installer/install-vmware-vcenter-phase5e2-ip-style.sh'
       - 'installer/verify-vmware-vcenter-phase5e-ux.sh'
       - 'installer/verify-vmware-vcenter-phase5e1-feedback.sh'
+      - 'installer/verify-vmware-vcenter-phase5e2-ip-style.sh'
       - 'tests/vmware-vcenter-phase5e-ux-regression.sh'
       - 'tests/vmware-vcenter-phase5e-installer-source-regression.sh'
+      - 'tests/vmware-vcenter-phase5e2-ip-style-regression.sh'
       - 'tests/phpipam-address-link-resolver-regression.php'
       - '.github/workflows/phase5e-explorer-ux.yml'
 
@@ -49,15 +54,20 @@ jobs:
           php -l layers/phase5e/app/integrations/vmware/vm-card-result.php
           php -l layers/phase5e/functions/classes/class.IntegrationPhpIpamAddressLinkResolver.php
           php -l layers/phase5e1/app/sections/menu/menu-tools-admin.php
+          php -l layers/phase5e2/app/integrations/vmware/vm-card-result.php
           php -l tests/phpipam-address-link-resolver-regression.php
           bash -n tools/live-vmware-phase5e-ux-preflight.sh
           bash -n tools/live-vmware-phase5e1-feedback-preflight.sh
+          bash -n tools/live-vmware-phase5e2-ip-style-preflight.sh
           bash -n installer/install-vmware-vcenter-phase5e-ux.sh
           bash -n installer/install-vmware-vcenter-phase5e1-feedback.sh
+          bash -n installer/install-vmware-vcenter-phase5e2-ip-style.sh
           bash -n installer/verify-vmware-vcenter-phase5e-ux.sh
           bash -n installer/verify-vmware-vcenter-phase5e1-feedback.sh
+          bash -n installer/verify-vmware-vcenter-phase5e2-ip-style.sh
           bash -n tests/vmware-vcenter-phase5e-ux-regression.sh
           bash -n tests/vmware-vcenter-phase5e-installer-source-regression.sh
+          bash -n tests/vmware-vcenter-phase5e2-ip-style-regression.sh
 
       - name: Run Phase 5E UX/security regression
         run: bash tests/vmware-vcenter-phase5e-ux-regression.sh
@@ -67,6 +77,9 @@ jobs:
 
       - name: Run Phase 5E deployment source-pin regression
         run: bash tests/vmware-vcenter-phase5e-installer-source-regression.sh
+
+      - name: Run Phase 5E.2 native IP-link regression
+        run: bash tests/vmware-vcenter-phase5e2-ip-style-regression.sh
 
       - name: Re-run inherited Phase 5D model/UI regression
         run: |
