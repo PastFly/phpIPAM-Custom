@@ -24,10 +24,21 @@ REGISTRY="$TARGET/app/integrations/registry.php"
 [[ -f "$INTEGRATIONS_INDEX" ]] || fail "live Integrations index missing"
 [[ -f "$REGISTRY" ]] || fail "live Integrations registry missing"
 
+# The top-level Integrations index is still the reviewed Phase 4 surface.
+# The registry was intentionally replaced by Phase 5A and remains the live
+# metadata registry through Phase 5B/5C/5D. Do not compare it to the older
+# pre-Phase-5A Phase 4 blob.
 EXPECTED_INDEX_BLOB="7411f3bebc259c5b0535e0db57055c0b38aff36e"
-EXPECTED_REGISTRY_BLOB="2a03e1b96f5fc493eeee2adceceb3c717830d50b"
-[[ "$(hash_file "$INTEGRATIONS_INDEX")" == "$EXPECTED_INDEX_BLOB" ]] || fail "live Integrations index drifted from reviewed Phase 4/5D surface"
-[[ "$(hash_file "$REGISTRY")" == "$EXPECTED_REGISTRY_BLOB" ]] || fail "live Integrations registry drifted from reviewed Phase 4/5D surface"
+EXPECTED_REGISTRY_BLOB="45f841df2e052a92da44b6e3deb2911844f4d816"
+ACTUAL_INDEX_BLOB="$(hash_file "$INTEGRATIONS_INDEX")"
+ACTUAL_REGISTRY_BLOB="$(hash_file "$REGISTRY")"
+
+echo "PHASE5E_BASE_INTEGRATIONS_INDEX_BLOB=$ACTUAL_INDEX_BLOB"
+echo "PHASE5E_BASE_INTEGRATIONS_REGISTRY_BLOB=$ACTUAL_REGISTRY_BLOB"
+
+[[ "$ACTUAL_INDEX_BLOB" == "$EXPECTED_INDEX_BLOB" ]] || fail "live Integrations index drift: expected $EXPECTED_INDEX_BLOB, got $ACTUAL_INDEX_BLOB"
+[[ "$ACTUAL_REGISTRY_BLOB" == "$EXPECTED_REGISTRY_BLOB" ]] || fail "live Integrations registry drift: expected Phase 5A registry $EXPECTED_REGISTRY_BLOB, got $ACTUAL_REGISTRY_BLOB"
+grep -Fq 'PHPIPAM_CUSTOM_VMWARE_VCENTER_PHASE5A_V1' "$REGISTRY" || fail "live Integrations registry is missing the reviewed Phase 5A VMware marker"
 echo "PHASE5E_BASE_INTEGRATIONS_EXACT_OK=1"
 
 new_targets=(
