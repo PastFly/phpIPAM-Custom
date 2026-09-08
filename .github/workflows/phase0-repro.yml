@@ -10,6 +10,7 @@ on:
       - phase5/vmware-vcenter-readonly
       - phase5b/vcenter-secure-config
       - phase5b/live-secure-config
+      - phase5c/vcenter-readonly-inventory
 
 permissions:
   contents: read
@@ -54,14 +55,19 @@ jobs:
           bash -n installer/verify-vmware-vcenter-phase5b3-foundation.sh
           bash -n installer/install-vmware-vcenter-phase5b3-ui.sh
           bash -n installer/verify-vmware-vcenter-phase5b3-ui.sh
+          bash -n installer/install-vmware-vcenter-phase5c-ui.sh
+          bash -n installer/verify-vmware-vcenter-phase5c-ui.sh
           bash -n tools/live-integrations-preflight.sh
           bash -n tools/live-vmware-phase5a-preflight.sh
           bash -n tools/live-vmware-phase5b-preflight.sh
+          bash -n tools/live-vmware-phase5c-ui-preflight.sh
           bash -n tests/reproduce-clean-v1.8.2.sh
           bash -n tests/live-integrations-updater-regression.sh
           bash -n tests/phase5b-migration-regression.sh
           bash -n tests/phase5b3-foundation-deployment-regression.sh
           bash -n tests/phase5b3-ui-deployment-regression.sh
+          bash -n tests/phase5c-ui-deployment-regression.sh
+          php -l tools/live-vmware-phase5c-preview.php
           php -l tests/rack-free-u-regression.php
           php -l tests/rack-backend-regression.php
           php -l tests/rack-endpoint-security-regression.php
@@ -70,6 +76,13 @@ jobs:
           php -l tests/vmware-vcenter-connector-regression.php
           php -l tests/phase5b-secure-config-regression.php
           php -l tests/phase5b3-admin-ui-regression.php
+          php -l tests/vmware-vcenter-inventory-regression.php
+          php -l tests/vmware-vcenter-core-inventory-regression.php
+          php -l tests/vmware-vcenter-guest-network-regression.php
+          php -l tests/vmware-vcenter-reconciliation-regression.php
+          php -l tests/vmware-vcenter-live-preview-regression.php
+          php -l tests/phpipam-inventory-snapshot-regression.php
+          php -l tests/phase5c-admin-inventory-ui-regression.php
           php -l src/app/integrations/registry.php
           php -l src/app/integrations/index.php
           php -l src/app/admin/integrations/index.php
@@ -81,6 +94,13 @@ jobs:
           php -l layers/phase5b/functions/classes/class.IntegrationVmwareVcenterConfigStore.php
           php -l layers/phase5b3/app/admin/integrations/index.php
           php -l layers/phase5b3/app/admin/integrations/vmware-config-action.php
+          php -l layers/phase5c/functions/classes/class.IntegrationVmwareVcenterInventory.php
+          php -l layers/phase5c/functions/classes/class.IntegrationVmwareVcenterGuestNetwork.php
+          php -l layers/phase5c/functions/classes/class.IntegrationVmwareVcenterReconciler.php
+          php -l layers/phase5c/functions/classes/class.IntegrationPhpIpamInventorySnapshot.php
+          php -l layers/phase5c/app/admin/integrations/index-phase5c-append.php
+          php -l layers/phase5c/app/admin/integrations/vmware-inventory-panel.php
+          php -l layers/phase5c/app/admin/integrations/vmware-inventory-result.php
 
       - name: Verify Phase 5B repository security contract
         run: bash installer/verify-vmware-vcenter-phase5b-repository.sh
@@ -114,6 +134,30 @@ jobs:
           PHASE5B_DB_USER: root
           PHASE5B_DB_PASSWORD: phase5b-ci
         run: bash tests/phase5b3-ui-deployment-regression.sh
+
+      - name: Run Phase 5C Datacenter and Cluster inventory regression
+        run: php tests/vmware-vcenter-inventory-regression.php
+
+      - name: Run Phase 5C ESXi Host and VM inventory regression
+        run: php tests/vmware-vcenter-core-inventory-regression.php
+
+      - name: Run Phase 5C guest NIC MAC and IP observation regression
+        run: php tests/vmware-vcenter-guest-network-regression.php
+
+      - name: Run Phase 5C advisory reconciliation regression
+        run: php tests/vmware-vcenter-reconciliation-regression.php
+
+      - name: Run Phase 5C live preview safety regression
+        run: php tests/vmware-vcenter-live-preview-regression.php
+
+      - name: Run Phase 5C phpIPAM read-only projection regression
+        run: php tests/phpipam-inventory-snapshot-regression.php
+
+      - name: Run Phase 5C Administration inventory UI security regression
+        run: php tests/phase5c-admin-inventory-ui-regression.php
+
+      - name: Run Phase 5C Administration UI apply verify rollback regression
+        run: bash tests/phase5c-ui-deployment-regression.sh
 
       - name: Reproduce from official phpIPAM 1.8.2 and run regressions
         run: bash tests/reproduce-clean-v1.8.2.sh
