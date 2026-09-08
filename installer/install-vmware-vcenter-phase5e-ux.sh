@@ -31,41 +31,65 @@ for cmd in git php grep; do command -v "$cmd" >/dev/null 2>&1 || fail "required 
 # Read-only exact live precondition gate.
 bash "$REPO_ROOT/tools/live-vmware-phase5e-ux-preflight.sh" "$TARGET"
 
-SOURCE_ROOT="$REPO_ROOT/layers/phase5e"
 declare -A SOURCE_BLOB=(
   ["app/integrations/index.php"]="b721ae34b3244aa86dbbcd48f3bde584d58365e2"
   ["app/integrations/registry.php"]="8068e6b8337e926861f65772302742c4d6a6f32a"
-  ["app/integrations/vmware/index.php"]="32d6607e1a8ffcb87949de3b1020dc3e66279598"
+  ["app/integrations/vmware/index.php"]="97aeb732cc0a486729936983427c22a4d032efac"
   ["app/integrations/vmware/phase5e.css"]="2916636fc01810981bf0d29b16c7ab1002ebc258"
-  ["app/integrations/vmware/workspace-result.php"]="2f460015d73d427c4d570c3bae36b3b84286b967"
-  ["app/integrations/vmware/vm-card-result.php"]="7bc35cb8db18ccde52c79a4b27a3e0f189a75fd4"
+  ["app/integrations/vmware/workspace-result.php"]="408fed89e2b0583013325b08e2959813458c76fe"
+  ["app/integrations/vmware/vm-card-result.php"]="2d58ab4af53f750d945527e0ac1a404d7973e574"
+  ["functions/classes/class.IntegrationPhpIpamAddressLinkResolver.php"]="d26f9ad06ea4136c487b229e004b9a8c6521b863"
+  ["app/sections/menu/menu-tools-admin.php"]="c778652ed50fdbd7d5855d4c37d20c2992545c82"
 )
 
-REPLACED=(app/integrations/index.php app/integrations/registry.php)
+source_path() {
+    local rel="$1"
+    if [[ "$rel" == "app/sections/menu/menu-tools-admin.php" ]]; then
+        printf '%s\n' "$REPO_ROOT/layers/phase5e1/$rel"
+    else
+        printf '%s\n' "$REPO_ROOT/layers/phase5e/$rel"
+    fi
+}
+
+REPLACED=(
+  app/integrations/index.php
+  app/integrations/registry.php
+  app/sections/menu/menu-tools-admin.php
+)
 CREATED=(
   app/integrations/vmware/index.php
   app/integrations/vmware/phase5e.css
   app/integrations/vmware/workspace-result.php
   app/integrations/vmware/vm-card-result.php
+  functions/classes/class.IntegrationPhpIpamAddressLinkResolver.php
 )
 
 for rel in "${!SOURCE_BLOB[@]}"; do
-    src="$SOURCE_ROOT/$rel"
+    src="$(source_path "$rel")"
     [[ -f "$src" ]] || fail "repository Phase 5E source missing: $rel"
     [[ "$(hash_file "$src")" == "${SOURCE_BLOB[$rel]}" ]] || fail "repository Phase 5E source drift: $rel"
     mkdir -p "$STAGE/$(dirname "$rel")"
     cp "$src" "$STAGE/$rel"
 done
 
-for rel in app/integrations/index.php app/integrations/registry.php app/integrations/vmware/index.php app/integrations/vmware/workspace-result.php app/integrations/vmware/vm-card-result.php; do
-    php -l "$STAGE/$rel" >/dev/null || fail "candidate PHP lint failed: $rel"
+for rel in "${!SOURCE_BLOB[@]}"; do
+    [[ "$rel" == *.php ]] && php -l "$STAGE/$rel" >/dev/null || true
 done
 
 grep -Fq 'PHPIPAM_CUSTOM_VMWARE_PHASE5E_WORKSPACE_V1' "$STAGE/app/integrations/vmware/index.php" || fail "candidate workspace marker missing"
+grep -Fq 'PHPIPAM_CUSTOM_VMWARE_PHASE5E1_TLS_FROM_CONNECTOR_SETTINGS_V1' "$STAGE/app/integrations/vmware/index.php" || fail "candidate connector TLS settings marker missing"
 grep -Fq 'class.IntegrationVmwareVcenter.php' "$STAGE/app/integrations/vmware/index.php" || fail "candidate VMware client dependency missing"
 grep -Fq 'phase5e-vm-link' "$STAGE/app/integrations/vmware/workspace-result.php" || fail "candidate clickable VM navigation missing"
-if grep -Eq 'insertObject\(|updateObject\(|deleteRow\(|object_modify\(|modify_object\(' "$STAGE/app/integrations/vmware/workspace-result.php" "$STAGE/app/integrations/vmware/vm-card-result.php"; then
+grep -Fq 'exact_unique_ip' "$STAGE/functions/classes/class.IntegrationPhpIpamAddressLinkResolver.php" || fail "candidate exact IP link resolver missing"
+grep -Fq 'PHPIPAM_CUSTOM_INTEGRATIONS_GLOBAL_NAV_PHASE5E1_V1' "$STAGE/app/sections/menu/menu-tools-admin.php" || fail "candidate global Integrations navigation missing"
+if grep -Fq 'allow_insecure_tls' "$STAGE/app/integrations/vmware/index.php" "$STAGE/app/integrations/vmware/workspace-result.php" "$STAGE/app/integrations/vmware/vm-card-result.php"; then
+    fail "legacy per-request TLS acknowledgement remains in Phase 5E candidate"
+fi
+if grep -Eq 'insertObject\(|updateObject\(|deleteRow\(|object_modify\(|modify_object\(' "$STAGE/app/integrations/vmware/workspace-result.php" "$STAGE/app/integrations/vmware/vm-card-result.php" "$STAGE/functions/classes/class.IntegrationPhpIpamAddressLinkResolver.php"; then
     fail "unexpected phpIPAM write API in Phase 5E candidate"
+fi
+if grep -Eqi '\b(INSERT|UPDATE|DELETE|REPLACE|ALTER|DROP|TRUNCATE)[[:space:]]' "$STAGE/functions/classes/class.IntegrationPhpIpamAddressLinkResolver.php"; then
+    fail "unexpected SQL write verb in Phase 5E IP resolver candidate"
 fi
 if grep -Eqi '(^|[;{[:space:]])(color|background|background-color)[[:space:]]*:' "$STAGE/app/integrations/vmware/phase5e.css"; then
     fail "Phase 5E candidate CSS hardcodes theme foreground/background"
@@ -91,6 +115,7 @@ while IFS= read -r rel; do
 done < "$BACKUP_DIR/CREATED.txt"
 cp -a "$BACKUP_DIR/app/integrations/index.php" "$TARGET/app/integrations/index.php"
 cp -a "$BACKUP_DIR/app/integrations/registry.php" "$TARGET/app/integrations/registry.php"
+cp -a "$BACKUP_DIR/app/sections/menu/menu-tools-admin.php" "$TARGET/app/sections/menu/menu-tools-admin.php"
 rmdir "$TARGET/app/integrations/vmware" 2>/dev/null || true
 echo "PHASE5E_UX_ROLLBACK_OK"
 ROLLBACK
