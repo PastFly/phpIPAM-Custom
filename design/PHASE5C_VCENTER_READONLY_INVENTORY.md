@@ -1,12 +1,12 @@
 # Phase 5C — VMware vCenter read-only inventory and reconciliation
 
-Status: repository-only implementation branch.
+Status: repository implementation in progress; no Phase 5C source has been deployed to live.
 
 Base stable master: `e029493d37c133121949cf2678a9d36c7576d757` (Phase 5B.3 squash merge result).
 
 ## Goal
 
-Extend the runtime-verified secure VMware connector from connection testing into bounded read-only inventory collection and reconciliation against phpIPAM state.
+Extend the runtime-verified secure VMware connector from connection testing into bounded read-only inventory collection and advisory reconciliation against phpIPAM state.
 
 phpIPAM remains authoritative. VMware is an observation source only.
 
@@ -22,20 +22,6 @@ Phase 5C must not:
 - introduce cross-Location rack behavior or touch Rackspace.
 
 All vCenter inventory requests are GET-only except session create/delete needed for authentication/session cleanup.
-
-## Inventory order
-
-Implement incrementally:
-
-1. Datacenters;
-2. Clusters;
-3. ESXi hosts;
-4. Virtual machines;
-5. VM NIC/MAC observations;
-6. guest-observed IP addresses when exposed by vCenter;
-7. stable external identity normalization;
-8. reconciliation views against phpIPAM Device/IP state;
-9. connector health, last inventory timestamp and sanitized error categories.
 
 ## Phase 5C.1 — Datacenter and Cluster inventory
 
@@ -56,34 +42,74 @@ Implemented repository-only:
 
 Implemented repository-only:
 
-- bounded `GET /vcenter/host` and `GET /vcenter/vm` collection in the existing authenticated session;
-- modern `/api` and legacy `/rest` list paths;
+- bounded Host and VM collection in the existing authenticated session;
+- modern `/api/vcenter/host` and `/api/vcenter/vm`, with the corresponding legacy `/rest` list paths;
 - Host stable external id, name, connection state and power state observations;
 - VM stable external id, name, power state, CPU count and memory MiB observations;
-- state tokens normalized without relying on display names as identity;
-- numeric VM fields validated and bounded;
+- state tokens and numeric fields validated and normalized;
 - no parent Host/Cluster/Datacenter relationship is guessed when the list response does not supply it;
 - result contains no username, password or session token;
 - no schema or phpIPAM object writes.
 
-Current list-level hierarchy fields intentionally remain nullable. Parent relationships will be established only from authoritative API filters/details in a later slice, never inferred from names.
+Current list-level hierarchy fields intentionally remain nullable. Parent relationships will be established only from authoritative API filters/details, never inferred from names.
 
-## Phase 5C.3 — VM network observations
+## Phase 5C.3 — VM guest NIC/MAC/IP observations
 
-Next repository slice.
+Implemented repository-only in `IntegrationVmwareVcenterGuestNetwork`:
 
-The modern vSphere API exposes guest network interfaces per VM through a GET-only guest networking interface endpoint. The response can provide guest NIC identity, MAC address and guest-observed IP/prefix/state/origin data. This data is suitable for advisory IPAM reconciliation but must be treated as an observation, not authoritative configuration.
+- explicit bounded VM request set; duplicate VM IDs are de-duplicated;
+- VM external IDs validated before path use;
+- modern GET-only `/api/vcenter/vm/{vm}/guest/networking/interfaces` reads;
+- per-VM NIC external id and canonical MAC observations;
+- validated/canonicalized IPv4 and IPv6 address, prefix length, origin and state observations;
+- flattened IP observation rows retain VM/NIC/MAC linkage for later advisory reconciliation;
+- VMware Tools unavailable (`503`) is represented as sanitized `tools_unavailable` state;
+- VM not found (`404`) is represented as sanitized `vm_not_found` state;
+- 401/403 and malformed responses fail with sanitized connector categories at the caller boundary;
+- legacy guest-network endpoint behavior is deliberately not guessed: a legacy session is rejected as unsupported after clean session cleanup;
+- no DNS/WINS/raw guest payload persistence;
+- no automatic creation or update of phpIPAM addresses.
 
-Design constraints:
+The N+1 guest crawl is explicitly bounded; the live preview tool further caps manual guest inspection at 250 VMs.
 
-- per-VM requests must be explicitly bounded to prevent an unbounded N+1 crawl;
-- VM IDs must be validated and path-encoded before use;
-- VMware Tools unavailable responses must be represented as a sanitized observation state rather than leaking raw API bodies;
-- MAC addresses must be canonicalized before matching;
-- IPv4/IPv6 addresses and prefix lengths must be validated before entering normalized observations;
-- no DNS/WINS/raw guest payload persistence in the first slice;
-- no automatic creation or update of phpIPAM addresses;
-- legacy compatibility must be evidence-driven and must not be guessed if the endpoint is unavailable on an older API family.
+## Phase 5C.4 — advisory VMware/phpIPAM reconciliation
+
+Implemented repository-only in `IntegrationVmwareVcenterReconciler` as a pure in-memory comparator.
+
+Current conservative matching contract:
+
+- VM to phpIPAM Device: exact hostname/name match, case-insensitive only;
+- no fuzzy matching, suffix stripping or FQDN guessing;
+- duplicate Device-name candidates are `ambiguous`;
+- VMware VM without a unique Device match is `vmware_only`;
+- untouched phpIPAM Devices are returned as `phpipam_only` observations;
+- guest IP to phpIPAM address: exact canonical IPv4/IPv6 match;
+- duplicate phpIPAM address candidates are `ambiguous`;
+- mismatching observed/stored MAC is `ip_mac_mismatch`;
+- a matched VM whose observed IP belongs to another linked phpIPAM Device is `metadata_mismatch`;
+- phpIPAM addresses absent from the VMware observation set are returned separately.
+
+The reconciler performs no database queries and no writes. A future adapter will supply normalized phpIPAM Device/address snapshots to this pure comparison layer.
+
+## Phase 5C.5 — no-persistence live preview gate
+
+Repository tool: `tools/live-vmware-phase5c-preview.php`.
+
+Purpose: prove the inventory client against the existing encrypted persistent connector before any schema, scheduled job or inventory persistence is designed.
+
+Safety contract:
+
+- CLI-only;
+- loads an existing enabled connector through the Phase 5B encrypted config store;
+- performs no health metadata write and no inventory persistence;
+- summary-only output: API family and object counts, never username/password/token/raw API bodies;
+- password memory is explicitly cleared after use where runtime support permits;
+- default behavior refuses a connector with TLS verification disabled;
+- a manual preview of the current known-INSECURE connector requires the explicit `--allow-insecure-tls` flag;
+- optional guest inspection is bounded by `--guest-limit=N`, maximum 250;
+- scheduled sync remains prohibited regardless of that manual override.
+
+No live preview has been executed yet. Running it will make read-only API calls using the stored production credential and therefore remains a deliberate runtime verification action, not a CI action.
 
 ## Identity model
 
@@ -99,27 +125,23 @@ Expected normalized identity fields include:
 - display name;
 - relevant observed metadata.
 
-## Reconciliation policy
-
-Initial reconciliation is advisory only:
-
-- matched;
-- VMware-only observation;
-- phpIPAM-only object;
-- metadata mismatch;
-- IP/MAC mismatch;
-- ambiguous match requiring manual review.
-
-No reconciliation result performs an automatic write.
-
 ## TLS gate
 
-The currently runtime-verified persistent connector succeeded with TLS verification disabled. Repository work may proceed, but production scheduled inventory remains blocked until the internal vCenter CA is trusted by the phpIPAM host and the stored connector succeeds with TLS verification enabled.
+The currently runtime-verified persistent connector succeeded with TLS verification disabled. Repository work and an explicitly acknowledged manual read-only preview may proceed, but production scheduled inventory remains blocked until the internal vCenter CA is trusted by the phpIPAM host and the stored connector succeeds with TLS verification enabled.
+
+## Next implementation / runtime sequence
+
+1. exact-head CI for all Phase 5C.1–5C.5 repository gates;
+2. read-only live preview using the existing stored connector, first core inventory counts only;
+3. optionally repeat preview with a small guest VM limit to validate Tools/MAC/IP observations;
+4. resolve internal CA trust and re-test the saved connector with TLS verification enabled;
+5. only then design inventory persistence/health schema and scheduler as separate Owner-approved phases;
+6. build the phpIPAM read adapter and advisory reconciliation UI before considering any automated action.
 
 ## Deployment / approval gates
 
 - repository implementation stays on `phase5c/vcenter-readonly-inventory`;
 - CI must pass on the exact PR head;
 - no merge to `master` without explicit Owner approval;
-- no new live schema, scheduler, cron/systemd timer or production inventory persistence without a separate explicit Owner approval;
+- no Phase 5C source deployment into `/var/www/html`, new live schema, scheduler, cron/systemd timer or production inventory persistence without a separate explicit Owner approval;
 - no secrets in Git, CI, logs, HTML or Continuity.
