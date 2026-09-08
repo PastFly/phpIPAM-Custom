@@ -15,7 +15,7 @@ bash "$REPO_ROOT/installer/verify-vmware-vcenter-phase5d-ui.sh" "$TARGET"
 declare -A EXPECTED=(
   ["app/integrations/index.php"]="b721ae34b3244aa86dbbcd48f3bde584d58365e2"
   ["app/integrations/registry.php"]="8068e6b8337e926861f65772302742c4d6a6f32a"
-  ["app/integrations/vmware/index.php"]="42429d44ce1eb0495917617fc1c6524ea1f621aa"
+  ["app/integrations/vmware/index.php"]="32d6607e1a8ffcb87949de3b1020dc3e66279598"
   ["app/integrations/vmware/phase5e.css"]="2916636fc01810981bf0d29b16c7ab1002ebc258"
   ["app/integrations/vmware/workspace-result.php"]="2f460015d73d427c4d570c3bae36b3b84286b967"
   ["app/integrations/vmware/vm-card-result.php"]="7bc35cb8db18ccde52c79a4b27a3e0f189a75fd4"
@@ -34,6 +34,7 @@ done
 
 grep -Fq 'PHPIPAM_CUSTOM_INTEGRATIONS_PAGE_PHASE5E_V1' "$TARGET/app/integrations/index.php" || fail "Phase 5E Integrations dispatcher marker missing"
 grep -Fq 'PHPIPAM_CUSTOM_VMWARE_PHASE5E_WORKSPACE_V1' "$TARGET/app/integrations/vmware/index.php" || fail "Phase 5E workspace marker missing"
+grep -Fq 'class.IntegrationVmwareVcenter.php' "$TARGET/app/integrations/vmware/index.php" || fail "Phase 5E workspace VMware client dependency missing"
 grep -Fq 'PHPIPAM_CUSTOM_VMWARE_PHASE5E_WORKSPACE_RESULT_V1' "$TARGET/app/integrations/vmware/workspace-result.php" || fail "Phase 5E workspace endpoint marker missing"
 grep -Fq 'PHPIPAM_CUSTOM_VMWARE_PHASE5E_VM_CARD_RESULT_V1' "$TARGET/app/integrations/vmware/vm-card-result.php" || fail "Phase 5E VM card marker missing"
 grep -Fq "csrf_cookie('validate', 'integration_vmware_vcenter_explorer'" "$TARGET/app/integrations/vmware/workspace-result.php" || fail "Phase 5E workspace CSRF validation missing"
