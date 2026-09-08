@@ -72,6 +72,7 @@ jobs:
           php -l tests/phase5b-secure-config-regression.php
           php -l tests/phase5b3-admin-ui-regression.php
           php -l tests/vmware-vcenter-inventory-regression.php
+          php -l tests/vmware-vcenter-core-inventory-regression.php
           php -l src/app/integrations/registry.php
           php -l src/app/integrations/index.php
           php -l src/app/admin/integrations/index.php
@@ -118,8 +119,11 @@ jobs:
           PHASE5B_DB_PASSWORD: phase5b-ci
         run: bash tests/phase5b3-ui-deployment-regression.sh
 
-      - name: Run Phase 5C read-only VMware inventory regression
+      - name: Run Phase 5C Datacenter and Cluster inventory regression
         run: php tests/vmware-vcenter-inventory-regression.php
+
+      - name: Run Phase 5C ESXi Host and VM inventory regression
+        run: php tests/vmware-vcenter-core-inventory-regression.php
 
       - name: Reproduce from official phpIPAM 1.8.2 and run regressions
         run: bash tests/reproduce-clean-v1.8.2.sh
