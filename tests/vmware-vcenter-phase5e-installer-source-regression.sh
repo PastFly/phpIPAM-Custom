@@ -24,7 +24,7 @@ check_pin() {
 
 check_pin app/integrations/index.php b721ae34b3244aa86dbbcd48f3bde584d58365e2
 check_pin app/integrations/registry.php 8068e6b8337e926861f65772302742c4d6a6f32a
-check_pin app/integrations/vmware/index.php 42429d44ce1eb0495917617fc1c6524ea1f621aa
+check_pin app/integrations/vmware/index.php 32d6607e1a8ffcb87949de3b1020dc3e66279598
 check_pin app/integrations/vmware/phase5e.css 2916636fc01810981bf0d29b16c7ab1002ebc258
 check_pin app/integrations/vmware/workspace-result.php 2f460015d73d427c4d570c3bae36b3b84286b967
 check_pin app/integrations/vmware/vm-card-result.php 7bc35cb8db18ccde52c79a4b27a3e0f189a75fd4
@@ -40,5 +40,7 @@ grep -Fq 'rollback.sh' installer/install-vmware-vcenter-phase5e-ux.sh
 grep -Fq 'PHASE5E_UX_ROLLBACK_OK' installer/install-vmware-vcenter-phase5e-ux.sh
 grep -Fq 'verify-vmware-vcenter-phase5e-ux.sh' installer/install-vmware-vcenter-phase5e-ux.sh
 grep -Fq 'verify-vmware-vcenter-phase5d-ui.sh' installer/verify-vmware-vcenter-phase5e-ux.sh
+grep -Fq 'class.IntegrationVmwareVcenter.php' installer/install-vmware-vcenter-phase5e-ux.sh
+grep -Fq 'class.IntegrationVmwareVcenter.php' installer/verify-vmware-vcenter-phase5e-ux.sh
 
 echo 'PHASE5E_INSTALLER_SOURCE_REGRESSION_OK'
