@@ -65,7 +65,7 @@ jobs:
           grep -Fq 'normalize_endpoint($runtime' tools/live-vmware-phase5f-observability-preview.php
           grep -Fq 'PHASE5F_PREVIEW_PERSISTENCE=0' tools/live-vmware-phase5f-observability-preview.php
           grep -Fq 'PHASE5F_PREVIEW_VCENTER_MUTATIONS=0' tools/live-vmware-phase5f-observability-preview.php
-          grep -Fq "--host-name is required; the preview never guesses a production Host" tools/live-vmware-phase5f-observability-preview.php
+          grep -Fq -- '--host-name is required; the preview never guesses a production Host' tools/live-vmware-phase5f-observability-preview.php
           grep -Fq 'max-samples must be between 2 and 60 for the live preview' tools/live-vmware-phase5f-observability-preview.php
           if grep -Eqi '\b(INSERT|UPDATE|DELETE|REPLACE|ALTER|DROP|TRUNCATE)[[:space:]]' tools/live-vmware-phase5f-observability-preview.php; then
             echo 'SQL mutation verb in Phase 5F live preview' >&2
