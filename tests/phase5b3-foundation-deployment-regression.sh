@@ -129,14 +129,17 @@ printf '%s\n' "$verify_output"
     exit 1
 }
 
-[[ -f "$KEYRING" && ! -L "$KEYRING" ]] || { echo "ERROR: disposable keyring missing" >&2; exit 1; }
-[[ "$(stat -c '%a' "$KEYRING")" == "640" ]] || { echo "ERROR: disposable keyring mode mismatch" >&2; exit 1; }
-[[ "$(stat -c '%U:%G' "$KEYRING")" == "root:$RUNTIME_USER" ]] || { echo "ERROR: disposable keyring owner/group mismatch" >&2; exit 1; }
+# The keyring parent is intentionally root:www-data 0750, so the CI runner must
+# not be able to inspect it directly. Metadata checks therefore run as root.
+sudo test -f "$KEYRING" || { echo "ERROR: disposable keyring missing" >&2; exit 1; }
+sudo test ! -L "$KEYRING" || { echo "ERROR: disposable keyring became a symlink" >&2; exit 1; }
+[[ "$(sudo stat -c '%a' "$KEYRING")" == "640" ]] || { echo "ERROR: disposable keyring mode mismatch" >&2; exit 1; }
+[[ "$(sudo stat -c '%U:%G' "$KEYRING")" == "root:$RUNTIME_USER" ]] || { echo "ERROR: disposable keyring owner/group mismatch" >&2; exit 1; }
 
 mapfile -t backups < <(find "$TARGET" -maxdepth 1 -type d -name '.phpipam-custom-vcenter-phase5b3-backup-*' -print)
 [[ "${#backups[@]}" -eq 1 ]] || { echo "ERROR: expected exactly one Phase 5B.3 backup" >&2; exit 1; }
 BACKUP="${backups[0]}"
-[[ -x "$BACKUP/rollback.sh" ]] || { echo "ERROR: guarded rollback script missing" >&2; exit 1; }
+sudo test -x "$BACKUP/rollback.sh" || { echo "ERROR: guarded rollback script missing" >&2; exit 1; }
 
 # A non-empty connector table must make rollback fail closed and preserve the
 # table, keyring and deployed classes.
@@ -158,7 +161,7 @@ printf '%s\n' "$refusal_output"
     echo "ERROR: guarded rollback removed non-empty table" >&2
     exit 1
 }
-[[ -f "$KEYRING" ]] || { echo "ERROR: guarded rollback removed keyring while data existed" >&2; exit 1; }
+sudo test -f "$KEYRING" || { echo "ERROR: guarded rollback removed keyring while data existed" >&2; exit 1; }
 [[ -f "$TARGET/functions/classes/class.IntegrationSecretCipher.php" ]] || { echo "ERROR: guarded rollback removed cipher while data existed" >&2; exit 1; }
 [[ -f "$TARGET/functions/classes/class.IntegrationVmwareVcenterConfigStore.php" ]] || { echo "ERROR: guarded rollback removed config store while data existed" >&2; exit 1; }
 
@@ -176,7 +179,7 @@ printf '%s\n' "$rollback_output"
     echo "ERROR: rollback did not remove empty custom_integrations table" >&2
     exit 1
 }
-[[ ! -e "$KEYRING" ]] || { echo "ERROR: rollback did not remove disposable keyring" >&2; exit 1; }
+sudo test ! -e "$KEYRING" || { echo "ERROR: rollback did not remove disposable keyring" >&2; exit 1; }
 [[ ! -e "$TARGET/functions/classes/class.IntegrationSecretCipher.php" ]] || { echo "ERROR: rollback did not remove cipher class" >&2; exit 1; }
 [[ ! -e "$TARGET/functions/classes/class.IntegrationVmwareVcenterConfigStore.php" ]] || { echo "ERROR: rollback did not remove config-store class" >&2; exit 1; }
 [[ "$(git hash-object "$TARGET/functions/classes/class.Rackspace.php")" == "$TEST_RACKSPACE_BLOB" ]] || {
