@@ -33,7 +33,7 @@ preview_check('persistent-runtime-config-used', strpos($source, 'load_runtime_co
 preview_check('requires-enabled-connector', strpos($source, 'load_runtime_config($connectorId, true)') !== false);
 preview_check('optional-explicit-connector-id', strpos($source, '[connector-id]') !== false);
 preview_check('autoselect-uses-public-config-list', strpos($source, '$Store->list_configs()') !== false);
-preview_check('autoselect-enabled-only', strpos($source, "!empty($config['enabled'])") !== false);
+preview_check('autoselect-enabled-only', strpos($source, '!empty($config[\'enabled\'])') !== false);
 preview_check('autoselect-no-enabled-fails-closed', strpos($source, 'PREVIEW_BLOCKED=NO_ENABLED_CONNECTOR') !== false);
 preview_check('autoselect-multiple-fails-closed', strpos($source, 'PREVIEW_BLOCKED=AMBIGUOUS_CONNECTOR_SELECTION') !== false);
 preview_check('autoselected-id-reported', strpos($source, 'PREVIEW_CONNECTOR_AUTOSELECTED=') !== false);
