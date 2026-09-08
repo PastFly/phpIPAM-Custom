@@ -30,7 +30,10 @@ check_pin app/integrations/vmware/workspace-result.php 2f460015d73d427c4d570c3ba
 check_pin app/integrations/vmware/vm-card-result.php 7bc35cb8db18ccde52c79a4b27a3e0f189a75fd4
 
 grep -Fq 'EXPECTED_INDEX_BLOB="7411f3bebc259c5b0535e0db57055c0b38aff36e"' tools/live-vmware-phase5e-ux-preflight.sh
-grep -Fq 'EXPECTED_REGISTRY_BLOB="2a03e1b96f5fc493eeee2adceceb3c717830d50b"' tools/live-vmware-phase5e-ux-preflight.sh
+grep -Fq 'EXPECTED_REGISTRY_BLOB="45f841df2e052a92da44b6e3deb2911844f4d816"' tools/live-vmware-phase5e-ux-preflight.sh
+grep -Fq 'PHPIPAM_CUSTOM_VMWARE_VCENTER_PHASE5A_V1' tools/live-vmware-phase5e-ux-preflight.sh
+grep -Fq 'PHASE5E_BASE_INTEGRATIONS_INDEX_BLOB=' tools/live-vmware-phase5e-ux-preflight.sh
+grep -Fq 'PHASE5E_BASE_INTEGRATIONS_REGISTRY_BLOB=' tools/live-vmware-phase5e-ux-preflight.sh
 grep -Fq 'verify-vmware-vcenter-phase5d-ui.sh' tools/live-vmware-phase5e-ux-preflight.sh
 grep -Fq 'PREFLIGHT_WRITE_OPERATIONS=0' tools/live-vmware-phase5e-ux-preflight.sh
 grep -Fq 'PREFLIGHT_VCENTER_REQUESTS=0' tools/live-vmware-phase5e-ux-preflight.sh
