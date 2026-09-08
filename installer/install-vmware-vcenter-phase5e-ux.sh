@@ -73,7 +73,9 @@ for rel in "${!SOURCE_BLOB[@]}"; do
 done
 
 for rel in "${!SOURCE_BLOB[@]}"; do
-    [[ "$rel" == *.php ]] && php -l "$STAGE/$rel" >/dev/null || true
+    if [[ "$rel" == *.php ]]; then
+        php -l "$STAGE/$rel" >/dev/null || fail "candidate PHP lint failed: $rel"
+    fi
 done
 
 grep -Fq 'PHPIPAM_CUSTOM_VMWARE_PHASE5E_WORKSPACE_V1' "$STAGE/app/integrations/vmware/index.php" || fail "candidate workspace marker missing"
