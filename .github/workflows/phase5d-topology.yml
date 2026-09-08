@@ -17,6 +17,7 @@ on:
       - 'tests/vmware-vcenter-metadata-regression.php'
       - 'tests/vmware-vcenter-phase5d-live-preview-regression.php'
       - 'tests/vmware-vcenter-explorer-model-regression.php'
+      - 'tests/vmware-vcenter-explorer-ui-regression.php'
       - '.github/workflows/phase5d-topology.yml'
 
 permissions:
@@ -43,6 +44,10 @@ jobs:
           php -l layers/phase5d/functions/classes/class.IntegrationVmwareVcenterVmDetail.php
           php -l layers/phase5d/functions/classes/class.IntegrationVmwareVcenterMetadata.php
           php -l layers/phase5d/functions/classes/class.IntegrationVmwareVcenterExplorer.php
+          php -l layers/phase5d/app/admin/integrations/vmware-explorer-panel.php
+          php -l layers/phase5d/app/admin/integrations/vmware-explorer-result.php
+          php -l layers/phase5d/app/admin/integrations/vmware-vm-card-result.php
+          php -l layers/phase5d/app/admin/integrations/index-phase5d-append.php
           php -l tools/live-vmware-phase5d-preview.php
           php -l tests/vmware-vcenter-topology-regression.php
           php -l tests/vmware-vcenter-datastore-regression.php
@@ -51,6 +56,7 @@ jobs:
           php -l tests/vmware-vcenter-metadata-regression.php
           php -l tests/vmware-vcenter-phase5d-live-preview-regression.php
           php -l tests/vmware-vcenter-explorer-model-regression.php
+          php -l tests/vmware-vcenter-explorer-ui-regression.php
 
       - name: Run Phase 5D topology regression
         run: php tests/vmware-vcenter-topology-regression.php
@@ -72,3 +78,6 @@ jobs:
 
       - name: Run Phase 5D Explorer projection regression
         run: php tests/vmware-vcenter-explorer-model-regression.php
+
+      - name: Run Phase 5D Explorer UI security regression
+        run: php tests/vmware-vcenter-explorer-ui-regression.php
