@@ -1,0 +1,37 @@
+name: Phase 5D VMware Topology Regression
+
+on:
+  push:
+    branches:
+      - phase5d/vmware-topology-details
+  pull_request:
+    branches: [master]
+    paths:
+      - 'design/PHASE5D_VMWARE_TOPOLOGY_DETAILS.md'
+      - 'layers/phase5d/**'
+      - 'tests/vmware-vcenter-topology-regression.php'
+      - '.github/workflows/phase5d-topology.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  topology-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install PHP CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y php-cli php-curl
+
+      - name: Validate Phase 5D syntax
+        run: |
+          php -l layers/phase5d/functions/classes/class.IntegrationVmwareVcenterTopology.php
+          php -l tests/vmware-vcenter-topology-regression.php
+
+      - name: Run Phase 5D topology regression
+        run: php tests/vmware-vcenter-topology-regression.php
