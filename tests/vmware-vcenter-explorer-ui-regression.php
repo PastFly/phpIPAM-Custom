@@ -47,7 +47,7 @@ explorer_ui_check('result-authoritative-topology', strpos($result, 'IntegrationV
 explorer_ui_check('result-datastores', strpos($result, 'IntegrationVmwareVcenterDatastore') !== false);
 explorer_ui_check('result-explorer-model', strpos($result, 'IntegrationVmwareVcenterExplorer') !== false);
 explorer_ui_check('result-page-bound', strpos($result, '$pageSize > 100') !== false);
-explorer_ui_check('result-sanitized-error', strpos($result, 'Sensitive exception details were suppressed') !== false && strpos($result, '$e->getMessage()') !== false);
+explorer_ui_check('result-sanitized-error', strpos($result, 'Sensitive exception details were suppressed') !== false && strpos($result, 'phase5d_explorer_error_category') !== false);
 explorer_ui_check('result-zero-secret', strpos($result, 'phase5d_explorer_zero_secret') !== false);
 explorer_ui_check('result-no-db-write', strpos($result, 'INSERT INTO') === false && strpos($result, 'UPDATE ') === false && strpos($result, 'DELETE FROM') === false);
 explorer_ui_check('result-no-object-write', strpos($result, 'object_modify') === false && strpos($result, 'modify_object') === false);
