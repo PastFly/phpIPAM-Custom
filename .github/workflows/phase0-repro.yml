@@ -9,6 +9,7 @@ on:
       - phase4/integrations-framework
       - phase5/vmware-vcenter-readonly
       - phase5b/vcenter-secure-config
+      - phase5b/live-secure-config
 
 permissions:
   contents: read
@@ -49,12 +50,15 @@ jobs:
           bash -n installer/install-vmware-vcenter-phase5a.sh
           bash -n installer/verify-vmware-vcenter-phase5a.sh
           bash -n installer/verify-vmware-vcenter-phase5b-repository.sh
+          bash -n installer/install-vmware-vcenter-phase5b3-foundation.sh
+          bash -n installer/verify-vmware-vcenter-phase5b3-foundation.sh
           bash -n tools/live-integrations-preflight.sh
           bash -n tools/live-vmware-phase5a-preflight.sh
           bash -n tools/live-vmware-phase5b-preflight.sh
           bash -n tests/reproduce-clean-v1.8.2.sh
           bash -n tests/live-integrations-updater-regression.sh
           bash -n tests/phase5b-migration-regression.sh
+          bash -n tests/phase5b3-foundation-deployment-regression.sh
           php -l tests/rack-free-u-regression.php
           php -l tests/rack-backend-regression.php
           php -l tests/rack-endpoint-security-regression.php
@@ -85,6 +89,14 @@ jobs:
           PHASE5B_DB_USER: root
           PHASE5B_DB_PASSWORD: phase5b-ci
         run: bash tests/phase5b-migration-regression.sh
+
+      - name: Run Phase 5B.3 foundation apply/verify/guarded-rollback regression
+        env:
+          PHASE5B_DB_HOST: 127.0.0.1
+          PHASE5B_DB_PORT: 3306
+          PHASE5B_DB_USER: root
+          PHASE5B_DB_PASSWORD: phase5b-ci
+        run: bash tests/phase5b3-foundation-deployment-regression.sh
 
       - name: Reproduce from official phpIPAM 1.8.2 and run regressions
         run: bash tests/reproduce-clean-v1.8.2.sh
