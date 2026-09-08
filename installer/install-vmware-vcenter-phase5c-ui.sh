@@ -125,7 +125,7 @@ grep -Fq 'load_runtime_config($configId, true)' "$STAGE/$RESULT_REL" || fail "en
 grep -Fq 'read_core_inventory(' "$STAGE/$RESULT_REL" || fail "core inventory call missing"
 grep -Fq 'read_vm_interfaces(' "$STAGE/$RESULT_REL" || fail "guest-network observation call missing"
 grep -Fq 'read_projection()' "$STAGE/$RESULT_REL" || fail "phpIPAM read-only projection call missing"
-grep -Fq '->reconcile(' "$STAGE/$RESULT_REL" || fail "advisory reconciliation call missing"
+grep -Fq -- '->reconcile(' "$STAGE/$RESULT_REL" || fail "advisory reconciliation call missing"
 
 if grep -Eq 'insertObject\(|updateObject\(|deleteRow\(|object_modify\(|modify_object\(' "$STAGE/$RESULT_REL" "$STAGE/$SNAPSHOT_REL" "$STAGE/$RECONCILER_REL"; then
     fail "unexpected write API reference in Phase 5C read-only source"
