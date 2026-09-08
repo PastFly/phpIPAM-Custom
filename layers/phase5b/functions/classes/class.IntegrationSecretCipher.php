@@ -33,6 +33,12 @@ class IntegrationSecretCipher
         if ($path === '' || $path[0] !== '/') {
             throw new InvalidArgumentException('Integration keyring path must be absolute');
         }
+
+        // PHP caches stat metadata. Always refresh it so permission changes,
+        // key rotation and operator hardening are observed immediately rather
+        // than using stale mode bits from an earlier read in the same process.
+        clearstatcache(true, $path);
+
         if (is_link($path)) {
             throw new RuntimeException('Integration keyring must not be a symbolic link');
         }
