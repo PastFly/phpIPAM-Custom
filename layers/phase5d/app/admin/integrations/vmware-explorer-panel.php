@@ -43,6 +43,8 @@ function phase5d_explorer_panel_h($value)
                 <input type="hidden" name="csrf_cookie" value="<?php print phase5d_explorer_panel_h($phase5dExplorerCsrf); ?>">
                 <input type="hidden" name="allow_insecure_tls" id="vmware-phase5d-insecure-value" value="0">
                 <input type="hidden" name="page" id="vmware-phase5d-page" value="1">
+                <input type="hidden" name="scope" id="vmware-phase5d-scope" value="">
+                <input type="hidden" name="scope_id" id="vmware-phase5d-scope-id" value="">
 
                 <div class="form-group">
                     <label class="col-sm-2 control-label" for="vmware-phase5d-config">Connector</label>
@@ -76,6 +78,9 @@ function phase5d_explorer_panel_h($value)
                             <option value="50" selected>50</option>
                             <option value="100">100</option>
                         </select>
+                    </div>
+                    <div class="col-sm-2">
+                        <button type="button" class="btn btn-sm btn-default" id="vmware-phase5d-clear-scope"><i class="fa fa-times"></i> Clear scope</button>
                     </div>
                 </div>
 
@@ -153,6 +158,9 @@ $(document).ready(function () {
 
     $('#vmware-phase5d-config, #vmware-phase5d-view, #vmware-phase5d-insecure-ack').on('change', function () {
         $('#vmware-phase5d-page').val('1');
+        if ($(this).attr('id') === 'vmware-phase5d-view' && $('#vmware-phase5d-view').val() !== 'vms') {
+            $('#vmware-phase5d-scope, #vmware-phase5d-scope-id').val('');
+        }
         phase5dSyncControls();
     });
     $('#vmware-phase5d-search, #vmware-phase5d-page-size').on('change', function () { $('#vmware-phase5d-page').val('1'); });
@@ -161,6 +169,22 @@ $(document).ready(function () {
     $('#vmware-phase5d-explorer-form').on('submit', function (event) {
         event.preventDefault();
         $('#vmware-phase5d-page').val('1');
+        phase5dRunExplorer();
+    });
+
+    $('#vmware-phase5d-clear-scope').on('click', function () {
+        $('#vmware-phase5d-scope, #vmware-phase5d-scope-id').val('');
+        $('#vmware-phase5d-page').val('1');
+        phase5dRunExplorer();
+    });
+
+    $(document).on('click', '.phase5d-scope-link', function (event) {
+        event.preventDefault();
+        $('#vmware-phase5d-view').val('vms');
+        $('#vmware-phase5d-scope').val($(this).attr('data-scope'));
+        $('#vmware-phase5d-scope-id').val($(this).attr('data-scope-id'));
+        $('#vmware-phase5d-page').val('1');
+        phase5dSyncControls();
         phase5dRunExplorer();
     });
 
