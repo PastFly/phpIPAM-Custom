@@ -7,6 +7,7 @@ on:
     branches:
       - phase1/rack-regression-tests
       - phase4/integrations-framework
+      - phase5/vmware-vcenter-readonly
 
 permissions:
   contents: read
@@ -31,7 +32,10 @@ jobs:
           bash -n installer/install-integrations-framework-v1.sh
           bash -n installer/verify-integrations-framework-v1.sh
           bash -n installer/install-live-integrations-exact-20260907.sh
+          bash -n installer/install-vmware-vcenter-phase5a.sh
+          bash -n installer/verify-vmware-vcenter-phase5a.sh
           bash -n tools/live-integrations-preflight.sh
+          bash -n tools/live-vmware-phase5a-preflight.sh
           bash -n tests/reproduce-clean-v1.8.2.sh
           bash -n tests/live-integrations-updater-regression.sh
           php -l tests/rack-free-u-regression.php
@@ -39,12 +43,17 @@ jobs:
           php -l tests/rack-endpoint-security-regression.php
           php -l tests/rack-dnd-source-regression.php
           php -l tests/integrations-framework-regression.php
+          php -l tests/vmware-vcenter-connector-regression.php
           php -l src/app/integrations/registry.php
           php -l src/app/integrations/index.php
           php -l src/app/admin/integrations/index.php
+          php -l layers/phase5/functions/classes/class.IntegrationVmwareVcenter.php
+          php -l layers/phase5/app/integrations/registry.php
+          php -l layers/phase5/app/admin/integrations/index.php
+          php -l layers/phase5/app/admin/integrations/vmware-test-result.php
 
       - name: Reproduce from official phpIPAM 1.8.2 and run regressions
         run: bash tests/reproduce-clean-v1.8.2.sh
 
-      - name: Simulate exact live runtime, deploy Integrations and rollback
+      - name: Simulate exact Phase 4 live runtime, deploy Integrations and rollback
         run: bash tests/live-integrations-updater-regression.sh
