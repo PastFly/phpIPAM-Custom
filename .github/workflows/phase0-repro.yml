@@ -74,6 +74,7 @@ jobs:
           php -l tests/vmware-vcenter-inventory-regression.php
           php -l tests/vmware-vcenter-core-inventory-regression.php
           php -l tests/vmware-vcenter-guest-network-regression.php
+          php -l tests/vmware-vcenter-reconciliation-regression.php
           php -l src/app/integrations/registry.php
           php -l src/app/integrations/index.php
           php -l src/app/admin/integrations/index.php
@@ -87,6 +88,7 @@ jobs:
           php -l layers/phase5b3/app/admin/integrations/vmware-config-action.php
           php -l layers/phase5c/functions/classes/class.IntegrationVmwareVcenterInventory.php
           php -l layers/phase5c/functions/classes/class.IntegrationVmwareVcenterGuestNetwork.php
+          php -l layers/phase5c/functions/classes/class.IntegrationVmwareVcenterReconciler.php
 
       - name: Verify Phase 5B repository security contract
         run: bash installer/verify-vmware-vcenter-phase5b-repository.sh
@@ -129,6 +131,9 @@ jobs:
 
       - name: Run Phase 5C guest NIC MAC and IP observation regression
         run: php tests/vmware-vcenter-guest-network-regression.php
+
+      - name: Run Phase 5C advisory reconciliation regression
+        run: php tests/vmware-vcenter-reconciliation-regression.php
 
       - name: Reproduce from official phpIPAM 1.8.2 and run regressions
         run: bash tests/reproduce-clean-v1.8.2.sh
