@@ -6,6 +6,12 @@
 -- deliberately raises SQLSTATE 45000 instead of destroying data.
 -- Marker: PHPIPAM_CUSTOM_PHASE5B_INTEGRATIONS_ROLLBACK_V1
 
+-- A previous guarded rollback can leave the helper procedure behind because
+-- SIGNAL aborts the batch before the trailing DROP PROCEDURE statement. Clean
+-- that helper first so an operator can safely retry after exporting/deleting
+-- test data.
+DROP PROCEDURE IF EXISTS `phpipam_custom_phase5b_rollback_v1`;
+
 DELIMITER $$
 CREATE PROCEDURE `phpipam_custom_phase5b_rollback_v1`()
 BEGIN
