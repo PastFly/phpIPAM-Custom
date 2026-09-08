@@ -35,7 +35,7 @@ SOURCE_ROOT="$REPO_ROOT/layers/phase5e"
 declare -A SOURCE_BLOB=(
   ["app/integrations/index.php"]="b721ae34b3244aa86dbbcd48f3bde584d58365e2"
   ["app/integrations/registry.php"]="8068e6b8337e926861f65772302742c4d6a6f32a"
-  ["app/integrations/vmware/index.php"]="42429d44ce1eb0495917617fc1c6524ea1f621aa"
+  ["app/integrations/vmware/index.php"]="32d6607e1a8ffcb87949de3b1020dc3e66279598"
   ["app/integrations/vmware/phase5e.css"]="2916636fc01810981bf0d29b16c7ab1002ebc258"
   ["app/integrations/vmware/workspace-result.php"]="2f460015d73d427c4d570c3bae36b3b84286b967"
   ["app/integrations/vmware/vm-card-result.php"]="7bc35cb8db18ccde52c79a4b27a3e0f189a75fd4"
@@ -62,6 +62,7 @@ for rel in app/integrations/index.php app/integrations/registry.php app/integrat
 done
 
 grep -Fq 'PHPIPAM_CUSTOM_VMWARE_PHASE5E_WORKSPACE_V1' "$STAGE/app/integrations/vmware/index.php" || fail "candidate workspace marker missing"
+grep -Fq 'class.IntegrationVmwareVcenter.php' "$STAGE/app/integrations/vmware/index.php" || fail "candidate VMware client dependency missing"
 grep -Fq 'phase5e-vm-link' "$STAGE/app/integrations/vmware/workspace-result.php" || fail "candidate clickable VM navigation missing"
 if grep -Eq 'insertObject\(|updateObject\(|deleteRow\(|object_modify\(|modify_object\(' "$STAGE/app/integrations/vmware/workspace-result.php" "$STAGE/app/integrations/vmware/vm-card-result.php"; then
     fail "unexpected phpIPAM write API in Phase 5E candidate"
