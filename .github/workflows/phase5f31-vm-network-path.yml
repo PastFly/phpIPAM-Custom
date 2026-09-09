@@ -15,7 +15,12 @@ jobs:
       - name: Syntax
         run: |
           php -l layers/phase5f31/functions/classes/class.IntegrationVmwareVcenterVmNetworkPath.php
+          php -l layers/phase5f31/app/integrations/vmware/vm-network-path-result.php
           php -l tools/live-vmware-phase5f31-vm-network-path-preview.php
+          node --check layers/phase5f31/app/integrations/vmware/phase5f31-vm-network-path.js
+          bash -n tools/live-vmware-phase5f31-ui-preflight.sh
+          bash -n installer/verify-vmware-vcenter-phase5f31-vm-network-path.sh
+          bash -n installer/install-vmware-vcenter-phase5f31-vm-network-path.sh
 
       - name: Mapping regression
         run: php tests/phase5f31-vm-network-path-regression.php
@@ -24,8 +29,16 @@ jobs:
         run: |
           test -f installer/verify-vmware-vcenter-phase5f3-host-network.sh
           grep -Fq 'PHASE5F3_HOST_NETWORK_VERIFY_OK' installer/verify-vmware-vcenter-phase5f3-host-network.sh
-          test -f layers/phase5f3/functions/classes/class.IntegrationVmwareVcenterHostNetworkHints.php
-          grep -Fq '<QueryNetworkHint xmlns="urn:vim25">' layers/phase5f3/functions/classes/class.IntegrationVmwareVcenterHostNetworkHints.php
+          grep -Fq 'verify-vmware-vcenter-phase5f3-host-network.sh' tools/live-vmware-phase5f31-ui-preflight.sh
+          grep -Fq 'verify-vmware-vcenter-phase5f3-host-network.sh' installer/verify-vmware-vcenter-phase5f31-vm-network-path.sh
+          grep -Fq 'PHASE5F31_BASE_PHASE5F3_OK=1' tools/live-vmware-phase5f31-ui-preflight.sh
+
+      - name: Enforce exact runtime blobs
+        run: |
+          test "$(git hash-object layers/phase5f31/functions/classes/class.IntegrationVmwareVcenterVmNetworkPath.php)" = "987b03a66acd8023d1010cc20167cf1da60791d4"
+          test "$(git hash-object layers/phase5f31/app/integrations/vmware/vm-network-path-result.php)" = "c483e943d1a02037422fbeded2e5217e1d71041a"
+          test "$(git hash-object layers/phase5f31/app/integrations/vmware/phase5f31-vm-network-path.js)" = "08cc549fa138abb75ab440d4d1bb12bec75cbece"
+          test "$(git hash-object layers/phase5f31/app/integrations/vmware/phase5f31-vm-network-path.css)" = "0726fc928342a73bb344929f744cb0e4735d1040"
 
       - name: Enforce bounded read-only property surface
         run: |
@@ -58,6 +71,18 @@ jobs:
           grep -Fq 'not_proven_by_available_read_only_properties' "$CLASS"
           grep -Fq 'PHASE5F31_PREVIEW_CURRENT_UPLINK_GUESSING=0' tools/live-vmware-phase5f31-vm-network-path-preview.php
 
+      - name: Enforce UI fail-open and request ordering
+        run: |
+          ENDPOINT=layers/phase5f31/app/integrations/vmware/vm-network-path-result.php
+          JS=layers/phase5f31/app/integrations/vmware/phase5f31-vm-network-path.js
+          grep -Fq '$User->is_admin(false)' "$ENDPOINT"
+          grep -Fq "csrf_cookie('validate', 'integration_vmware_vcenter_explorer'" "$ENDPOINT"
+          grep -Fq 'Current uplink не заявляется' "$ENDPOINT"
+          grep -Fq 'vm-network-path-result.php' "$JS"
+          grep -Fq 'vm-card-result.php' "$JS"
+          grep -Fq 'sequence' "$JS"
+          grep -Fq 'Основная карточка VM не затронута' "$JS"
+
       - name: Enforce preview safety
         run: |
           PREVIEW=tools/live-vmware-phase5f31-vm-network-path-preview.php
@@ -66,3 +91,11 @@ jobs:
           grep -Fq 'PHASE5F31_PREVIEW_VCENTER_MUTATIONS=0' "$PREVIEW"
           grep -Fq 'PHASE5F31_PREVIEW_RESULT=READ_ONLY_COMPATIBILITY_OK' "$PREVIEW"
           grep -Fq -- '--vm-id is required; the preview never guesses a production VM.' "$PREVIEW"
+
+      - name: Enforce deployment gate
+        run: |
+          grep -Fq 'PREFLIGHT_WRITE_OPERATIONS=0' tools/live-vmware-phase5f31-ui-preflight.sh
+          grep -Fq 'PREFLIGHT_VCENTER_REQUESTS=0' tools/live-vmware-phase5f31-ui-preflight.sh
+          grep -Fq 'READY_FOR_PHASE5F31_VM_NETWORK_PATH_OWNER_APPROVAL' tools/live-vmware-phase5f31-ui-preflight.sh
+          grep -Fq 'PHASE5F31_VM_NETWORK_PATH_VERIFY_OK' installer/verify-vmware-vcenter-phase5f31-vm-network-path.sh
+          grep -Fq 'PHASE5F31_VM_NETWORK_PATH_INSTALL_OK' installer/install-vmware-vcenter-phase5f31-vm-network-path.sh
