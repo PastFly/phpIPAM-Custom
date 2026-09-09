@@ -1,0 +1,23 @@
+/* phpIPAM Custom — Phase 5F.3 ESXi physical adapter peer presentation. */
+#vmware-phase5e .phase5f3-host-network {
+    margin-top: 10px;
+}
+
+#vmware-phase5e .phase5f3-host-network h5 {
+    margin-top: 0;
+    margin-bottom: 6px;
+}
+
+#vmware-phase5e .phase5f3-network-table {
+    margin-bottom: 5px;
+}
+
+#vmware-phase5e .phase5f3-network-table th,
+#vmware-phase5e .phase5f3-network-table td {
+    vertical-align: top;
+}
+
+#vmware-phase5e .phase5f3-network-value {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
