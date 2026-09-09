@@ -78,13 +78,16 @@ class IntegrationVmwareVcenterPerformance
                 throw new RuntimeException('Selected vCenter entity does not expose bounded real-time performance statistics');
             }
 
-            $counterXml = '<RetrievePropertiesEx xmlns="urn:vim25"><_this type="PropertyCollector">'
+            // Use legacy RetrieveProperties deliberately for the single bounded
+            // perfCounter property read. It remains supported and avoids requiring
+            // explicit SOAP API version negotiation before the counter discovery.
+            $counterXml = '<RetrieveProperties xmlns="urn:vim25"><_this type="PropertyCollector">'
                 . $this->xml($service['property_collector']) . '</_this><specSet><propSet><type>PerformanceManager</type>'
                 . '<pathSet>perfCounter</pathSet></propSet><objectSet><obj type="PerformanceManager">'
                 . $this->xml($service['performance_manager']) . '</obj><skip>false</skip></objectSet></specSet>'
-                . '<options><maxObjects>1</maxObjects></options></RetrievePropertiesEx>';
+                . '</RetrieveProperties>';
             $counterResponse = $this->soap_request($sdk, $this->envelope($counterXml), $cookie, $verifyTls);
-            $counterDoc = $this->parse_soap($counterResponse['body'], 'RetrievePropertiesEx(perfCounter)');
+            $counterDoc = $this->parse_soap($counterResponse['body'], 'RetrieveProperties(perfCounter)');
             $counterMap = $this->parse_counter_map($counterDoc);
 
             foreach (array('cpu.usage.average', 'mem.usage.average') as $required) {
@@ -125,6 +128,7 @@ class IntegrationVmwareVcenterPerformance
                 'counters' => $selected,
                 'samples' => $series,
                 'sample_count' => count($series),
+                'property_method' => 'RetrieveProperties',
                 'verify_tls' => $verifyTls,
                 'duration_ms' => (int)round((microtime(true) - $started) * 1000)
             );
