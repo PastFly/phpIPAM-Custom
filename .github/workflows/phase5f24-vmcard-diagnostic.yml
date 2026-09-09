@@ -23,4 +23,4 @@ jobs:
           grep -Fq 'PHASE5F24_DIAG_PERSISTENCE=0' "$f"
           grep -Fq 'PHASE5F24_DIAG_VCENTER_MUTATIONS=0' "$f"
           ! grep -Eiq 'PowerOnVM|PowerOffVM|ReconfigVM|Destroy_Task|MigrateVM|RelocateVM|CreateVM|UpdateNetwork|RefreshNetworkSystem|INSERT[[:space:]]+INTO|UPDATE[[:space:]]+custom_|DELETE[[:space:]]+FROM' "$f"
-          grep -Fq "--vm-id is required; the diagnostic never guesses a production VM." "$f"
+          grep -Fq -- "--vm-id is required; the diagnostic never guesses a production VM." "$f"
