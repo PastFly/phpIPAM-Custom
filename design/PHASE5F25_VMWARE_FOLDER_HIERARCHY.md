@@ -73,4 +73,4 @@ Objects for which a reliable folder relation cannot be established remain visibl
 6. add model/UI regressions, source-pinned preflight, verifier and rollback-protected installer;
 7. production deployment only after separate explicit Owner approval.
 
-Phase 5F.2.5 is stacked on Phase 5F.2.4 exact head `577180b82f79dcc2dca417de9e9f153753ebde39`. If the accepted Phase 5F.2.4 baseline changes during live validation, this branch must be restacked before deployment.
+Phase 5F.2.5 is stacked on the accepted Phase 5F.2.4 exact head `bfe0166c0dfc0918af0c622603da81b2f0f5bdc8`. The branch was restacked after Phase 5F.2.4 verifier composition was fixed and the corrected Phase 5F.2.4 runtime was successfully installed on production.
