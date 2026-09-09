@@ -69,6 +69,7 @@ jobs:
           grep -Fq 'PHPIPAM_CUSTOM_VMWARE_PHASE5F24_OPTIONAL_GUEST_NETWORK_V1' "$tmp"
           grep -Fq 'catch (Exception $guestNetworkError)' "$tmp"
           grep -Fq "array('status' => 'unavailable', 'interfaces' => array(), 'ip_count' => 0)" "$tmp"
+          echo "PHASE5F24_PATCHED_VMCARD_BLOB=$(git hash-object "$tmp")"
           test "$(git hash-object "$src")" = 'd1a6f3fba93d35054af7d6e05455b557ee5dbd18'
           rm -f "$tmp"
 
