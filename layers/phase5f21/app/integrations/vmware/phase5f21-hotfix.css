@@ -1,0 +1,81 @@
+/* phpIPAM Custom — Phase 5F.2.1 layout/TLS hotfix.
+ * Presentation only. phpIPAM/Bootstrap remains authoritative for theme colors.
+ */
+
+/* The original Phase 5E warning remains in DOM for compatibility with the
+ * existing workspace code, but the full-height alert is replaced by the compact
+ * status indicator created by phase5f21-hotfix.js. */
+#vmware-phase5e #phase5e-insecure-row {
+    display: none !important;
+}
+
+#vmware-phase5e .phase5f21-tls-indicator,
+#vmware-phase5e .phase5f21-detail-tls {
+    display: inline-block;
+    margin-left: 6px;
+    cursor: help;
+    white-space: nowrap;
+}
+
+#vmware-phase5e .phase5f21-runtime-summary {
+    margin: 0 0 6px;
+    padding: 2px 0;
+    line-height: 1.35;
+}
+
+#vmware-phase5e .phase5f21-detail-tls {
+    float: right;
+    margin-top: 0;
+    margin-bottom: 4px;
+}
+
+#vmware-phase5e .phase5f21-detail-tls + * {
+    clear: both;
+}
+
+@media (min-width: 1200px) {
+    /* Bootstrap 3 implements .row clearfix with ::before/::after display:table.
+     * CSS Grid treats those pseudo-elements as additional grid items. Phase 5F.2
+     * expects exactly five items (pane/splitter/pane/splitter/pane), therefore
+     * disable the clearfix pseudo-elements only for this resizable workspace. */
+    #vmware-phase5e .phase5e-workspace-row.phase5f2-resizable::before,
+    #vmware-phase5e .phase5e-workspace-row.phase5f2-resizable::after {
+        content: none !important;
+        display: none !important;
+    }
+
+    #vmware-phase5e .phase5e-workspace-row.phase5f2-resizable {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        width: 100%;
+        box-sizing: border-box;
+        grid-auto-flow: row;
+    }
+
+    /* Explicit placement prevents any future clearfix/decorative child from
+     * silently reordering the production split view. */
+    #vmware-phase5e .phase5e-workspace-row.phase5f2-resizable > .phase5f21-pane-left {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    #vmware-phase5e .phase5e-workspace-row.phase5f2-resizable > .phase5f2-splitter[data-phase5f2-split="left"] {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    #vmware-phase5e .phase5e-workspace-row.phase5f2-resizable > .phase5f21-pane-center {
+        grid-column: 3;
+        grid-row: 1;
+    }
+
+    #vmware-phase5e .phase5e-workspace-row.phase5f2-resizable > .phase5f2-splitter[data-phase5f2-split="right"] {
+        grid-column: 4;
+        grid-row: 1;
+    }
+
+    #vmware-phase5e .phase5e-workspace-row.phase5f2-resizable > .phase5f21-pane-right {
+        grid-column: 5;
+        grid-row: 1;
+    }
+}
