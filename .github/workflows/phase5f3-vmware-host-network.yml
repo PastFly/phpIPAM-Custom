@@ -1,0 +1,61 @@
+name: Phase 5F.3 VMware Host Network Hints
+
+on:
+  push:
+    branches: ["phase5f3/vmware-host-network-hints"]
+  pull_request:
+    branches: ["phase5f26/vmware-folder-state"]
+
+jobs:
+  phase5f3:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax
+        run: |
+          php -l layers/phase5f3/functions/classes/class.IntegrationVmwareVcenterHostNetworkHints.php
+          php -l layers/phase5f3/app/integrations/vmware/host-network-result.php
+          php -l tools/live-vmware-phase5f3-network-preview.php
+          node --check layers/phase5f3/app/integrations/vmware/phase5f3-host-network.js
+          bash -n tools/live-vmware-phase5f3-ui-preflight.sh
+          bash -n installer/verify-vmware-vcenter-phase5f3-host-network.sh
+          bash -n installer/install-vmware-vcenter-phase5f3-host-network.sh
+      - name: Enforce Phase 5F.2.6 restack baseline
+        run: |
+          test -f installer/verify-vmware-vcenter-phase5f26-folder-state.sh
+          grep -Fq 'verify-vmware-vcenter-phase5f26-folder-state.sh' tools/live-vmware-phase5f3-ui-preflight.sh
+          grep -Fq 'verify-vmware-vcenter-phase5f26-folder-state.sh' installer/verify-vmware-vcenter-phase5f3-host-network.sh
+          grep -Fq 'PHASE5F3_BASE_PHASE5F26_OK=1' tools/live-vmware-phase5f3-ui-preflight.sh
+      - name: Unit regression
+        run: php tests/phase5f3-host-network-hints-regression.php
+      - name: Enforce exact runtime blobs
+        run: |
+          test "$(git hash-object layers/phase5f3/app/integrations/vmware/host-network-result.php)" = "f8dfbc733850b7660059eb47367258346ba77828"
+          test "$(git hash-object layers/phase5f3/app/integrations/vmware/phase5f3-host-network.css)" = "d0b27b2f980528942a719a582fc3cec2ab2d86c9"
+          test "$(git hash-object layers/phase5f3/app/integrations/vmware/phase5f3-host-network.js)" = "8fc10bd724c3524261730603694484024aabf962"
+          test "$(git hash-object layers/phase5f3/functions/classes/class.IntegrationVmwareVcenterHostNetworkHints.php)" = "9167e7f3f9d3249543d59b0053f74e34cdc70602"
+      - name: Enforce read-only SOAP surface
+        run: |
+          grep -Fq '<pathSet>configManager.networkSystem</pathSet>' layers/phase5f3/functions/classes/class.IntegrationVmwareVcenterHostNetworkHints.php
+          grep -Fq '<QueryNetworkHint xmlns="urn:vim25">' layers/phase5f3/functions/classes/class.IntegrationVmwareVcenterHostNetworkHints.php
+          grep -Fq "'persistent_inventory_written' => false" layers/phase5f3/functions/classes/class.IntegrationVmwareVcenterHostNetworkHints.php
+          grep -Fq "'phpipam_objects_modified' => false" layers/phase5f3/functions/classes/class.IntegrationVmwareVcenterHostNetworkHints.php
+          grep -Fq "'vcenter_objects_modified' => false" layers/phase5f3/functions/classes/class.IntegrationVmwareVcenterHostNetworkHints.php
+          ! grep -Eq '<(Update|Add|Remove|Destroy|Reconfig|Power|Migrate|Relocate|RefreshNetworkSystem)' layers/phase5f3/functions/classes/class.IntegrationVmwareVcenterHostNetworkHints.php
+      - name: Enforce UI scope
+        run: |
+          grep -Fq 'Device ID' layers/phase5f3/app/integrations/vmware/host-network-result.php
+          grep -Fq 'Port ID' layers/phase5f3/app/integrations/vmware/host-network-result.php
+          grep -Fq 'host-card-result.php' layers/phase5f3/app/integrations/vmware/phase5f3-host-network.js
+          grep -Fq 'host-network-result.php' layers/phase5f3/app/integrations/vmware/phase5f3-host-network.js
+      - name: Enforce preview safety
+        run: |
+          grep -Fq 'PHASE5F3_PREVIEW_PERSISTENCE=0' tools/live-vmware-phase5f3-network-preview.php
+          grep -Fq 'PHASE5F3_PREVIEW_VCENTER_MUTATIONS=0' tools/live-vmware-phase5f3-network-preview.php
+          grep -Fq 'PHASE5F3_PREVIEW_RESULT=READ_ONLY_COMPATIBILITY_OK' tools/live-vmware-phase5f3-network-preview.php
+      - name: Enforce deployment gate
+        run: |
+          grep -Fq 'PREFLIGHT_WRITE_OPERATIONS=0' tools/live-vmware-phase5f3-ui-preflight.sh
+          grep -Fq 'PREFLIGHT_VCENTER_REQUESTS=0' tools/live-vmware-phase5f3-ui-preflight.sh
+          grep -Fq 'PHASE5F3_HOST_NETWORK_VERIFY_OK' installer/verify-vmware-vcenter-phase5f3-host-network.sh
+          grep -Fq 'PHASE5F3_HOST_NETWORK_INSTALL_OK' installer/install-vmware-vcenter-phase5f3-host-network.sh
