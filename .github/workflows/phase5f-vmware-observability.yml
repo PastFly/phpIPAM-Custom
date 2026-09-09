@@ -41,6 +41,7 @@ jobs:
           php -l tests/vmware-vcenter-phase5f-soap-host-summary-regression.php
           php -l tests/vmware-vcenter-phase5f-performance-regression.php
           php -l tools/live-vmware-phase5f-observability-preview.php
+          php -l tools/live-vmware-phase5f-transport-diagnostic.php
 
       - name: Run SOAP host-resolver regression
         run: php tests/vmware-vcenter-phase5f-soap-host-resolver-regression.php
@@ -59,6 +60,22 @@ jobs:
           grep -Fq 'PHASE5F_PREVIEW_RESOLUTION=SOAP_SEARCH_INDEX_DNS' tools/live-vmware-phase5f-observability-preview.php
           if grep -Fq 'IntegrationVmwareVcenterTopology' tools/live-vmware-phase5f-observability-preview.php; then
             echo 'Phase 5F compatibility preview must not depend on REST topology authentication' >&2
+            exit 1
+          fi
+
+      - name: Enforce transport diagnostic boundary
+        run: |
+          grep -Fq 'PHASE5F_DIAG_CREDENTIAL_SENT=0' tools/live-vmware-phase5f-transport-diagnostic.php
+          grep -Fq '/sdk/vimService.wsdl' tools/live-vmware-phase5f-transport-diagnostic.php
+          grep -Fq '<RetrieveServiceContent xmlns="urn:vim25">' tools/live-vmware-phase5f-transport-diagnostic.php
+          grep -Fq "CURLOPT_PROXY] = ''" tools/live-vmware-phase5f-transport-diagnostic.php
+          grep -Fq 'PROXY_INTERFERENCE_CONFIRMED' tools/live-vmware-phase5f-transport-diagnostic.php
+          if grep -Fq 'load_runtime_config' tools/live-vmware-phase5f-transport-diagnostic.php; then
+            echo 'Transport diagnostic must not decrypt saved VMware credentials' >&2
+            exit 1
+          fi
+          if grep -Eqi '\b(Login|FindByDnsName|QueryPerf|RetrievePropertiesEx)\b' tools/live-vmware-phase5f-transport-diagnostic.php; then
+            echo 'Transport diagnostic scope exceeded anonymous transport probing' >&2
             exit 1
           fi
 
@@ -83,14 +100,14 @@ jobs:
           grep -Fq 'PHASE5F_PREVIEW_VCENTER_MUTATIONS=0' tools/live-vmware-phase5f-observability-preview.php
           grep -Fq -- '--host-name is required; the preview never guesses a production Host' tools/live-vmware-phase5f-observability-preview.php
           grep -Fq 'max-samples must be between 2 and 60 for the live preview' tools/live-vmware-phase5f-observability-preview.php
-          if grep -Eqi '\b(INSERT|UPDATE|DELETE|REPLACE|ALTER|DROP|TRUNCATE)[[:space:]]' tools/live-vmware-phase5f-observability-preview.php; then
-            echo 'SQL mutation verb in Phase 5F live preview' >&2
+          if grep -Eqi '\b(INSERT|UPDATE|DELETE|REPLACE|ALTER|DROP|TRUNCATE)[[:space:]]' tools/live-vmware-phase5f-observability-preview.php tools/live-vmware-phase5f-transport-diagnostic.php; then
+            echo 'SQL mutation verb in Phase 5F live tooling' >&2
             exit 1
           fi
 
       - name: Enforce read-only source boundary
         run: |
-          if grep -REni '\b(ReconfigVM_Task|PowerOnVM_Task|PowerOffVM_Task|ResetVM_Task|ShutdownGuest|RebootGuest|EnterMaintenanceMode_Task|ExitMaintenanceMode_Task|Destroy_Task|CreateVM_Task|RelocateVM_Task|MigrateVM_Task|UpdateOptions|UpdateConfig|CreatePerfInterval|RemovePerfInterval|UpdatePerfInterval)\b' layers/phase5f tools/live-vmware-phase5f-observability-preview.php; then
+          if grep -REni '\b(ReconfigVM_Task|PowerOnVM_Task|PowerOffVM_Task|ResetVM_Task|ShutdownGuest|RebootGuest|EnterMaintenanceMode_Task|ExitMaintenanceMode_Task|Destroy_Task|CreateVM_Task|RelocateVM_Task|MigrateVM_Task|UpdateOptions|UpdateConfig|CreatePerfInterval|RemovePerfInterval|UpdatePerfInterval)\b' layers/phase5f tools/live-vmware-phase5f-observability-preview.php tools/live-vmware-phase5f-transport-diagnostic.php; then
             echo 'Forbidden VMware mutation method in Phase 5F' >&2
             exit 1
           fi
