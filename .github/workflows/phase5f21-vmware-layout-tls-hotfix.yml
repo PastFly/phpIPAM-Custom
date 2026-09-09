@@ -1,0 +1,60 @@
+name: Phase 5F.2.1 VMware Layout TLS Hotfix
+
+on:
+  push:
+    branches:
+      - phase5f21/vmware-layout-tls-hotfix
+  pull_request:
+    branches:
+      - phase5f2/vmware-detail-layout
+    paths:
+      - 'layers/phase5f21/**'
+      - 'tools/live-vmware-phase5f21-*'
+      - 'installer/*phase5f21*'
+      - '.github/workflows/phase5f21-vmware-layout-tls-hotfix.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  phase5f21:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install validators
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nodejs
+      - name: Syntax
+        run: |
+          node --check layers/phase5f21/app/integrations/vmware/phase5f21-hotfix.js
+          bash -n tools/live-vmware-phase5f21-hotfix-preflight.sh
+          bash -n installer/install-vmware-vcenter-phase5f21-hotfix.sh
+          bash -n installer/verify-vmware-vcenter-phase5f21-hotfix.sh
+      - name: Enforce Bootstrap grid repair
+        run: |
+          grep -Fq '.phase5e-workspace-row.phase5f2-resizable::before' layers/phase5f21/app/integrations/vmware/phase5f21-hotfix.css
+          grep -Fq '.phase5e-workspace-row.phase5f2-resizable::after' layers/phase5f21/app/integrations/vmware/phase5f21-hotfix.css
+          grep -Fq 'content: none !important' layers/phase5f21/app/integrations/vmware/phase5f21-hotfix.css
+          grep -Fq 'grid-column: 1' layers/phase5f21/app/integrations/vmware/phase5f21-hotfix.css
+          grep -Fq 'grid-column: 3' layers/phase5f21/app/integrations/vmware/phase5f21-hotfix.css
+          grep -Fq 'grid-column: 5' layers/phase5f21/app/integrations/vmware/phase5f21-hotfix.css
+          grep -Fq 'phase5f21-pane-left' layers/phase5f21/app/integrations/vmware/phase5f21-hotfix.js
+          grep -Fq 'phase5f21-pane-center' layers/phase5f21/app/integrations/vmware/phase5f21-hotfix.js
+          grep -Fq 'phase5f21-pane-right' layers/phase5f21/app/integrations/vmware/phase5f21-hotfix.js
+      - name: Enforce compact TLS presentation
+        run: |
+          grep -Fq '#phase5e-insecure-row' layers/phase5f21/app/integrations/vmware/phase5f21-hotfix.css
+          grep -Fq 'TLS INSECURE' layers/phase5f21/app/integrations/vmware/phase5f21-hotfix.js
+          grep -Fq 'compactRuntimeSummary' layers/phase5f21/app/integrations/vmware/phase5f21-hotfix.js
+          grep -Fq 'compactDetailTlsWarnings' layers/phase5f21/app/integrations/vmware/phase5f21-hotfix.js
+      - name: Enforce deployment gate
+        run: |
+          grep -Fq 'PREFLIGHT_RESULT=READY_FOR_PHASE5F21_HOTFIX_OWNER_APPROVAL' tools/live-vmware-phase5f21-hotfix-preflight.sh
+          grep -Fq 'PREFLIGHT_WRITE_OPERATIONS=0' tools/live-vmware-phase5f21-hotfix-preflight.sh
+          grep -Fq 'PREFLIGHT_VCENTER_REQUESTS=0' tools/live-vmware-phase5f21-hotfix-preflight.sh
+          grep -Fq 'PHASE5F21_HOTFIX_VERIFY_OK' installer/verify-vmware-vcenter-phase5f21-hotfix.sh
+          grep -Fq 'PHASE5F21_HOTFIX_INSTALL_OK' installer/install-vmware-vcenter-phase5f21-hotfix.sh
