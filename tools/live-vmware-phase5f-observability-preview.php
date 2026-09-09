@@ -3,9 +3,9 @@
 /**
  * phpIPAM Custom — Phase 5F production vCenter compatibility preview.
  *
- * READ ONLY. Uses the deployed encrypted connector, existing authoritative REST
- * topology for stable Host IDs, and repository Phase 5F SOAP collectors for one
- * explicitly named ESXi host plus optional one VM performance series.
+ * READ ONLY. Uses the deployed encrypted connector and repository Phase 5F
+ * SOAP collectors. One explicitly named ESXi host is resolved through the
+ * vSphere SearchIndex and then read through HostSystem/PerformanceManager.
  *
  * Nothing is written to phpIPAM or vCenter and no performance data is persisted.
  *
@@ -90,16 +90,6 @@ function phase5f_preview_autoselect_connector(IntegrationVmwareVcenterConfigStor
     return (int)$id;
 }
 
-function phase5f_preview_exact_host(array $hosts, $name)
-{
-    $matches = array();
-    foreach ($hosts as $host) {
-        if (isset($host['name']) && strcasecmp((string)$host['name'], (string)$name) === 0) $matches[] = $host;
-    }
-    if (count($matches) !== 1) throw new RuntimeException('Host name must resolve to exactly one topology Host; matches=' . count($matches));
-    return $matches[0];
-}
-
 function phase5f_preview_json($value)
 {
     $json = json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
@@ -118,7 +108,7 @@ try {
     require_once($target . '/functions/classes/class.IntegrationVmwareVcenter.php');
     require_once($target . '/functions/classes/class.IntegrationSecretCipher.php');
     require_once($target . '/functions/classes/class.IntegrationVmwareVcenterConfigStore.php');
-    require_once($target . '/functions/classes/class.IntegrationVmwareVcenterTopology.php');
+    require_once($repoRoot . '/layers/phase5f/functions/classes/class.IntegrationVmwareVcenterSoapHostResolver.php');
     require_once($repoRoot . '/layers/phase5f/functions/classes/class.IntegrationVmwareVcenterSoapReadOnly.php');
     require_once($repoRoot . '/layers/phase5f/functions/classes/class.IntegrationVmwareVcenterPerformance.php');
 
@@ -136,18 +126,26 @@ try {
     fwrite(STDERR, "PHASE5F_PREVIEW_TLS=" . (!empty($runtime['verify_tls']) ? 'VERIFY' : 'INSECURE') . "\n");
     fwrite(STDERR, "PHASE5F_PREVIEW_PERSISTENCE=0\n");
     fwrite(STDERR, "PHASE5F_PREVIEW_VCENTER_MUTATIONS=0\n");
+    fwrite(STDERR, "PHASE5F_PREVIEW_RESOLUTION=SOAP_SEARCH_INDEX_DNS\n");
 
-    $Topology = new IntegrationVmwareVcenterTopology(null, 8, 20, 2097152, 10000, 500);
-    $topology = $Topology->read_topology($endpoint, $runtime['username'], $runtime['password'], $runtime['verify_tls']);
-    $host = phase5f_preview_exact_host($topology['hosts'], $hostName);
-    $hostId = isset($host['external_id']) ? (string)$host['external_id'] : '';
-    if (!preg_match('/^host-[0-9]+$/', $hostId)) throw new RuntimeException('Resolved Host has unexpected stable id');
+    $Resolver = new IntegrationVmwareVcenterSoapHostResolver(null, 8, 20, 1048576);
+    $hostId = $Resolver->resolve_host_id_by_dns_name(
+        $endpoint,
+        $runtime['username'],
+        $runtime['password'],
+        $hostName,
+        $runtime['verify_tls']
+    );
 
     fwrite(STDERR, "PHASE5F_PREVIEW_HOST_NAME=" . $hostName . "\n");
     fwrite(STDERR, "PHASE5F_PREVIEW_HOST_ID=" . $hostId . "\n");
 
     $HostReader = new IntegrationVmwareVcenterSoapReadOnly(null, 8, 20, 4194304);
     $hostSummary = $HostReader->read_host_summary($endpoint, $runtime['username'], $runtime['password'], $hostId, $runtime['verify_tls']);
+    $summaryName = isset($hostSummary['product']['name']) ? trim((string)$hostSummary['product']['name']) : '';
+    if ($summaryName === '' || strcasecmp($summaryName, $hostName) !== 0) {
+        throw new RuntimeException('Resolved HostSystem summary name does not exactly match requested ESXi DNS name');
+    }
 
     $Performance = new IntegrationVmwareVcenterPerformance(null, 8, 25, 6291456);
     $hostPerformance = $Performance->read_realtime_percent_series($endpoint, $runtime['username'], $runtime['password'], 'host', $hostId, $maxSamples, $runtime['verify_tls']);
@@ -158,14 +156,10 @@ try {
         'mode' => 'phase5f_read_only_compatibility_preview',
         'connector_id' => $connectorId,
         'verify_tls' => (bool)$runtime['verify_tls'],
-        'topology_counts' => array(
-            'datacenters' => $topology['datacenter_count'],
-            'clusters' => $topology['cluster_count'],
-            'hosts' => $topology['host_count'],
-            'vms' => $topology['vm_count']
-        ),
         'host' => array(
-            'topology' => $host,
+            'requested_dns_name' => $hostName,
+            'resolved_external_id' => $hostId,
+            'resolution' => 'soap_search_index_dns',
             'summary' => $hostSummary,
             'performance' => $hostPerformance
         ),
@@ -176,11 +170,8 @@ try {
     );
 
     if ($vmId !== null) {
-        $knownVm = false;
-        foreach ($topology['vms'] as $vm) {
-            if (isset($vm['external_id']) && (string)$vm['external_id'] === $vmId) { $knownVm = true; break; }
-        }
-        if (!$knownVm) throw new RuntimeException('Requested VM stable id is not present in the authoritative topology');
+        // The VM MOR is explicit and shape-validated at CLI parsing; this diagnostic
+        // deliberately avoids a second REST topology login before SOAP compatibility is proven.
         $result['vm_performance'] = $Performance->read_realtime_percent_series($endpoint, $runtime['username'], $runtime['password'], 'vm', $vmId, $maxSamples, $runtime['verify_tls']);
     }
 
