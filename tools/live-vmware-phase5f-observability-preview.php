@@ -108,6 +108,7 @@ try {
     require_once($target . '/functions/classes/class.IntegrationVmwareVcenter.php');
     require_once($target . '/functions/classes/class.IntegrationSecretCipher.php');
     require_once($target . '/functions/classes/class.IntegrationVmwareVcenterConfigStore.php');
+    require_once($repoRoot . '/layers/phase5f/functions/classes/class.IntegrationVmwareVcenterDirectTransport.php');
     require_once($repoRoot . '/layers/phase5f/functions/classes/class.IntegrationVmwareVcenterSoapHostResolver.php');
     require_once($repoRoot . '/layers/phase5f/functions/classes/class.IntegrationVmwareVcenterSoapReadOnly.php');
     require_once($repoRoot . '/layers/phase5f/functions/classes/class.IntegrationVmwareVcenterPerformance.php');
@@ -127,8 +128,14 @@ try {
     fwrite(STDERR, "PHASE5F_PREVIEW_PERSISTENCE=0\n");
     fwrite(STDERR, "PHASE5F_PREVIEW_VCENTER_MUTATIONS=0\n");
     fwrite(STDERR, "PHASE5F_PREVIEW_RESOLUTION=SOAP_SEARCH_INDEX_DNS\n");
+    fwrite(STDERR, "PHASE5F_PREVIEW_TRANSPORT=DIRECT_NO_PROXY\n");
 
-    $Resolver = new IntegrationVmwareVcenterSoapHostResolver(null, 8, 20, 1048576);
+    // The live transport diagnostic proved inherited HTTP(S)_PROXY returns 403
+    // while direct WSDL and SOAP requests return 200 XML. Use one explicitly
+    // direct transport instance for every Phase 5F SOAP request in this preview.
+    $DirectTransport = new IntegrationVmwareVcenterDirectTransport(8388608);
+
+    $Resolver = new IntegrationVmwareVcenterSoapHostResolver($DirectTransport, 8, 20, 1048576);
     $hostId = $Resolver->resolve_host_id_by_dns_name(
         $endpoint,
         $runtime['username'],
@@ -140,14 +147,14 @@ try {
     fwrite(STDERR, "PHASE5F_PREVIEW_HOST_NAME=" . $hostName . "\n");
     fwrite(STDERR, "PHASE5F_PREVIEW_HOST_ID=" . $hostId . "\n");
 
-    $HostReader = new IntegrationVmwareVcenterSoapReadOnly(null, 8, 20, 4194304);
+    $HostReader = new IntegrationVmwareVcenterSoapReadOnly($DirectTransport, 8, 20, 4194304);
     $hostSummary = $HostReader->read_host_summary($endpoint, $runtime['username'], $runtime['password'], $hostId, $runtime['verify_tls']);
     $summaryName = isset($hostSummary['product']['name']) ? trim((string)$hostSummary['product']['name']) : '';
     if ($summaryName === '' || strcasecmp($summaryName, $hostName) !== 0) {
         throw new RuntimeException('Resolved HostSystem summary name does not exactly match requested ESXi DNS name');
     }
 
-    $Performance = new IntegrationVmwareVcenterPerformance(null, 8, 25, 6291456);
+    $Performance = new IntegrationVmwareVcenterPerformance($DirectTransport, 8, 25, 6291456);
     $hostPerformance = $Performance->read_realtime_percent_series($endpoint, $runtime['username'], $runtime['password'], 'host', $hostId, $maxSamples, $runtime['verify_tls']);
 
     $result = array(
@@ -156,6 +163,7 @@ try {
         'mode' => 'phase5f_read_only_compatibility_preview',
         'connector_id' => $connectorId,
         'verify_tls' => (bool)$runtime['verify_tls'],
+        'transport' => 'direct_no_proxy',
         'host' => array(
             'requested_dns_name' => $hostName,
             'resolved_external_id' => $hostId,
