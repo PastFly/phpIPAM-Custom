@@ -34,17 +34,33 @@ jobs:
 
       - name: Validate syntax
         run: |
+          php -l layers/phase5f/functions/classes/class.IntegrationVmwareVcenterSoapHostResolver.php
           php -l layers/phase5f/functions/classes/class.IntegrationVmwareVcenterSoapReadOnly.php
           php -l layers/phase5f/functions/classes/class.IntegrationVmwareVcenterPerformance.php
+          php -l tests/vmware-vcenter-phase5f-soap-host-resolver-regression.php
           php -l tests/vmware-vcenter-phase5f-soap-host-summary-regression.php
           php -l tests/vmware-vcenter-phase5f-performance-regression.php
           php -l tools/live-vmware-phase5f-observability-preview.php
+
+      - name: Run SOAP host-resolver regression
+        run: php tests/vmware-vcenter-phase5f-soap-host-resolver-regression.php
 
       - name: Run SOAP host-summary regression
         run: php tests/vmware-vcenter-phase5f-soap-host-summary-regression.php
 
       - name: Run PerformanceManager regression
         run: php tests/vmware-vcenter-phase5f-performance-regression.php
+
+      - name: Enforce SOAP host resolver boundary
+        run: |
+          grep -Fq '<FindByDnsName xmlns="urn:vim25">' layers/phase5f/functions/classes/class.IntegrationVmwareVcenterSoapHostResolver.php
+          grep -Fq '<vmSearch>false</vmSearch>' layers/phase5f/functions/classes/class.IntegrationVmwareVcenterSoapHostResolver.php
+          grep -Fq "resolve_host_id_by_dns_name" tools/live-vmware-phase5f-observability-preview.php
+          grep -Fq 'PHASE5F_PREVIEW_RESOLUTION=SOAP_SEARCH_INDEX_DNS' tools/live-vmware-phase5f-observability-preview.php
+          if grep -Fq 'IntegrationVmwareVcenterTopology' tools/live-vmware-phase5f-observability-preview.php; then
+            echo 'Phase 5F compatibility preview must not depend on REST topology authentication' >&2
+            exit 1
+          fi
 
       - name: Enforce dynamic counter discovery
         run: |
