@@ -56,16 +56,18 @@ class IntegrationVmwareVcenterFaultAwareTransport
 
     private function operation_name($body)
     {
+        // Keep prefix-related operation names longest-first so
+        // <RetrievePropertiesEx> is never mislabeled as RetrieveProperties.
         $allowed = array(
             'RetrieveServiceContent',
-            'Login',
-            'Logout',
-            'FindByDnsName',
-            'RetrieveProperties',
-            'RetrievePropertiesEx',
             'QueryPerfProviderSummary',
             'QueryAvailablePerfMetric',
-            'QueryPerf'
+            'RetrievePropertiesEx',
+            'RetrieveProperties',
+            'FindByDnsName',
+            'QueryPerf',
+            'Login',
+            'Logout'
         );
         foreach ($allowed as $name) {
             if (strpos($body, '<' . $name) !== false) return $name;
