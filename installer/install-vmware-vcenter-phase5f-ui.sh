@@ -34,7 +34,7 @@ declare -A EXPECTED=(
   ["app/integrations/vmware/performance-result.php"]="4a5ab086045ca4e8178644c096d0948ae517f075"
   ["app/integrations/vmware/phase5f-observability.js"]="42fd777098dd523c8aecca6b3912e615ba9a0b3e"
   ["functions/classes/class.IntegrationVmwareVcenterDirectTransport.php"]="e6f976342a58da825f07987a3e66162f23d855c7"
-  ["functions/classes/class.IntegrationVmwareVcenterFaultAwareTransport.php"]="7c39aa71bb5a70826eaf0c603be400b03e4b90be"
+  ["functions/classes/class.IntegrationVmwareVcenterFaultAwareTransport.php"]="2f95eeb6dc8ce07adefd229f8d64a609a1d69f23"
   ["functions/classes/class.IntegrationVmwareVcenterSoapReadOnly.php"]="3cd45eda9632063c771bba075330e5a6e3d0559c"
   ["functions/classes/class.IntegrationVmwareVcenterPerformance.php"]="426c8c32632037d2b2ceaac23ef11eb79a06edd2"
 )
