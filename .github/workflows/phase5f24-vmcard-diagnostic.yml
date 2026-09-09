@@ -7,6 +7,7 @@ on:
   pull_request:
     paths:
       - 'tools/live-vmware-phase5f24-vmcard-diagnostic.php'
+      - 'tools/live-vmware-phase5f24-vmcard-direct.sh'
       - '.github/workflows/phase5f24-vmcard-diagnostic.yml'
 
 jobs:
@@ -14,13 +15,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: PHP lint
-        run: php -l tools/live-vmware-phase5f24-vmcard-diagnostic.php
+      - name: Syntax
+        run: |
+          php -l tools/live-vmware-phase5f24-vmcard-diagnostic.php
+          bash -n tools/live-vmware-phase5f24-vmcard-direct.sh
       - name: Read-only invariants
         run: |
           set -euo pipefail
           f=tools/live-vmware-phase5f24-vmcard-diagnostic.php
+          w=tools/live-vmware-phase5f24-vmcard-direct.sh
           grep -Fq 'PHASE5F24_DIAG_PERSISTENCE=0' "$f"
           grep -Fq 'PHASE5F24_DIAG_VCENTER_MUTATIONS=0' "$f"
-          ! grep -Eiq 'PowerOnVM|PowerOffVM|ReconfigVM|Destroy_Task|MigrateVM|RelocateVM|CreateVM|UpdateNetwork|RefreshNetworkSystem|INSERT[[:space:]]+INTO|UPDATE[[:space:]]+custom_|DELETE[[:space:]]+FROM' "$f"
+          grep -Fq 'PHASE5F24_DIRECT_PERSISTENCE=0' "$w"
+          grep -Fq 'PHASE5F24_DIRECT_VCENTER_MUTATIONS=0' "$w"
+          grep -Fq -- '-u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY' "$w"
+          grep -Fq -- '-u http_proxy -u https_proxy -u all_proxy' "$w"
+          ! grep -Eiq 'PowerOnVM|PowerOffVM|ReconfigVM|Destroy_Task|MigrateVM|RelocateVM|CreateVM|UpdateNetwork|RefreshNetworkSystem|INSERT[[:space:]]+INTO|UPDATE[[:space:]]+custom_|DELETE[[:space:]]+FROM' "$f" "$w"
           grep -Fq -- "--vm-id is required; the diagnostic never guesses a production VM." "$f"
