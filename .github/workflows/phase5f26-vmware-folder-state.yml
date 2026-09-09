@@ -1,0 +1,36 @@
+name: Phase 5F.2.6 VMware Folder State
+
+on:
+  push:
+    branches: ["phase5f26/vmware-folder-state"]
+  pull_request:
+    branches: ["phase5f25/vmware-folder-hierarchy"]
+
+jobs:
+  phase5f26:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax
+        run: |
+          node --check layers/phase5f26/app/integrations/vmware/phase5f26-folder-state.js
+          bash -n tools/live-vmware-phase5f26-folder-state-preflight.sh
+          bash -n installer/verify-vmware-vcenter-phase5f26-folder-state.sh
+          bash -n installer/install-vmware-vcenter-phase5f26-folder-state.sh
+      - name: Enforce exact runtime blob
+        run: |
+          test "$(git hash-object layers/phase5f26/app/integrations/vmware/phase5f26-folder-state.js)" = "a656f9aa3e8d3f3cd7601a8d9190ec4c09a6644f"
+      - name: Enforce browser-local persistence model
+        run: |
+          grep -Fq 'window.localStorage' layers/phase5f26/app/integrations/vmware/phase5f26-folder-state.js
+          grep -Fq 'phpipam.vmware.folder-state.v1:' layers/phase5f26/app/integrations/vmware/phase5f26-folder-state.js
+          grep -Fq 'MAX_FOLDER_IDS = 512' layers/phase5f26/app/integrations/vmware/phase5f26-folder-state.js
+          grep -Fq 'phase5f25-folder-node' layers/phase5f26/app/integrations/vmware/phase5f26-folder-state.js
+          grep -Fq 'MutationObserver' layers/phase5f26/app/integrations/vmware/phase5f26-folder-state.js
+          ! grep -Fq '$.ajax(' layers/phase5f26/app/integrations/vmware/phase5f26-folder-state.js
+      - name: Enforce deployment gate
+        run: |
+          grep -Fq 'PREFLIGHT_WRITE_OPERATIONS=0' tools/live-vmware-phase5f26-folder-state-preflight.sh
+          grep -Fq 'PREFLIGHT_VCENTER_REQUESTS=0' tools/live-vmware-phase5f26-folder-state-preflight.sh
+          grep -Fq 'PHASE5F26_FOLDER_STATE_VERIFY_OK' installer/verify-vmware-vcenter-phase5f26-folder-state.sh
+          grep -Fq 'PHASE5F26_FOLDER_STATE_INSTALL_OK' installer/install-vmware-vcenter-phase5f26-folder-state.sh
