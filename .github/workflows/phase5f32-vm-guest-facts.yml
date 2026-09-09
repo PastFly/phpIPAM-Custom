@@ -1,0 +1,36 @@
+name: Phase 5F.3.2 VMware VM Guest Facts
+
+on:
+  push:
+    branches: ["phase5f32/vm-guest-facts"]
+  pull_request:
+    branches: ["phase5f31/vm-network-path"]
+
+jobs:
+  phase5f32:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax
+        run: |
+          php -l layers/phase5f32/functions/classes/class.IntegrationVmwareVcenterVmGuestFacts.php
+          php -l tools/live-vmware-phase5f32-vm-guest-facts-preview.php
+      - name: Enforce read-only compatibility surface
+        run: |
+          grep -Fq '<RetrieveProperties xmlns="urn:vim25">' layers/phase5f32/functions/classes/class.IntegrationVmwareVcenterVmGuestFacts.php
+          grep -Fq "'persistent_inventory_written' => false" layers/phase5f32/functions/classes/class.IntegrationVmwareVcenterVmGuestFacts.php
+          grep -Fq "'phpipam_objects_modified' => false" layers/phase5f32/functions/classes/class.IntegrationVmwareVcenterVmGuestFacts.php
+          grep -Fq "'vcenter_objects_modified' => false" layers/phase5f32/functions/classes/class.IntegrationVmwareVcenterVmGuestFacts.php
+          ! grep -Eq '<(Update|Add|Remove|Destroy|Reconfig|Power|Migrate|Relocate|Refresh)' layers/phase5f32/functions/classes/class.IntegrationVmwareVcenterVmGuestFacts.php
+      - name: Enforce fact fields
+        run: |
+          grep -Fq "'config.guestFullName'" layers/phase5f32/functions/classes/class.IntegrationVmwareVcenterVmGuestFacts.php
+          grep -Fq "'guest.guestFullName'" layers/phase5f32/functions/classes/class.IntegrationVmwareVcenterVmGuestFacts.php
+          grep -Fq "'config.hardware.memoryMB'" layers/phase5f32/functions/classes/class.IntegrationVmwareVcenterVmGuestFacts.php
+          grep -Fq "'config.annotation'" layers/phase5f32/functions/classes/class.IntegrationVmwareVcenterVmGuestFacts.php
+      - name: Enforce preview safety
+        run: |
+          grep -Fq 'PHASE5F32_PREVIEW_PERSISTENCE=0' tools/live-vmware-phase5f32-vm-guest-facts-preview.php
+          grep -Fq 'PHASE5F32_PREVIEW_PHPIPAM_MUTATIONS=0' tools/live-vmware-phase5f32-vm-guest-facts-preview.php
+          grep -Fq 'PHASE5F32_PREVIEW_VCENTER_MUTATIONS=0' tools/live-vmware-phase5f32-vm-guest-facts-preview.php
+          grep -Fq 'PHASE5F32_PREVIEW_RESULT=READ_ONLY_COMPATIBILITY_OK' tools/live-vmware-phase5f32-vm-guest-facts-preview.php
