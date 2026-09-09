@@ -13,6 +13,7 @@ on:
       - 'layers/phase5f24/**'
       - 'installer/install-vmware-vcenter-phase5f24-stability.sh'
       - 'installer/verify-vmware-vcenter-phase5f24-stability.sh'
+      - 'installer/verify-vmware-vcenter-phase5f-ui.sh'
       - '.github/workflows/phase5f24-vmcard-diagnostic.yml'
 
 jobs:
@@ -29,6 +30,7 @@ jobs:
           bash -n tools/live-vmware-phase5f24-stability-preflight.sh
           bash -n installer/install-vmware-vcenter-phase5f24-stability.sh
           bash -n installer/verify-vmware-vcenter-phase5f24-stability.sh
+          bash -n installer/verify-vmware-vcenter-phase5f-ui.sh
 
       - name: Diagnostic read-only invariants
         run: |
@@ -69,9 +71,21 @@ jobs:
           grep -Fq 'PHPIPAM_CUSTOM_VMWARE_PHASE5F24_OPTIONAL_GUEST_NETWORK_V1' "$tmp"
           grep -Fq 'catch (Exception $guestNetworkError)' "$tmp"
           grep -Fq "array('status' => 'unavailable', 'interfaces' => array(), 'ip_count' => 0)" "$tmp"
-          echo "PHASE5F24_PATCHED_VMCARD_BLOB=$(git hash-object "$tmp")"
+          test "$(git hash-object "$tmp")" = '175265cf2698d17b5f7d0d396a8440cd91ed1bd1'
           test "$(git hash-object "$src")" = 'd1a6f3fba93d35054af7d6e05455b557ee5dbd18'
           rm -f "$tmp"
+
+      - name: Inherited verifier successor gate
+        run: |
+          set -euo pipefail
+          parent=installer/verify-vmware-vcenter-phase5f-ui.sh
+          child=installer/verify-vmware-vcenter-phase5f24-stability.sh
+          grep -Fq "BASE_VMCARD_BLOB='d1a6f3fba93d35054af7d6e05455b557ee5dbd18'" "$parent"
+          grep -Fq "PHASE5F24_VMCARD_BLOB='175265cf2698d17b5f7d0d396a8440cd91ed1bd1'" "$parent"
+          grep -Fq 'unrecognized Phase 5F VM-card successor blob requested' "$parent"
+          grep -Fq "PHASE5F24_VMCARD_BLOB='175265cf2698d17b5f7d0d396a8440cd91ed1bd1'" "$child"
+          grep -Fq 'PHASE5F_ALLOWED_VMCARD_BLOB="$PHASE5F24_VMCARD_BLOB"' "$child"
+          grep -Fq 'Phase 5F.2.4 patched VM-card blob mismatch' "$child"
 
       - name: Installer safety wiring
         run: |
