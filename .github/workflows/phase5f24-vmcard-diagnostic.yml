@@ -1,4 +1,4 @@
-name: Phase 5F.2.4 VMware VM Card Diagnostic
+name: Phase 5F.2.4 VMware VM Card Stability
 
 on:
   push:
@@ -8,18 +8,29 @@ on:
     paths:
       - 'tools/live-vmware-phase5f24-vmcard-diagnostic.php'
       - 'tools/live-vmware-phase5f24-vmcard-direct.sh'
+      - 'tools/live-vmware-phase5f24-stability-preflight.sh'
+      - 'tools/phase5f24-patch-vmcard.php'
+      - 'layers/phase5f24/**'
+      - 'installer/install-vmware-vcenter-phase5f24-stability.sh'
+      - 'installer/verify-vmware-vcenter-phase5f24-stability.sh'
       - '.github/workflows/phase5f24-vmcard-diagnostic.yml'
 
 jobs:
-  diagnostic-static-gate:
+  stability-static-gate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Syntax
         run: |
           php -l tools/live-vmware-phase5f24-vmcard-diagnostic.php
+          php -l tools/phase5f24-patch-vmcard.php
           bash -n tools/live-vmware-phase5f24-vmcard-direct.sh
-      - name: Read-only invariants
+          bash -n tools/live-vmware-phase5f24-stability-preflight.sh
+          bash -n installer/install-vmware-vcenter-phase5f24-stability.sh
+          bash -n installer/verify-vmware-vcenter-phase5f24-stability.sh
+
+      - name: Diagnostic read-only invariants
         run: |
           set -euo pipefail
           f=tools/live-vmware-phase5f24-vmcard-diagnostic.php
@@ -32,3 +43,45 @@ jobs:
           grep -Fq -- '-u http_proxy -u https_proxy -u all_proxy' "$w"
           ! grep -Eiq 'PowerOnVM|PowerOffVM|ReconfigVM|Destroy_Task|MigrateVM|RelocateVM|CreateVM|UpdateNetwork|RefreshNetworkSystem|INSERT[[:space:]]+INTO|UPDATE[[:space:]]+custom_|DELETE[[:space:]]+FROM' "$f" "$w"
           grep -Fq -- "--vm-id is required; the diagnostic never guesses a production VM." "$f"
+
+      - name: Runtime source invariants
+        run: |
+          set -euo pipefail
+          js=layers/phase5f24/app/integrations/vmware/phase5f24-stability.js
+          css=layers/phase5f24/app/integrations/vmware/phase5f24-stability.css
+          test "$(git hash-object "$js")" = '92b39cf47234300d58ec4ced1af05c8150eb0529'
+          test "$(git hash-object "$css")" = 'ba06c5c25be02148c25f22dedb0c67e04c820633'
+          grep -Fq 'vmCardSequence' "$js"
+          grep -Fq "status === 'abort'" "$js"
+          grep -Fq 'phase5f24-tls-tooltip' "$js"
+          grep -Fq 'max-width: 360px' "$css"
+          ! grep -Eiq 'PowerOnVM|PowerOffVM|ReconfigVM|Destroy_Task|MigrateVM|RelocateVM|CreateVM|UpdateNetwork|RefreshNetworkSystem' "$js" "$css"
+
+      - name: Deterministic VM-card patch regression
+        run: |
+          set -euo pipefail
+          src=layers/phase5e2/app/integrations/vmware/vm-card-result.php
+          test "$(git hash-object "$src")" = 'd1a6f3fba93d35054af7d6e05455b557ee5dbd18'
+          tmp="$(mktemp)"
+          cp "$src" "$tmp"
+          php tools/phase5f24-patch-vmcard.php "$tmp"
+          php -l "$tmp"
+          grep -Fq 'PHPIPAM_CUSTOM_VMWARE_PHASE5F24_OPTIONAL_GUEST_NETWORK_V1' "$tmp"
+          grep -Fq 'catch (Exception $guestNetworkError)' "$tmp"
+          grep -Fq "array('status' => 'unavailable', 'interfaces' => array(), 'ip_count' => 0)" "$tmp"
+          test "$(git hash-object "$src")" = 'd1a6f3fba93d35054af7d6e05455b557ee5dbd18'
+          rm -f "$tmp"
+
+      - name: Installer safety wiring
+        run: |
+          set -euo pipefail
+          i=installer/install-vmware-vcenter-phase5f24-stability.sh
+          p=tools/live-vmware-phase5f24-stability-preflight.sh
+          v=installer/verify-vmware-vcenter-phase5f24-stability.sh
+          grep -Fq 'live-vmware-phase5f24-stability-preflight.sh' "$i"
+          grep -Fq 'phase5f24-patch-vmcard.php' "$i"
+          grep -Fq 'verify-vmware-vcenter-phase5f24-stability.sh' "$i"
+          grep -Fq 'rollback_on_error' "$i"
+          grep -Fq 'PREFLIGHT_WRITE_OPERATIONS=0' "$p"
+          grep -Fq 'PREFLIGHT_VCENTER_REQUESTS=0' "$p"
+          grep -Fq 'PHASE5F24_STABILITY_VERIFY_OK' "$v"
