@@ -1,0 +1,14 @@
+/* phpIPAM Custom — Phase 5F.2.4 presentation-only TLS tooltip constraint. */
+.phase5f24-tls-tooltip {
+    max-width: 380px !important;
+}
+
+.phase5f24-tls-tooltip .tooltip-inner {
+    max-width: 360px !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+    word-break: normal;
+    text-align: left;
+    line-height: 1.35;
+    padding: 7px 9px;
+}
