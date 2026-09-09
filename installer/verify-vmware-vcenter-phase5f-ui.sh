@@ -14,14 +14,25 @@ for cmd in git php grep awk; do command -v "$cmd" >/dev/null 2>&1 || fail "requi
 # Protected backend/fallback remains authoritative.
 bash "$REPO_ROOT/installer/verify-vmware-vcenter-phase5d-ui.sh" "$TARGET"
 
-# Phase 5E.2 remains byte-exact except for the Phase 5F script hook appended to
-# the dedicated VMware workspace index.
+# Phase 5E.2 remains byte-exact except for explicitly pinned successor layers.
+# By default only the original Phase 5E.2 VM-card blob is accepted. A later
+# verifier may request one known successor blob via PHASE5F_ALLOWED_VMCARD_BLOB;
+# arbitrary values are rejected here so the parent verifier cannot be bypassed.
+BASE_VMCARD_BLOB='d1a6f3fba93d35054af7d6e05455b557ee5dbd18'
+PHASE5F24_VMCARD_BLOB='175265cf2698d17b5f7d0d396a8440cd91ed1bd1'
+VMCARD_EXPECTED="$BASE_VMCARD_BLOB"
+if [[ -n "${PHASE5F_ALLOWED_VMCARD_BLOB:-}" ]]; then
+    case "$PHASE5F_ALLOWED_VMCARD_BLOB" in
+        "$PHASE5F24_VMCARD_BLOB") VMCARD_EXPECTED="$PHASE5F24_VMCARD_BLOB" ;;
+        *) fail "unrecognized Phase 5F VM-card successor blob requested" ;;
+    esac
+fi
+
 declare -A BASE_EXPECTED=(
   ["app/integrations/index.php"]="b721ae34b3244aa86dbbcd48f3bde584d58365e2"
   ["app/integrations/registry.php"]="8068e6b8337e926861f65772302742c4d6a6f32a"
   ["app/integrations/vmware/phase5e.css"]="2916636fc01810981bf0d29b16c7ab1002ebc258"
   ["app/integrations/vmware/workspace-result.php"]="408fed89e2b0583013325b08e2959813458c76fe"
-  ["app/integrations/vmware/vm-card-result.php"]="d1a6f3fba93d35054af7d6e05455b557ee5dbd18"
   ["functions/classes/class.IntegrationPhpIpamAddressLinkResolver.php"]="d26f9ad06ea4136c487b229e004b9a8c6521b863"
   ["app/sections/menu/menu-tools-admin.php"]="c778652ed50fdbd7d5855d4c37d20c2992545c82"
 )
@@ -29,6 +40,10 @@ for rel in "${!BASE_EXPECTED[@]}"; do
     [[ -f "$TARGET/$rel" ]] || fail "Phase 5E.2 runtime file missing: $rel"
     [[ "$(hash_file "$TARGET/$rel")" == "${BASE_EXPECTED[$rel]}" ]] || fail "Phase 5E.2 runtime blob mismatch under Phase 5F: $rel"
 done
+
+VMCARD_REL='app/integrations/vmware/vm-card-result.php'
+[[ -f "$TARGET/$VMCARD_REL" ]] || fail "Phase 5E.2/5F successor VM-card runtime file missing: $VMCARD_REL"
+[[ "$(hash_file "$TARGET/$VMCARD_REL")" == "$VMCARD_EXPECTED" ]] || fail "Phase 5E.2 runtime blob mismatch under Phase 5F: $VMCARD_REL"
 
 INDEX="$TARGET/app/integrations/vmware/index.php"
 [[ -f "$INDEX" ]] || fail "Phase 5F workspace index missing"
