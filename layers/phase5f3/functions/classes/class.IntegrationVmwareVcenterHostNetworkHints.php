@@ -63,6 +63,8 @@ class IntegrationVmwareVcenterHostNetworkHints
             $cookie = $this->extract_session_cookie($loginResponse['headers']);
             if ($cookie === null) throw new RuntimeException('vCenter SOAP login did not return a session cookie');
 
+            // Legacy RetrieveProperties is intentional for compatibility with the
+            // production vCenter namespace already verified by Phase 5F.
             $retrieve = '<RetrieveProperties xmlns="urn:vim25"><_this type="PropertyCollector">'
                 . $this->xml($service['property_collector']) . '</_this><specSet><propSet><type>HostSystem</type>'
                 . '<pathSet>configManager.networkSystem</pathSet></propSet><objectSet><obj type="HostSystem">'
@@ -74,6 +76,9 @@ class IntegrationVmwareVcenterHostNetworkHints
                 throw new RuntimeException('HostNetworkSystem managed object reference was not returned');
             }
 
+            // Omitting the optional device list asks vCenter for hints for all
+            // physical NICs on this one HostNetworkSystem. QueryNetworkHint is a
+            // read-only System.Read operation in the vSphere Web Services API.
             $query = '<QueryNetworkHint xmlns="urn:vim25"><_this type="HostNetworkSystem">'
                 . $this->xml($networkSystemId) . '</_this></QueryNetworkHint>';
             $queryResponse = $this->soap_request($sdk, $this->envelope($query), $cookie, $verifyTls);
@@ -130,6 +135,8 @@ class IntegrationVmwareVcenterHostNetworkHints
                 $lldp = $this->child($node, 'lldpInfo');
                 if ($lldp !== null) {
                     $protocol = 'LLDP';
+                    // LLDP calls this Chassis ID; UI maps it to Device ID so the
+                    // operator sees one consistent peer identity column.
                     $remoteDeviceId = $this->bounded_text($this->child_text($lldp, 'chassisId'));
                     $portId = $this->bounded_text($this->child_text($lldp, 'portId'));
                 }
