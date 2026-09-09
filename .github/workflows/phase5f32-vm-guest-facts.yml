@@ -14,7 +14,18 @@ jobs:
       - name: Syntax
         run: |
           php -l layers/phase5f32/functions/classes/class.IntegrationVmwareVcenterVmGuestFacts.php
+          php -l layers/phase5f32/app/integrations/vmware/vm-guest-facts-result.php
           php -l tools/live-vmware-phase5f32-vm-guest-facts-preview.php
+          node --check layers/phase5f32/app/integrations/vmware/phase5f32-vm-guest-facts.js
+          bash -n tools/live-vmware-phase5f32-ui-preflight.sh
+          bash -n installer/verify-vmware-vcenter-phase5f32-vm-guest-facts.sh
+          bash -n installer/install-vmware-vcenter-phase5f32-vm-guest-facts.sh
+      - name: Enforce Phase 5F.3.1 deployment baseline
+        run: |
+          test -f installer/verify-vmware-vcenter-phase5f31-vm-network-path.sh
+          grep -Fq 'verify-vmware-vcenter-phase5f31-vm-network-path.sh' tools/live-vmware-phase5f32-ui-preflight.sh
+          grep -Fq 'verify-vmware-vcenter-phase5f31-vm-network-path.sh' installer/verify-vmware-vcenter-phase5f32-vm-guest-facts.sh
+          grep -Fq 'PHASE5F32_BASE_PHASE5F31_OK=1' tools/live-vmware-phase5f32-ui-preflight.sh
       - name: Enforce read-only compatibility surface
         run: |
           grep -Fq '<RetrieveProperties xmlns="urn:vim25">' layers/phase5f32/functions/classes/class.IntegrationVmwareVcenterVmGuestFacts.php
@@ -22,15 +33,29 @@ jobs:
           grep -Fq "'phpipam_objects_modified' => false" layers/phase5f32/functions/classes/class.IntegrationVmwareVcenterVmGuestFacts.php
           grep -Fq "'vcenter_objects_modified' => false" layers/phase5f32/functions/classes/class.IntegrationVmwareVcenterVmGuestFacts.php
           ! grep -Eq '<(Update|Add|Remove|Destroy|Reconfig|Power|Migrate|Relocate|Refresh)' layers/phase5f32/functions/classes/class.IntegrationVmwareVcenterVmGuestFacts.php
-      - name: Enforce fact fields
+      - name: Enforce fact semantics
         run: |
           grep -Fq "'config.guestFullName'" layers/phase5f32/functions/classes/class.IntegrationVmwareVcenterVmGuestFacts.php
           grep -Fq "'guest.guestFullName'" layers/phase5f32/functions/classes/class.IntegrationVmwareVcenterVmGuestFacts.php
           grep -Fq "'config.hardware.memoryMB'" layers/phase5f32/functions/classes/class.IntegrationVmwareVcenterVmGuestFacts.php
-          grep -Fq "'config.annotation'" layers/phase5f32/functions/classes/class.IntegrationVmwareVcenterVmGuestFacts.php
+          grep -Fq "friendly_guest_os_source" layers/phase5f32/app/integrations/vmware/vm-guest-facts-result.php
+          grep -Fq "setGuestOsFact(payload)" layers/phase5f32/app/integrations/vmware/phase5f32-vm-guest-facts.js
+          grep -Fq "setTextFact('RAM GiB'" layers/phase5f32/app/integrations/vmware/phase5f32-vm-guest-facts.js
+          grep -Fq "renderedVmId() !== vmId" layers/phase5f32/app/integrations/vmware/phase5f32-vm-guest-facts.js
+      - name: Enforce exact runtime blobs
+        run: |
+          test "$(git hash-object layers/phase5f32/app/integrations/vmware/vm-guest-facts-result.php)" = "644a74ff9d0b2828117c63845dd79ef2ff006a94"
+          test "$(git hash-object layers/phase5f32/app/integrations/vmware/phase5f32-vm-guest-facts.js)" = "f7117000fec1f20c0f68c95325f8af49a7924e05"
+          test "$(git hash-object layers/phase5f32/functions/classes/class.IntegrationVmwareVcenterVmGuestFacts.php)" = "24a1f1293366abca6b0e10bc71aa2270651ba1c5"
       - name: Enforce preview safety
         run: |
           grep -Fq 'PHASE5F32_PREVIEW_PERSISTENCE=0' tools/live-vmware-phase5f32-vm-guest-facts-preview.php
           grep -Fq 'PHASE5F32_PREVIEW_PHPIPAM_MUTATIONS=0' tools/live-vmware-phase5f32-vm-guest-facts-preview.php
           grep -Fq 'PHASE5F32_PREVIEW_VCENTER_MUTATIONS=0' tools/live-vmware-phase5f32-vm-guest-facts-preview.php
           grep -Fq 'PHASE5F32_PREVIEW_RESULT=READ_ONLY_COMPATIBILITY_OK' tools/live-vmware-phase5f32-vm-guest-facts-preview.php
+      - name: Enforce deployment gate
+        run: |
+          grep -Fq 'PREFLIGHT_WRITE_OPERATIONS=0' tools/live-vmware-phase5f32-ui-preflight.sh
+          grep -Fq 'PREFLIGHT_VCENTER_REQUESTS=0' tools/live-vmware-phase5f32-ui-preflight.sh
+          grep -Fq 'PHASE5F32_VM_GUEST_FACTS_VERIFY_OK' installer/verify-vmware-vcenter-phase5f32-vm-guest-facts.sh
+          grep -Fq 'PHASE5F32_VM_GUEST_FACTS_INSTALL_OK' installer/install-vmware-vcenter-phase5f32-vm-guest-facts.sh
