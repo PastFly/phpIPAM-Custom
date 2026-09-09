@@ -1,0 +1,34 @@
+/* phpIPAM Custom — Phase 5F.2.5 VMware Folder hierarchy presentation. */
+#vmware-phase5e .phase5f25-folder-node {
+    display: block;
+    padding: 5px 10px;
+    cursor: pointer;
+    white-space: normal;
+    word-break: break-word;
+    user-select: none;
+}
+
+#vmware-phase5e .phase5f25-folder-node:hover,
+#vmware-phase5e .phase5f25-folder-node:focus {
+    text-decoration: none;
+    outline: none;
+}
+
+#vmware-phase5e .phase5f25-folder-node .phase5f25-folder-icon {
+    width: 15px;
+    text-align: center;
+}
+
+#vmware-phase5e .phase5f25-folder > ul {
+    margin-left: 12px;
+}
+
+#vmware-phase5e .phase5f25-folder-unresolved > span {
+    display: block;
+    padding: 5px 10px;
+}
+
+#vmware-phase5e .phase5f25-folder-warning {
+    margin-left: 8px;
+    cursor: help;
+}
