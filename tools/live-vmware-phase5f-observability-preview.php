@@ -109,6 +109,7 @@ try {
     require_once($target . '/functions/classes/class.IntegrationSecretCipher.php');
     require_once($target . '/functions/classes/class.IntegrationVmwareVcenterConfigStore.php');
     require_once($repoRoot . '/layers/phase5f/functions/classes/class.IntegrationVmwareVcenterDirectTransport.php');
+    require_once($repoRoot . '/layers/phase5f/functions/classes/class.IntegrationVmwareVcenterFaultAwareTransport.php');
     require_once($repoRoot . '/layers/phase5f/functions/classes/class.IntegrationVmwareVcenterSoapHostResolver.php');
     require_once($repoRoot . '/layers/phase5f/functions/classes/class.IntegrationVmwareVcenterSoapReadOnly.php');
     require_once($repoRoot . '/layers/phase5f/functions/classes/class.IntegrationVmwareVcenterPerformance.php');
@@ -131,11 +132,13 @@ try {
     fwrite(STDERR, "PHASE5F_PREVIEW_TRANSPORT=DIRECT_NO_PROXY\n");
 
     // The live transport diagnostic proved inherited HTTP(S)_PROXY returns 403
-    // while direct WSDL and SOAP requests return 200 XML. Use one explicitly
-    // direct transport instance for every Phase 5F SOAP request in this preview.
+    // while direct WSDL and SOAP requests return 200 XML. The fault-aware wrapper
+    // keeps that same direct policy but exposes only safe SOAP faultstrings.
     $DirectTransport = new IntegrationVmwareVcenterDirectTransport(8388608);
+    $FaultAwareTransport = new IntegrationVmwareVcenterFaultAwareTransport($DirectTransport);
 
-    $Resolver = new IntegrationVmwareVcenterSoapHostResolver($DirectTransport, 8, 20, 1048576);
+    fwrite(STDERR, "PHASE5F_PREVIEW_STAGE=HOST_RESOLVE\n");
+    $Resolver = new IntegrationVmwareVcenterSoapHostResolver($FaultAwareTransport, 8, 20, 1048576);
     $hostId = $Resolver->resolve_host_id_by_dns_name(
         $endpoint,
         $runtime['username'],
@@ -147,14 +150,16 @@ try {
     fwrite(STDERR, "PHASE5F_PREVIEW_HOST_NAME=" . $hostName . "\n");
     fwrite(STDERR, "PHASE5F_PREVIEW_HOST_ID=" . $hostId . "\n");
 
-    $HostReader = new IntegrationVmwareVcenterSoapReadOnly($DirectTransport, 8, 20, 4194304);
+    fwrite(STDERR, "PHASE5F_PREVIEW_STAGE=HOST_SUMMARY\n");
+    $HostReader = new IntegrationVmwareVcenterSoapReadOnly($FaultAwareTransport, 8, 20, 4194304);
     $hostSummary = $HostReader->read_host_summary($endpoint, $runtime['username'], $runtime['password'], $hostId, $runtime['verify_tls']);
     $summaryName = isset($hostSummary['product']['name']) ? trim((string)$hostSummary['product']['name']) : '';
     if ($summaryName === '' || strcasecmp($summaryName, $hostName) !== 0) {
         throw new RuntimeException('Resolved HostSystem summary name does not exactly match requested ESXi DNS name');
     }
 
-    $Performance = new IntegrationVmwareVcenterPerformance($DirectTransport, 8, 25, 6291456);
+    fwrite(STDERR, "PHASE5F_PREVIEW_STAGE=HOST_PERFORMANCE\n");
+    $Performance = new IntegrationVmwareVcenterPerformance($FaultAwareTransport, 8, 25, 6291456);
     $hostPerformance = $Performance->read_realtime_percent_series($endpoint, $runtime['username'], $runtime['password'], 'host', $hostId, $maxSamples, $runtime['verify_tls']);
 
     $result = array(
@@ -180,6 +185,7 @@ try {
     if ($vmId !== null) {
         // The VM MOR is explicit and shape-validated at CLI parsing; this diagnostic
         // deliberately avoids a second REST topology login before SOAP compatibility is proven.
+        fwrite(STDERR, "PHASE5F_PREVIEW_STAGE=VM_PERFORMANCE\n");
         $result['vm_performance'] = $Performance->read_realtime_percent_series($endpoint, $runtime['username'], $runtime['password'], 'vm', $vmId, $maxSamples, $runtime['verify_tls']);
     }
 
