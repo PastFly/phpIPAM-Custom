@@ -28,10 +28,10 @@ $transport = function ($method, $url, $headers, $body, $verifyTls, $connectTimeo
     if (strpos($body, '<QueryPerfProviderSummary') !== false) {
         return array('status'=>200,'headers'=>array(),'body'=>p5f_env('<QueryPerfProviderSummaryResponse xmlns="urn:vim25"><returnval><currentSupported>true</currentSupported><summarySupported>true</summarySupported><refreshRate>20</refreshRate></returnval></QueryPerfProviderSummaryResponse>'));
     }
-    if (strpos($body, '<RetrievePropertiesEx') !== false && strpos($body, '<pathSet>perfCounter</pathSet>') !== false) {
+    if (strpos($body, '<RetrieveProperties xmlns="urn:vim25">') !== false && strpos($body, '<pathSet>perfCounter</pathSet>') !== false) {
         $cpu = '<PerfCounterInfo><key>6</key><nameInfo><key>usage</key></nameInfo><groupInfo><key>cpu</key></groupInfo><unitInfo><key>percent</key></unitInfo><rollupType>average</rollupType><statsType>rate</statsType></PerfCounterInfo>';
         $mem = '<PerfCounterInfo><key>24</key><nameInfo><key>usage</key></nameInfo><groupInfo><key>mem</key></groupInfo><unitInfo><key>percent</key></unitInfo><rollupType>average</rollupType><statsType>absolute</statsType></PerfCounterInfo>';
-        return array('status'=>200,'headers'=>array(),'body'=>p5f_env('<RetrievePropertiesExResponse xmlns="urn:vim25" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><returnval><objects><obj type="PerformanceManager">PerfMgr</obj><propSet><name>perfCounter</name><val xsi:type="ArrayOfPerfCounterInfo">'.$cpu.$mem.'</val></propSet></objects></returnval></RetrievePropertiesExResponse>'));
+        return array('status'=>200,'headers'=>array(),'body'=>p5f_env('<RetrievePropertiesResponse xmlns="urn:vim25" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><returnval><obj type="PerformanceManager">PerfMgr</obj><propSet><name>perfCounter</name><val xsi:type="ArrayOfPerfCounterInfo">'.$cpu.$mem.'</val></propSet></returnval></RetrievePropertiesResponse>'));
     }
     if (strpos($body, '<QueryAvailablePerfMetric') !== false) {
         return array('status'=>200,'headers'=>array(),'body'=>p5f_env('<QueryAvailablePerfMetricResponse xmlns="urn:vim25"><returnval><counterId>6</counterId><instance></instance></returnval><returnval><counterId>24</counterId><instance></instance></returnval></QueryAvailablePerfMetricResponse>'));
@@ -60,6 +60,8 @@ foreach ($calls as $call) {
 }
 p5f_assert(strpos($calls[1]['body'], 'secret&lt;&amp;') !== false, 'password is XML escaped');
 p5f_assert(strpos($calls[2]['body'], '<entity type="HostSystem">host-42</entity>') !== false, 'HostSystem stable MOR used');
+p5f_assert(strpos($calls[3]['body'], '<RetrieveProperties xmlns="urn:vim25">') !== false, 'compatible RetrieveProperties used for perfCounter metadata');
+p5f_assert(strpos($calls[3]['body'], '<RetrievePropertiesEx') === false, '4.1-only RetrievePropertiesEx not used');
 p5f_assert(strpos($calls[5]['body'], '<counterId>6</counterId>') !== false, 'dynamically discovered CPU counter selected');
 p5f_assert(strpos($calls[5]['body'], '<counterId>24</counterId>') !== false, 'dynamically discovered memory counter selected');
 p5f_assert(strpos($calls[5]['body'], '<intervalId>20</intervalId>') !== false, 'provider refresh rate used as real-time interval');
@@ -68,6 +70,7 @@ p5f_assert(strpos($calls[5]['body'], '<maxSample>12</maxSample>') !== false, 'sa
 p5f_assert($result['provider']['refresh_rate'] === 20, 'refresh rate parsed');
 p5f_assert($result['counters']['cpu.usage.average']['id'] === 6, 'CPU counter id dynamically parsed');
 p5f_assert($result['counters']['mem.usage.average']['id'] === 24, 'memory counter id dynamically parsed');
+p5f_assert($result['property_method'] === 'RetrieveProperties', 'compatible property method reported');
 p5f_assert($result['sample_count'] === 2, 'two samples parsed');
 p5f_assert(abs($result['samples'][0]['cpu_percent'] - 20.67) < 0.001, 'fixed-point CPU percent normalized');
 p5f_assert(abs($result['samples'][1]['cpu_percent'] - 25.00) < 0.001, 'second CPU sample normalized');
