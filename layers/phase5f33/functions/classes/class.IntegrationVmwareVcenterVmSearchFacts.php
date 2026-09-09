@@ -2,9 +2,7 @@
 
 /**
  * phpIPAM Custom — Phase 5F.3.3 bounded transient VM search facts.
- *
- * Bulk legacy-compatible RetrieveProperties over an explicit bounded VM-id set.
- * Reads display/search metadata only; no persistence and no vCenter/phpIPAM mutation.
+ * Bulk legacy-compatible RetrieveProperties over an explicit VM-id set.
  */
 class IntegrationVmwareVcenterVmSearchFacts
 {
@@ -39,13 +37,13 @@ class IntegrationVmwareVcenterVmSearchFacts
         $verifyTls = (bool)$verifyTls;
         if ($username === '' || $password === '') throw new InvalidArgumentException('vCenter username and password are required');
 
-        $ids = array();
+        $requested = array();
         foreach ($vmIds as $raw) {
             $id = trim((string)$raw);
             if (!preg_match('/^vm-[0-9]+$/', $id)) throw new InvalidArgumentException('Invalid VirtualMachine managed object id');
-            $ids[$id] = true;
+            $requested[$id] = true;
         }
-        $ids = array_keys($ids);
+        $ids = array_keys($requested);
         sort($ids, SORT_STRING);
         if (count($ids) === 0) throw new InvalidArgumentException('At least one VM id is required');
         if (count($ids) > $this->maxVms) throw new RuntimeException('VM search fact set exceeded the configured safety limit');
@@ -73,44 +71,28 @@ class IntegrationVmwareVcenterVmSearchFacts
             if ($cookie === null) throw new RuntimeException('vCenter SOAP login did not return a session cookie');
 
             $paths = array(
-                'name',
-                'config.annotation',
-                'config.guestId',
-                'config.guestFullName',
-                'guest.guestId',
-                'guest.guestFullName',
-                'guest.guestFamily',
-                'guest.hostName',
-                'guest.ipAddress',
-                'guest.net',
-                'config.hardware.memoryMB',
-                'config.hardware.numCPU',
-                'config.version',
-                'config.uuid',
-                'config.instanceUuid',
-                'config.template',
-                'runtime.host',
-                'config.hardware.device'
+                'name', 'config.annotation', 'config.guestId', 'config.guestFullName',
+                'guest.guestId', 'guest.guestFullName', 'guest.guestFamily', 'guest.hostName',
+                'guest.ipAddress', 'guest.net', 'config.hardware.memoryMB', 'config.hardware.numCPU',
+                'config.version', 'config.uuid', 'config.instanceUuid', 'config.template',
+                'runtime.host', 'config.hardware.device'
             );
             $propXml = '';
             foreach ($paths as $path) $propXml .= '<pathSet>' . $this->xml($path) . '</pathSet>';
 
             foreach (array_chunk($ids, $this->batchSize) as $batch) {
                 $objects = '';
-                foreach ($batch as $id) {
-                    $objects .= '<objectSet><obj type="VirtualMachine">' . $this->xml($id) . '</obj><skip>false</skip></objectSet>';
-                }
+                foreach ($batch as $id) $objects .= '<objectSet><obj type="VirtualMachine">' . $this->xml($id) . '</obj><skip>false</skip></objectSet>';
                 $retrieve = '<RetrieveProperties xmlns="urn:vim25"><_this type="PropertyCollector">' . $this->xml($service['property_collector']) . '</_this>'
                     . '<specSet><propSet><type>VirtualMachine</type>' . $propXml . '</propSet>' . $objects . '</specSet></RetrieveProperties>';
                 $response = $this->soap_request($sdk, $this->envelope($retrieve), $cookie, $verifyTls);
                 $doc = $this->parse_soap($response['body'], 'RetrieveProperties(VirtualMachine search facts)');
                 foreach ($this->parse_batch($doc) as $id => $row) {
-                    if (!isset($ids[array_search($id, $ids, true)]) && !in_array($id, $ids, true)) throw new RuntimeException('VM search facts returned an unexpected VM id');
+                    if (!isset($requested[$id])) throw new RuntimeException('VM search facts returned an unexpected VM id');
                     if (isset($rows[$id])) throw new RuntimeException('VM search facts returned duplicate VM id');
                     $rows[$id] = $row;
                 }
             }
-
             foreach ($ids as $id) if (!isset($rows[$id])) throw new RuntimeException('VM search facts response omitted an explicit VM id');
 
             return array(
@@ -164,7 +146,8 @@ class IntegrationVmwareVcenterVmSearchFacts
             $macs = array_values(array_unique(array_merge($devices['mac_addresses'], $guestNet['mac_addresses'])));
             sort($macs, SORT_STRING);
             $networks = array_values(array_unique(array_merge($devices['network_names'], $guestNet['network_names'])));
-            sort($networks, SORT_NATURAL | SORT_FLAG_CASE);
+            natcasesort($networks);
+            $networks = array_values($networks);
             $ips = array_values(array_unique($guestNet['ip_addresses']));
             sort($ips, SORT_STRING);
 
@@ -211,17 +194,16 @@ class IntegrationVmwareVcenterVmSearchFacts
             $mac = $this->normalize_mac($macNode->textContent);
             if ($mac !== null) $out['mac_addresses'][] = $mac;
             $device = $macNode->parentNode;
-            if ($device instanceof DOMElement) {
-                $networkNode = $xpath->query('.//*[local-name()="backing"]/*[local-name()="deviceName"]', $device)->item(0);
-                if ($networkNode !== null) {
-                    $network = $this->clean_optional_text($networkNode->textContent, 2048);
-                    if ($network !== null) $out['network_names'][] = $network;
-                }
-                $pgNode = $xpath->query('.//*[local-name()="backing"]//*[local-name()="portgroupKey"]', $device)->item(0);
-                if ($pgNode !== null) {
-                    $pg = $this->clean_optional_text($pgNode->textContent, 2048);
-                    if ($pg !== null) $out['network_names'][] = $pg;
-                }
+            if (!($device instanceof DOMElement)) continue;
+            $networkNode = $xpath->query('.//*[local-name()="backing"]/*[local-name()="deviceName"]', $device)->item(0);
+            if ($networkNode !== null) {
+                $network = $this->clean_optional_text($networkNode->textContent, 2048);
+                if ($network !== null) $out['network_names'][] = $network;
+            }
+            $pgNode = $xpath->query('.//*[local-name()="backing"]//*[local-name()="portgroupKey"]', $device)->item(0);
+            if ($pgNode !== null) {
+                $pg = $this->clean_optional_text($pgNode->textContent, 2048);
+                if ($pg !== null) $out['network_names'][] = $pg;
             }
         }
         return $out;
