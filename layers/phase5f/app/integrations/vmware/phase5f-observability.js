@@ -68,11 +68,16 @@
         var scopeId = $(this).attr('data-scope-id');
         $('.phase5e-vm-row').removeClass('active');
         if (scope === 'host') {
+            if (vmPerformanceRequest && vmPerformanceRequest.readyState !== 4) vmPerformanceRequest.abort();
             loadHost(scopeId);
         } else {
             if (hostRequest && hostRequest.readyState !== 4) hostRequest.abort();
             $('#phase5e-detail-result').html('<div class="text-muted phase5e-detail-empty">Выберите ESXi Host или VM для просмотра деталей и real-time performance.</div>');
         }
+    });
+
+    $(document).on('click.phase5f', '.phase5e-vm-link', function () {
+        if (hostRequest && hostRequest.readyState !== 4) hostRequest.abort();
     });
 
     // Existing Phase 5E code owns the VM-card AJAX call. ajaxComplete runs after
