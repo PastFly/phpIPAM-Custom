@@ -1,0 +1,26 @@
+name: Phase 5F.2.4 VMware VM Card Diagnostic
+
+on:
+  push:
+    branches:
+      - phase5f24/vmcard-stability
+  pull_request:
+    paths:
+      - 'tools/live-vmware-phase5f24-vmcard-diagnostic.php'
+      - '.github/workflows/phase5f24-vmcard-diagnostic.yml'
+
+jobs:
+  diagnostic-static-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: PHP lint
+        run: php -l tools/live-vmware-phase5f24-vmcard-diagnostic.php
+      - name: Read-only invariants
+        run: |
+          set -euo pipefail
+          f=tools/live-vmware-phase5f24-vmcard-diagnostic.php
+          grep -Fq 'PHASE5F24_DIAG_PERSISTENCE=0' "$f"
+          grep -Fq 'PHASE5F24_DIAG_VCENTER_MUTATIONS=0' "$f"
+          ! grep -Eiq 'PowerOnVM|PowerOffVM|ReconfigVM|Destroy_Task|MigrateVM|RelocateVM|CreateVM|UpdateNetwork|RefreshNetworkSystem|INSERT[[:space:]]+INTO|UPDATE[[:space:]]+custom_|DELETE[[:space:]]+FROM' "$f"
+          grep -Fq "--vm-id is required; the diagnostic never guesses a production VM." "$f"
