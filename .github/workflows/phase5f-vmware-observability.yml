@@ -35,14 +35,19 @@ jobs:
       - name: Validate syntax
         run: |
           php -l layers/phase5f/functions/classes/class.IntegrationVmwareVcenterDirectTransport.php
+          php -l layers/phase5f/functions/classes/class.IntegrationVmwareVcenterFaultAwareTransport.php
           php -l layers/phase5f/functions/classes/class.IntegrationVmwareVcenterSoapHostResolver.php
           php -l layers/phase5f/functions/classes/class.IntegrationVmwareVcenterSoapReadOnly.php
           php -l layers/phase5f/functions/classes/class.IntegrationVmwareVcenterPerformance.php
+          php -l tests/vmware-vcenter-phase5f-fault-aware-transport-regression.php
           php -l tests/vmware-vcenter-phase5f-soap-host-resolver-regression.php
           php -l tests/vmware-vcenter-phase5f-soap-host-summary-regression.php
           php -l tests/vmware-vcenter-phase5f-performance-regression.php
           php -l tools/live-vmware-phase5f-observability-preview.php
           php -l tools/live-vmware-phase5f-transport-diagnostic.php
+
+      - name: Run fault-aware transport regression
+        run: php tests/vmware-vcenter-phase5f-fault-aware-transport-regression.php
 
       - name: Run SOAP host-resolver regression
         run: php tests/vmware-vcenter-phase5f-soap-host-resolver-regression.php
@@ -70,11 +75,23 @@ jobs:
           grep -Fq "CURLOPT_NOPROXY] = '*'" layers/phase5f/functions/classes/class.IntegrationVmwareVcenterDirectTransport.php
           grep -Fq 'IntegrationVmwareVcenterDirectTransport' tools/live-vmware-phase5f-observability-preview.php
           grep -Fq 'PHASE5F_PREVIEW_TRANSPORT=DIRECT_NO_PROXY' tools/live-vmware-phase5f-observability-preview.php
-          grep -Fq 'IntegrationVmwareVcenterSoapHostResolver($DirectTransport' tools/live-vmware-phase5f-observability-preview.php
-          grep -Fq 'IntegrationVmwareVcenterSoapReadOnly($DirectTransport' tools/live-vmware-phase5f-observability-preview.php
-          grep -Fq 'IntegrationVmwareVcenterPerformance($DirectTransport' tools/live-vmware-phase5f-observability-preview.php
+          grep -Fq 'IntegrationVmwareVcenterFaultAwareTransport($DirectTransport' tools/live-vmware-phase5f-observability-preview.php
+          grep -Fq 'IntegrationVmwareVcenterSoapHostResolver($FaultAwareTransport' tools/live-vmware-phase5f-observability-preview.php
+          grep -Fq 'IntegrationVmwareVcenterSoapReadOnly($FaultAwareTransport' tools/live-vmware-phase5f-observability-preview.php
+          grep -Fq 'IntegrationVmwareVcenterPerformance($FaultAwareTransport' tools/live-vmware-phase5f-observability-preview.php
           if grep -Eqi '\b(GET|PUT|PATCH|DELETE)\b' layers/phase5f/functions/classes/class.IntegrationVmwareVcenterDirectTransport.php; then
             echo 'Direct Phase 5F SOAP transport exposes a non-POST method token' >&2
+            exit 1
+          fi
+
+      - name: Enforce safe fault diagnostic boundary
+        run: |
+          grep -Fq 'faultstring' layers/phase5f/functions/classes/class.IntegrationVmwareVcenterFaultAwareTransport.php
+          grep -Fq 'PHASE5F_PREVIEW_STAGE=HOST_RESOLVE' tools/live-vmware-phase5f-observability-preview.php
+          grep -Fq 'PHASE5F_PREVIEW_STAGE=HOST_SUMMARY' tools/live-vmware-phase5f-observability-preview.php
+          grep -Fq 'PHASE5F_PREVIEW_STAGE=HOST_PERFORMANCE' tools/live-vmware-phase5f-observability-preview.php
+          if grep -Eq 'Cookie:|password>|userName>' layers/phase5f/functions/classes/class.IntegrationVmwareVcenterFaultAwareTransport.php; then
+            echo 'Fault-aware transport must not contain credential/cookie rendering logic' >&2
             exit 1
           fi
 
