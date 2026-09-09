@@ -39,12 +39,18 @@ jobs:
           php -l layers/phase5f/functions/classes/class.IntegrationVmwareVcenterSoapHostResolver.php
           php -l layers/phase5f/functions/classes/class.IntegrationVmwareVcenterSoapReadOnly.php
           php -l layers/phase5f/functions/classes/class.IntegrationVmwareVcenterPerformance.php
+          php -l layers/phase5f/app/integrations/vmware/host-card-result.php
+          php -l layers/phase5f/app/integrations/vmware/performance-result.php
+          node --check layers/phase5f/app/integrations/vmware/phase5f-observability.js
           php -l tests/vmware-vcenter-phase5f-fault-aware-transport-regression.php
           php -l tests/vmware-vcenter-phase5f-soap-host-resolver-regression.php
           php -l tests/vmware-vcenter-phase5f-soap-host-summary-regression.php
           php -l tests/vmware-vcenter-phase5f-performance-regression.php
           php -l tools/live-vmware-phase5f-observability-preview.php
           php -l tools/live-vmware-phase5f-transport-diagnostic.php
+          bash -n tools/live-vmware-phase5f-ui-preflight.sh
+          bash -n installer/install-vmware-vcenter-phase5f-ui.sh
+          bash -n installer/verify-vmware-vcenter-phase5f-ui.sh
 
       - name: Run fault-aware transport regression
         run: php tests/vmware-vcenter-phase5f-fault-aware-transport-regression.php
@@ -68,6 +74,20 @@ jobs:
             echo 'Phase 5F compatibility preview must not depend on REST topology authentication' >&2
             exit 1
           fi
+
+      - name: Enforce compatible PropertyCollector reads
+        run: |
+          grep -Fq '<RetrieveProperties xmlns="urn:vim25">' layers/phase5f/functions/classes/class.IntegrationVmwareVcenterSoapReadOnly.php
+          grep -Fq '<RetrieveProperties xmlns="urn:vim25">' layers/phase5f/functions/classes/class.IntegrationVmwareVcenterPerformance.php
+          if grep -Fq '<RetrievePropertiesEx ' layers/phase5f/functions/classes/class.IntegrationVmwareVcenterSoapReadOnly.php; then
+            echo 'Host summary regressed to RetrievePropertiesEx' >&2
+            exit 1
+          fi
+          if grep -Fq '<RetrievePropertiesEx ' layers/phase5f/functions/classes/class.IntegrationVmwareVcenterPerformance.php; then
+            echo 'Performance counter discovery regressed to RetrievePropertiesEx' >&2
+            exit 1
+          fi
+          grep -Fq "'RetrieveProperties'" layers/phase5f/functions/classes/class.IntegrationVmwareVcenterFaultAwareTransport.php
 
       - name: Enforce direct no-proxy vCenter transport
         run: |
@@ -123,6 +143,35 @@ jobs:
             echo 'Hardcoded numeric performance counter ID detected' >&2
             exit 1
           fi
+
+      - name: Enforce observability UI boundary
+        run: |
+          grep -Fq 'PHPIPAM_CUSTOM_VMWARE_PHASE5F_HOST_CARD_V1' layers/phase5f/app/integrations/vmware/host-card-result.php
+          grep -Fq 'PHPIPAM_CUSTOM_VMWARE_PHASE5F_VM_PERFORMANCE_V1' layers/phase5f/app/integrations/vmware/performance-result.php
+          grep -Fq "preg_match('/^host-[0-9]+$/" layers/phase5f/app/integrations/vmware/host-card-result.php
+          grep -Fq "preg_match('/^vm-[0-9]+$/" layers/phase5f/app/integrations/vmware/performance-result.php
+          grep -Fq "csrf_cookie('validate', 'integration_vmware_vcenter_explorer'" layers/phase5f/app/integrations/vmware/host-card-result.php
+          grep -Fq "csrf_cookie('validate', 'integration_vmware_vcenter_explorer'" layers/phase5f/app/integrations/vmware/performance-result.php
+          grep -Fq 'host-card-result.php' layers/phase5f/app/integrations/vmware/phase5f-observability.js
+          grep -Fq 'performance-result.php' layers/phase5f/app/integrations/vmware/phase5f-observability.js
+          grep -Fq 'max_samples: 60' layers/phase5f/app/integrations/vmware/phase5f-observability.js
+          grep -Fq 'persistent_inventory_written=false' layers/phase5f/app/integrations/vmware/host-card-result.php
+          grep -Fq 'persistent_inventory_written=false' layers/phase5f/app/integrations/vmware/performance-result.php
+          if grep -Eqi '\b(INSERT|UPDATE|DELETE|REPLACE|ALTER|DROP|TRUNCATE)[[:space:]]' layers/phase5f/app/integrations/vmware; then
+            echo 'SQL mutation verb in Phase 5F UI layer' >&2
+            exit 1
+          fi
+
+      - name: Enforce live UI deployment gate
+        run: |
+          grep -Fq 'PREFLIGHT_RESULT=READY_FOR_PHASE5F_UI_OWNER_APPROVAL' tools/live-vmware-phase5f-ui-preflight.sh
+          grep -Fq 'PREFLIGHT_WRITE_OPERATIONS=0' tools/live-vmware-phase5f-ui-preflight.sh
+          grep -Fq 'PREFLIGHT_VCENTER_REQUESTS=0' tools/live-vmware-phase5f-ui-preflight.sh
+          grep -Fq 'PHASE5F_UI_VERIFY_OK' installer/verify-vmware-vcenter-phase5f-ui.sh
+          grep -Fq 'PHASE5F_UI_INSTALL_OK' installer/install-vmware-vcenter-phase5f-ui.sh
+          grep -Fq 'PHASE5F_UI_ROLLBACK_OK' installer/install-vmware-vcenter-phase5f-ui.sh
+          grep -Fq 'PHPIPAM_CUSTOM_VMWARE_PHASE5F_OBSERVABILITY_UI_V1' installer/install-vmware-vcenter-phase5f-ui.sh
+          grep -Fq 'verify-vmware-vcenter-phase5e2-ip-style.sh' tools/live-vmware-phase5f-ui-preflight.sh
 
       - name: Enforce live preview safety contract
         run: |
