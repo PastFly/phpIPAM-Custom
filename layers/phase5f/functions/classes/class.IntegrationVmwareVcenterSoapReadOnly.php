@@ -71,14 +71,17 @@ class IntegrationVmwareVcenterSoapReadOnly
                 throw new RuntimeException('vCenter SOAP login did not return a session cookie');
             }
 
-            $retrieveXml = '<RetrievePropertiesEx xmlns="urn:vim25">'
+            // Use legacy RetrieveProperties deliberately. The live vCenter accepts
+            // SOAP requests without explicit version negotiation as vim25/2.5u2;
+            // RetrievePropertiesEx was introduced in API 4.1, while the original
+            // RetrieveProperties remains available for this single bounded read.
+            $retrieveXml = '<RetrieveProperties xmlns="urn:vim25">'
                 . '<_this type="PropertyCollector">' . $this->xml($service['property_collector']) . '</_this>'
                 . '<specSet><propSet><type>HostSystem</type><pathSet>summary</pathSet></propSet>'
                 . '<objectSet><obj type="HostSystem">' . $this->xml($hostId) . '</obj><skip>false</skip></objectSet></specSet>'
-                . '<options><maxObjects>1</maxObjects></options>'
-                . '</RetrievePropertiesEx>';
+                . '</RetrieveProperties>';
             $propertyResponse = $this->soap_request($sdk, $this->envelope($retrieveXml), $cookie, $verifyTls);
-            $propertyDoc = $this->parse_soap($propertyResponse['body'], 'RetrievePropertiesEx');
+            $propertyDoc = $this->parse_soap($propertyResponse['body'], 'RetrieveProperties');
             $summaryNode = $this->find_property_value($propertyDoc, 'summary');
             if ($summaryNode === null) {
                 throw new RuntimeException('HostSystem summary was not returned by vCenter');
@@ -141,6 +144,7 @@ class IntegrationVmwareVcenterSoapReadOnly
                 'soap' => array(
                     'property_collector' => $service['property_collector'],
                     'performance_manager' => $service['performance_manager'],
+                    'property_method' => 'RetrieveProperties',
                     'verify_tls' => $verifyTls,
                     'duration_ms' => (int)round((microtime(true) - $started) * 1000)
                 )
