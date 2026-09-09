@@ -1,0 +1,68 @@
+name: Phase 5F.3.1 VMware VM Network Path
+
+on:
+  push:
+    branches: ["phase5f31/vm-network-path"]
+  pull_request:
+    branches: ["phase5f3/vmware-host-network-hints"]
+
+jobs:
+  phase5f31:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Syntax
+        run: |
+          php -l layers/phase5f31/functions/classes/class.IntegrationVmwareVcenterVmNetworkPath.php
+          php -l tools/live-vmware-phase5f31-vm-network-path-preview.php
+
+      - name: Mapping regression
+        run: php tests/phase5f31-vm-network-path-regression.php
+
+      - name: Enforce Phase 5F.3 baseline
+        run: |
+          test -f installer/verify-vmware-vcenter-phase5f3-host-network.sh
+          grep -Fq 'PHASE5F3_HOST_NETWORK_VERIFY_OK' installer/verify-vmware-vcenter-phase5f3-host-network.sh
+          test -f layers/phase5f3/functions/classes/class.IntegrationVmwareVcenterHostNetworkHints.php
+          grep -Fq '<QueryNetworkHint xmlns="urn:vim25">' layers/phase5f3/functions/classes/class.IntegrationVmwareVcenterHostNetworkHints.php
+
+      - name: Enforce bounded read-only property surface
+        run: |
+          CLASS=layers/phase5f31/functions/classes/class.IntegrationVmwareVcenterVmNetworkPath.php
+          grep -Fq '<type>VirtualMachine</type><pathSet>runtime.host</pathSet>' "$CLASS"
+          grep -Fq '<pathSet>configManager.networkSystem</pathSet><pathSet>config.network</pathSet>' "$CLASS"
+          grep -Fq '<QueryNetworkHint xmlns="urn:vim25">' "$CLASS"
+          grep -Fq "'property_method' => 'RetrieveProperties'" "$CLASS"
+          grep -Fq "'hint_method' => 'QueryNetworkHint'" "$CLASS"
+          grep -Fq "'persistent_inventory_written' => false" "$CLASS"
+          grep -Fq "'phpipam_objects_modified' => false" "$CLASS"
+          grep -Fq "'vcenter_objects_modified' => false" "$CLASS"
+          ! grep -Eq '<(Update|Add|Remove|Destroy|Reconfig|Power|Migrate|Relocate|RefreshNetworkSystem)' "$CLASS"
+
+      - name: Enforce direct no-proxy transport
+        run: |
+          CLASS=layers/phase5f31/functions/classes/class.IntegrationVmwareVcenterVmNetworkPath.php
+          grep -Fq "CURLOPT_PROXY => ''" "$CLASS"
+          grep -Fq 'CURLOPT_NOPROXY' "$CLASS"
+          grep -Fq "'rest_transport' => 'direct_no_proxy'" "$CLASS"
+          grep -Fq "'soap_transport' => 'direct_no_proxy'" "$CLASS"
+          grep -Fq 'IntegrationVmwareVcenterDirectTransport' tools/live-vmware-phase5f31-vm-network-path-preview.php
+          grep -Fq 'IntegrationVmwareVcenterFaultAwareTransport' tools/live-vmware-phase5f31-vm-network-path-preview.php
+
+      - name: Enforce no fake current uplink
+        run: |
+          CLASS=layers/phase5f31/functions/classes/class.IntegrationVmwareVcenterVmNetworkPath.php
+          grep -Fq "'current_uplink' => null" "$CLASS"
+          grep -Fq "'current_uplink_proven' => false" "$CLASS"
+          grep -Fq 'not_proven_by_available_read_only_properties' "$CLASS"
+          grep -Fq 'PHASE5F31_PREVIEW_CURRENT_UPLINK_GUESSING=0' tools/live-vmware-phase5f31-vm-network-path-preview.php
+
+      - name: Enforce preview safety
+        run: |
+          PREVIEW=tools/live-vmware-phase5f31-vm-network-path-preview.php
+          grep -Fq 'PHASE5F31_PREVIEW_PERSISTENCE=0' "$PREVIEW"
+          grep -Fq 'PHASE5F31_PREVIEW_PHPIPAM_MUTATIONS=0' "$PREVIEW"
+          grep -Fq 'PHASE5F31_PREVIEW_VCENTER_MUTATIONS=0' "$PREVIEW"
+          grep -Fq 'PHASE5F31_PREVIEW_RESULT=READ_ONLY_COMPATIBILITY_OK' "$PREVIEW"
+          grep -Fq -- '--vm-id is required; the preview never guesses a production VM.' "$PREVIEW"
