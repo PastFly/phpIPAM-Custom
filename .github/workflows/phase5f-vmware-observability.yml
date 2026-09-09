@@ -34,6 +34,7 @@ jobs:
 
       - name: Validate syntax
         run: |
+          php -l layers/phase5f/functions/classes/class.IntegrationVmwareVcenterDirectTransport.php
           php -l layers/phase5f/functions/classes/class.IntegrationVmwareVcenterSoapHostResolver.php
           php -l layers/phase5f/functions/classes/class.IntegrationVmwareVcenterSoapReadOnly.php
           php -l layers/phase5f/functions/classes/class.IntegrationVmwareVcenterPerformance.php
@@ -60,6 +61,20 @@ jobs:
           grep -Fq 'PHASE5F_PREVIEW_RESOLUTION=SOAP_SEARCH_INDEX_DNS' tools/live-vmware-phase5f-observability-preview.php
           if grep -Fq 'IntegrationVmwareVcenterTopology' tools/live-vmware-phase5f-observability-preview.php; then
             echo 'Phase 5F compatibility preview must not depend on REST topology authentication' >&2
+            exit 1
+          fi
+
+      - name: Enforce direct no-proxy vCenter transport
+        run: |
+          grep -Fq "CURLOPT_PROXY => ''" layers/phase5f/functions/classes/class.IntegrationVmwareVcenterDirectTransport.php
+          grep -Fq "CURLOPT_NOPROXY] = '*'" layers/phase5f/functions/classes/class.IntegrationVmwareVcenterDirectTransport.php
+          grep -Fq 'IntegrationVmwareVcenterDirectTransport' tools/live-vmware-phase5f-observability-preview.php
+          grep -Fq 'PHASE5F_PREVIEW_TRANSPORT=DIRECT_NO_PROXY' tools/live-vmware-phase5f-observability-preview.php
+          grep -Fq 'IntegrationVmwareVcenterSoapHostResolver($DirectTransport' tools/live-vmware-phase5f-observability-preview.php
+          grep -Fq 'IntegrationVmwareVcenterSoapReadOnly($DirectTransport' tools/live-vmware-phase5f-observability-preview.php
+          grep -Fq 'IntegrationVmwareVcenterPerformance($DirectTransport' tools/live-vmware-phase5f-observability-preview.php
+          if grep -Eqi '\b(GET|PUT|PATCH|DELETE)\b' layers/phase5f/functions/classes/class.IntegrationVmwareVcenterDirectTransport.php; then
+            echo 'Direct Phase 5F SOAP transport exposes a non-POST method token' >&2
             exit 1
           fi
 
