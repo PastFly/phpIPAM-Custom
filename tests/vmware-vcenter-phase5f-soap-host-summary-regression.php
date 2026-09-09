@@ -43,11 +43,11 @@ $transport = function ($method, $url, $headers, $body, $verifyTls, $connectTimeo
         );
     }
 
-    if (strpos($body, '<RetrievePropertiesEx') !== false) {
+    if (strpos($body, '<RetrieveProperties xmlns="urn:vim25">') !== false) {
         return array(
             'status' => 200,
             'headers' => array('Content-Type: text/xml'),
-            'body' => soap_envelope('<RetrievePropertiesExResponse xmlns="urn:vim25" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><returnval><objects><obj type="HostSystem">host-42</obj><propSet><name>summary</name><val xsi:type="HostListSummary"><hardware><vendor>Dell Inc.</vendor><model>PowerEdge R740</model><cpuModel>Intel(R) Xeon(R) Gold</cpuModel><cpuMhz>2400</cpuMhz><numCpuPkgs>2</numCpuPkgs><numCpuCores>32</numCpuCores><numCpuThreads>64</numCpuThreads><memorySize>274877906944</memorySize></hardware><quickStats><overallCpuUsage>12000</overallCpuUsage><overallMemoryUsage>98304</overallMemoryUsage><uptime>864123</uptime></quickStats><runtime><connectionState>connected</connectionState><powerState>poweredOn</powerState><inMaintenanceMode>false</inMaintenanceMode><bootTime>2026-08-30T10:00:00Z</bootTime></runtime><config><name>esxi-1-04.rbank.local</name><product><fullName>VMware ESXi 7.0.3 build-12345678</fullName><version>7.0.3</version><build>12345678</build></product></config></val></propSet></objects></returnval></RetrievePropertiesExResponse>')
+            'body' => soap_envelope('<RetrievePropertiesResponse xmlns="urn:vim25" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><returnval><obj type="HostSystem">host-42</obj><propSet><name>summary</name><val xsi:type="HostListSummary"><hardware><vendor>Dell Inc.</vendor><model>PowerEdge R740</model><cpuModel>Intel(R) Xeon(R) Gold</cpuModel><cpuMhz>2400</cpuMhz><numCpuPkgs>2</numCpuPkgs><numCpuCores>32</numCpuCores><numCpuThreads>64</numCpuThreads><memorySize>274877906944</memorySize></hardware><quickStats><overallCpuUsage>12000</overallCpuUsage><overallMemoryUsage>98304</overallMemoryUsage><uptime>864123</uptime></quickStats><runtime><connectionState>connected</connectionState><powerState>poweredOn</powerState><inMaintenanceMode>false</inMaintenanceMode><bootTime>2026-08-30T10:00:00Z</bootTime></runtime><config><name>esxi-1-04.rbank.local</name><product><fullName>VMware ESXi 7.0.3 build-12345678</fullName><version>7.0.3</version><build>12345678</build></product></config></val></propSet></returnval></RetrievePropertiesResponse>')
         );
     }
 
@@ -70,7 +70,9 @@ assert_true($calls[0]['method'] === 'POST', 'SOAP uses POST only');
 assert_true($calls[0]['url'] === 'https://vc.example.test/sdk', 'normalized /sdk endpoint');
 foreach ($calls as $call) assert_true($call['verify_tls'] === false, 'saved TLS mode is passed through without hidden downgrade logic');
 assert_true(strpos($calls[1]['body'], 'secret&lt;&amp;') !== false, 'credential is XML escaped');
-assert_true(strpos($calls[2]['body'], '<obj type="HostSystem">host-42</obj>') !== false, 'REST stable host id reused as HostSystem MOR');
+assert_true(strpos($calls[2]['body'], '<RetrieveProperties xmlns="urn:vim25">') !== false, 'compatible RetrieveProperties method is used');
+assert_true(strpos($calls[2]['body'], '<RetrievePropertiesEx') === false, '4.1-only RetrievePropertiesEx is not used');
+assert_true(strpos($calls[2]['body'], '<obj type="HostSystem">host-42</obj>') !== false, 'stable host id reused as HostSystem MOR');
 assert_true(in_array('Cookie: vmware_soap_session="52abc"', $calls[2]['headers'], true), 'authenticated property read uses SOAP session cookie');
 assert_true(in_array('Cookie: vmware_soap_session="52abc"', $calls[3]['headers'], true), 'logout uses SOAP session cookie');
 
@@ -94,6 +96,7 @@ assert_true($result['runtime']['maintenance_mode'] === false, 'maintenance state
 assert_true($result['product']['name'] === 'esxi-1-04.rbank.local', 'host name parsed');
 assert_true($result['product']['version'] === '7.0.3', 'ESXi version parsed');
 assert_true($result['soap']['performance_manager'] === 'PerfMgr', 'PerformanceManager MOR discovered for next slice');
+assert_true($result['soap']['property_method'] === 'RetrieveProperties', 'compatible property method reported');
 
 $beforeInvalid = count($calls);
 $thrown = false;
