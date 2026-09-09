@@ -61,6 +61,7 @@ class IntegrationVmwareVcenterFaultAwareTransport
             'Login',
             'Logout',
             'FindByDnsName',
+            'RetrieveProperties',
             'RetrievePropertiesEx',
             'QueryPerfProviderSummary',
             'QueryAvailablePerfMetric',
