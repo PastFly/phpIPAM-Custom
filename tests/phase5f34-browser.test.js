@@ -4,7 +4,7 @@ const {JSDOM}=require('jsdom'),jquery=require('jquery');
 const source=fs.readFileSync(path.join(__dirname,'../layers/phase5f34/app/integrations/vmware/phase5f34-cache.js'),'utf8');
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 function env(header=false){
- const body=header?'<section id="phase5f331-global-search"><div class="panel-heading">VMware</div><select id="phase5f331-connector"><option value="1">one</option></select><button id="phase5f331-retry">Retry</button></section>':'<form id="phase5e-workspace-form"><select id="phase5e-config"><option value="1">one</option><option value="2">two</option></select><button type="button" id="phase5e-refresh">Refresh</button></form>';
+ const body=header?'<section id="phase5f331-global-search"><div class="panel-heading">VMware</div><select id="phase5f331-connector"><option value="1">one</option></select><button id="phase5f331-retry">Retry</button></section>':'<div id="vmware-phase5e"><div class="phase5e-page-header"><p class="text-muted">inventory существует только в памяти текущего запроса.</p></div></div><form id="phase5e-workspace-form"><select id="phase5e-config"><option value="1">one</option><option value="2">two</option></select><button type="button" id="phase5e-refresh">Refresh</button></form>';
  const d=new JSDOM('<base href="https://ipam.test/sub/">'+body+'<div id="phase5e-list-result">selected list</div><div id="phase5e-detail-result">selected VM</div>',{url:'https://ipam.test/sub/',runScripts:'outside-only'});
  const w=d.window,$=jquery(w);w.$=w.jQuery=$;let visible='visible';Object.defineProperty(w.document,'visibilityState',{get:()=>visible});
  let tick;w.setInterval=f=>{tick=f;return 99;};w.clearInterval=()=>{};
@@ -26,6 +26,8 @@ function promise(xhr){return new Promise((resolve,reject)=>xhr.done(resolve).fai
  await promise(e.request());assert.match(e.requests[0].url,/\/sub\/app\/integrations\/vmware\/cache\/workspace-result.php$/);
  assert.equal(completes,1);assert.equal(e.$('#phase5e-list-result').text(),'selected list');assert.equal(e.w.localStorage.length,0);
  assert.match(e.$('#phase5f34-cache-indicator').text(),/готов/);
+ assert.match(e.$('.phase5e-page-header > p').text(),/зашифрованные снимки на сервере/);
+ assert.doesNotMatch(e.$('.phase5e-page-header > p').text(),/только в памяти/);
  await promise(e.request('app/integrations/vmware/vm-card-result.php'));assert.doesNotMatch(e.requests.at(-1).url,/\/cache\//);
  await promise(e.request('https://other.test/app/integrations/vmware/workspace-result.php'));assert.doesNotMatch(e.requests.at(-1).url,/\/cache\//);
  await promise(e.request('https://ipam.test/other/app/integrations/vmware/workspace-result.php'));assert.doesNotMatch(e.requests.at(-1).url,/\/cache\//);

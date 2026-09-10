@@ -55,6 +55,10 @@
         if (['core', 'host_folders', 'object_folders', 'search'].indexOf(c.domain) < 0) return;
         entries[k] = {id: id, token: token, cache: c, at: Date.now(), enabled: data.cache_enabled === true};
         indicator(id, c);
+        // Do not retain the pre-cache page's claim that inventory exists only in request memory.
+        $('#vmware-phase5e .phase5e-page-header > p.text-muted').text(data.cache_enabled === true
+            ? 'Read-only обзор. Инфраструктура, папки и поиск используют зашифрованные снимки на сервере; карточки и графики загружаются отдельно.'
+            : 'Read-only обзор. Серверный кэш не активен; данные запрашиваются при обращении.');
         if (c.refresh_required && c.retry_after_seconds === 0) enqueue(k);
     }
     function enqueue(k) {
