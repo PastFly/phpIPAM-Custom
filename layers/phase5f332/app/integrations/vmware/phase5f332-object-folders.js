@@ -94,6 +94,16 @@
         var model = null, dcs = Object.create(null), folded = Object.create(null), entries = Object.create(null);
         var graphError = false, metadataError = false, metadataPending = false, tagsPartial = false, metadata = Object.create(null), flat = false;
         var base = text($('base').attr('href') || $('.iebase').text() || '/');
+        var detailRequests = [];
+        $.ajaxPrefilter(function (options, originalOptions, xhr) {
+            if (!/(^|\/)(?:vm-card|host-card|performance|storage-performance|vm-annotation|vm-guest-facts|host-network|vm-network-path)-result\.php(?:\?|$)/.test(text(options.url))) return;
+            detailRequests.push(xhr);
+            xhr.always(function () { detailRequests = detailRequests.filter(function (r) { return r !== xhr; }); });
+        });
+        function cancelDetails() {
+            var pending = detailRequests.slice(); detailRequests = [];
+            pending.forEach(function (xhr) { try { xhr.abort(); } catch (ignored) {} });
+        }
         function id() { return text($('#phase5e-config').val()); }
         function csrf() { return $form.find('input[name="csrf_cookie"]').val(); }
         function key(kind, connector) { return kind + ':' + connector; }
@@ -264,6 +274,7 @@
             }
         }
         function datastoreCard(o, m) {
+            cancelDetails();
             var $detail = $('#phase5e-detail-result').empty();
             $('<h4>').text(o.name).appendTo($detail);
             var $body = $('<tbody>').appendTo($('<table class="table table-condensed">').appendTo($detail));
@@ -291,6 +302,7 @@
             mode = domain; var ticket = ++nonce, connector = id();
             selectedKey = previous === domain ? previousSelection : ''; page = 0; objectQuery = ''; treeQuery = '';
             model = null; metadata = Object.create(null); graphError = false; metadataError = false; metadataPending = false; tagsPartial = false;
+            cancelDetails();
             $('#phase5e-detail-result').empty(); sync(); renderTree(); renderList();
             load('graph', force).done(function (data) {
                 if (ticket !== nonce || connector !== id()) return;

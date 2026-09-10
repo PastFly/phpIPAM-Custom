@@ -35,11 +35,12 @@ const sleep = ms => new Promise(r=>setTimeout(r,ms));
 function environment() {
     const dom = new JSDOM('<base href="https://ipam.test/"><div id="vmware-phase5e"><ul class="phase5e-nav"><li><a class="phase5e-view-link" data-view="overview">Overview</a></li><li><a class="phase5e-view-link" data-view="vms">VM</a></li><li><a class="phase5e-view-link" data-view="datastores">DS</a></li></ul><form id="phase5e-workspace-form"><input name="csrf_cookie" value="fixture"><select id="phase5e-config"><option value="1">One</option><option value="2">Two</option></select><input id="phase5e-search"><select id="phase5e-page-size"><option value="50">50</option></select></form><div id="phase5e-tree-result">HOST original</div><div id="phase5e-list-result">Original list</div><div id="phase5e-center-title"></div><div id="phase5e-detail-result"></div></div>', {url:'https://ipam.test/index.php?page=integrations',runScripts:'outside-only'});
     const win=dom.window, $=jquery(win); win.$=win.jQuery=$;
-    const requests=[], clicks=[];
+    const requests=[], clicks=[], prefilters=[];
+    $.ajaxPrefilter = fn => prefilters.push(fn);
     $.ajax = options => { const d=$.Deferred(); requests.push({options,d}); return d.promise(); };
     $(win.document).on('click','.phase5e-vm-link',function(e) { e.preventDefault(); clicks.push($(this).attr('data-vm-id')); });
     win.eval(fs.readFileSync(source,'utf8'));
-    return {dom,win,$,requests,clicks};
+    return {dom,win,$,requests,clicks,prefilters};
 }
 function payload(connector) {
     const vm=fixture(); vm.objects[0].name='<img src=x onerror=alert(1)>';
@@ -72,7 +73,11 @@ function payload(connector) {
     assert.equal($('#vmware-phase5e').hasClass('phase5f332-active'),false);
     $('#phase5f332-vm-tab').trigger('click'); assert.equal(requests.length,0);
     assert.equal($('#phase5f332-tree button[aria-expanded=false]').length>0,true);
+    const pendingDetail=$.Deferred(); let detailAborted=false;
+    const xhr=pendingDetail.promise(); xhr.abort=()=>{detailAborted=true; pendingDetail.reject();};
+    e.prefilters.forEach(fn=>fn({url:'app/integrations/vmware/vm-card-result.php'}, {}, xhr));
     $('.phase5e-view-link[data-view=datastores]').trigger('click'); assert.equal(requests.length,1);
+    assert.equal(detailAborted,true);
     requests.shift().d.resolve({ok:true,connector_id:1,datastores:[{external_id:'datastore-1',type:'vmfs',capacity_bytes:2048*1073741824,free_space_bytes:1073741824}]});
     assert.match($('#phase5f332-list').text(),/2\.00 TiB/);
     $('#phase5f332-list tbody a').trigger('click'); assert.match($('#phase5e-detail-result').text(),/datastore-1/);
