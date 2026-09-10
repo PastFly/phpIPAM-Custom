@@ -18,6 +18,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '${{ matrix.php }}'
@@ -40,3 +41,16 @@ jobs:
           PYTHONDONTWRITEBYTECODE=1 python3 tools/live-vmware-phase5f34-cache-preflight.py
           rc=$?
           test "$rc" -eq 2
+      - name: Archive committed test sources only
+        if: matrix.php == '8.2'
+        run: |
+          git archive --format=tar HEAD layers installer tools tests .github CACHE_DESIGN.md | gzip > "$RUNNER_TEMP/cache-test-sources.tar.gz"
+          git rev-parse HEAD > "$RUNNER_TEMP/cache-source-commit.txt"
+      - uses: actions/upload-artifact@v4
+        if: matrix.php == '8.2'
+        with:
+          name: cache-test-sources
+          path: |
+            ${{ runner.temp }}/cache-test-sources.tar.gz
+            ${{ runner.temp }}/cache-source-commit.txt
+          retention-days: 1
