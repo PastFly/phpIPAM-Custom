@@ -60,6 +60,7 @@ jobs:
       - name: Syntax
         run: |
           set -euo pipefail
+          python3 tools/build-phase5f34-providers.py layers/phase5f34
           find layers/phase5f34 -name '*.php' -print0 | xargs -0 -n 1 php -l
           for f in layers/phase5f34/app/integrations/vmware/*.js; do node --check "$f"; done
           for f in tools/*phase5f34*.sh installer/*phase5f34*.sh; do bash -n "$f"; done
@@ -75,7 +76,7 @@ jobs:
           set -euo pipefail
           PYTHONDONTWRITEBYTECODE=1 python3 tests/phase5f34-preflight.test.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/phase5f34-controller.test.py
-          PYTHONDONTWRITEBYTECODE=1 python3 tests/phase5f34-deployment.test.py
+          sudo env PYTHONDONTWRITEBYTECODE=1 PATH="$PATH" python3 tests/phase5f34-deployment.test.py
       - name: Isolated DOM test dependencies
         run: npm install --prefix "$RUNNER_TEMP/cache-node" jsdom@24.1.3 jquery@3.7.1 --ignore-scripts --no-audit --no-fund
       - name: Cache middleware, retained folder state and header/deeplink tests
