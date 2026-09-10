@@ -1,0 +1,18 @@
+/* Isolated overlays: existing HOST tree/list stay mounted and keep their state. */
+#vmware-phase5e.phase5f332-active #phase5e-tree-result,
+#vmware-phase5e.phase5f332-active #phase5e-list-result,
+#vmware-phase5e.phase5f332-active #phase5f2-vm-search-wrap,
+#vmware-phase5e.phase5f332-active #phase5e-clear-scope { display: none !important; }
+#vmware-phase5e:not(.phase5f332-active) .phase5f332-pane { display: none !important; }
+#vmware-phase5e .phase5f332-pane { min-width: 0; padding: 8px; }
+#vmware-phase5e .phase5f332-tree ul { list-style: none; padding-left: 15px; margin: 2px 0; }
+#vmware-phase5e .phase5f332-tree > ul { padding-left: 0; }
+#vmware-phase5e .phase5f332-node { display: flex; align-items: center; min-width: 0; gap: 4px; }
+#vmware-phase5e .phase5f332-node > a { flex: 1; min-width: 0; overflow-wrap: anywhere; padding: 4px; }
+#vmware-phase5e .phase5f332-node > a[aria-current="true"] { font-weight: bold; text-decoration: underline; }
+#vmware-phase5e .phase5f332-toggle { width: 24px; padding: 2px; flex: 0 0 24px; }
+#vmware-phase5e .phase5f332-controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 4px 0 10px; }
+#vmware-phase5e .phase5f332-controls input[type="search"] { flex: 1 1 180px; min-width: 120px; }
+#vmware-phase5e .phase5f332-note { margin: 6px 0; overflow-wrap: anywhere; }
+#vmware-phase5e .phase5f332-table td { overflow-wrap: anywhere; vertical-align: top; }
+#vmware-phase5e .phase5f332-table td:first-child { min-width: 140px; }

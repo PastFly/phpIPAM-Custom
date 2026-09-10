@@ -1,149 +1,72 @@
-# Phase 5F.3.4 — VMware shared snapshot cache
+# Phase 5F.3.4 — shared VMware snapshots
 
-## Goal
+Updated 2026-09-10. This supersedes the initial design in the history of PR #25.
 
-Reduce repeated 1–3 second vCenter inventory waits while preserving the existing read-only safety model.
+## Current delivery boundary
 
-The cache is **not** a source of truth and must never create or modify phpIPAM/vCenter inventory. vCenter stable IDs remain authoritative.
+The isolated cache engine, synthetic tests and a READ-ONLY environment preflight are implemented. **No endpoint, UI hook, key provisioner or production cache installer is included yet.** The next step is endpoint integration after the live environment survey; this is not a deployable cache UI candidate.
 
-## Scope
+Development is restacked onto Phase 5F.3.3.2 `9c40ef6029ebe0d9fb7bbea190fcaca16c67750f`. The Owner has supplied working VM-folder and datastore-folder screenshots and says they work. A new INSTALL_OK log/full rollback path was not supplied for that phase and must not be reconstructed. Its existing exact verifier is run by the new environment preflight.
 
-Initial cache domains:
+## Goal and domains
 
-1. `core` — topology + datastore projection used by the main workspace;
-2. `folders` — authoritative HOST Folder inventory used by Phase 5F.2.5/5F.2.6;
-3. `search` — Phase 5F.3.3 enriched VM search facts + Tags/Categories.
+Reuse server data across page visits and administrators without replacing vCenter as the source of truth. Warm reads avoid a new infrastructure crawl; a first cold read still has to collect data. Actual production timings have not yet been measured.
 
-Realtime CPU/RAM/Disk samples, VM card details and VM physical network-path evidence remain on-demand and are **not** cached in this phase.
+| Domain | Soft TTL | Hard TTL | Content |
+| --- | ---: | ---: | --- |
+| core | 60 s | 600 s | topology + datastore projection |
+| host_folders | 300 s | 1800 s | accepted HOST folder graph |
+| object_folders | 300 s | 1800 s | coherent VM + Datastore folder graphs |
+| search | 300 s | 1800 s | enriched facts + Tags/Categories |
 
-## Storage
+Both object folder domains are collected together, not by duplicate vCenter calls. Realtime CPU/RAM/Disk, VM details and physical network-path runtime data stay on-demand. Do not turn an active/standby policy into an invented current uplink.
 
-Preferred runtime root:
+## Storage and identity
 
-`/var/cache/phpipam-custom/vmware/connector-<id>/`
+Proposed root `/var/cache/phpipam-custom/vmware/`, outside webroot. The eventual provisioner must create application/connector subdirectories for the real web runtime UID, with mode 0700; snapshots and connector locks use 0600. This is stricter than the earlier 0750/0640 proposal. Do not infer the web UID from the root CLI process.
 
-Files:
+Snapshots use authenticated `sodium_crypto_secretbox` encryption, random per-write nonces and purpose-separated envelope fields. The separate proposed key `/etc/phpipam-custom/vmware-cache.key` is installer-provisioned, root-owned and web-runtime-group readable, outside both cache and webroot. Never reuse, rotate or rewrite the existing connector keyring. Neither the engine nor the preflight creates or prints a key. Preflight reads only path metadata, never existing key contents.
 
-- `core-v1.json`
-- `folders-v1.json`
-- `search-v1.json`
-- `refresh.lock`
+A keyed identity fingerprint binds application root, connector ID, normalized endpoint, username, saved TLS mode, credential and explicit revision. Inputs stay in memory; neither plaintext credentials nor an unkeyed password hash is stored. Changing any identity component invalidates snapshots. A cache key rotation makes old envelopes unreadable.
 
-No connector password, session token, cookie or other secret may be written to cache.
+Providers MUST project allowlisted data before caching. The engine additionally rejects common structured credential/session/endpoint/header fields. Free-text Notes may themselves contain sensitive information: encryption is mandatory, but is not a claim that arbitrary descriptions have been classified or scrubbed. No inventory is stored in localStorage.
 
-Runtime permissions target:
+## Concurrency, age and failure rules
 
-- directory: `0750`
-- snapshot files: `0640`
-- lock file: `0640`
-- owned by the php-fpm/web runtime group selected during installer preflight.
+`get(domain, loader)` returns a fresh or soft-stale snapshot without executing a loader. Stale responses include age and `refresh_required`; there is no magic background process in this function.
 
-All writes must use temporary files + atomic rename. Concurrent refreshes must be serialized with `flock()` so multiple browsers/users cannot create a vCenter request stampede.
+The future authenticated browser adapter calls explicit `refresh` in a separate request. One nonblocking connector-wide flock coalesces refreshes across domains, workers and pages. Cold contenders get `snapshot_refresh_busy`, not a duplicate loader; the future client must retry with a bounded delay. Fresh readers are not blocked by a writer. Explicit force refresh remains coalesced for five seconds and cannot bypass error backoff.
 
-## Cache metadata
+Writing uses a private exclusive temporary file in the same directory, complete writes, flush/fsync and rename. Last good snapshots are not overwritten with exceptions, partial payloads or oversized data. A failed provider establishes a 30-second retry backoff. Hard-expired data is never served, including after a slow failed refresh. Successful live reads remain usable if writing fails, marked `uncached` rather than a false cache hit.
 
-Every snapshot must contain bounded metadata:
+A provider observing vCenter authentication/authorization denial MUST raise `IntegrationVmwareSnapshotAccessDenied`: all connector domains are invalidated and blocked until a successful reauthentication after cooldown. Existing user/admin/CSRF/enabled-connector checks must run BEFORE all hits, including fresh ones. Error strings, upstream bodies and session material never enter cache metadata. Optional metadata incompleteness must be handled by the provider without calling an incomplete search index complete.
 
-- `schema_version`
-- `connector_id`
-- non-secret connector identity fingerprint (SHA-256 of normalized endpoint + connector id; endpoint itself need not be persisted)
-- `created_at`
-- `expires_at`
-- `hard_expires_at`
-- source/result counts
-- payload hash
-- safety flags: `persistent_inventory_written=false`, `phpipam_objects_modified=false`, `vcenter_objects_modified=false`
+No promises of persistence across abrupt power loss are made: this is disposable cache, not a durable database. Corrupt/invalid encrypted data is a miss; corrupt authorization/backoff control files fail closed. Cache directory is trusted only for the dedicated runtime UID. Same-UID compromise or root compromise is not a threat this file cache can solve.
 
-A connector endpoint/TLS/config identity mismatch invalidates the snapshot.
+## No hidden persistence claims
 
-## TTL model
+This feature deliberately writes inventory snapshots to disk when eventually enabled. `cache_snapshot_written` reports that operation. `inventory_db_written=false` means no phpIPAM database inventory mutation, NOT that there were no filesystem writes. Source collector flags describe their original read, not persistence of the wrapping cache. Future UI/API documentation must retain that distinction.
 
-Initial proposed values:
+## Active-page refresh contract (not wired yet)
 
-| Snapshot | Soft TTL | Hard TTL |
-|---|---:|---:|
-| core topology/datastores | 60 s | 10 min |
-| HOST folders | 5 min | 30 min |
-| enriched search | 5 min | 30 min |
+No cron, systemd timer or unattended scheduler is installed. Saved TLS remains INSECURE and the project restriction stays in place. Planned maintenance is request-driven while an authenticated administrator has a visible page open, with a minimum 60-second page interval and global server-side TTL/lock coalescing. Pause when hidden/logged out, do not poll VM metrics, do not rebuild selection/trees on each timer, and show compact snapshot age/error status. A later unattended updater needs a separate TLS/authorization decision.
 
-`soft TTL` means stale-while-revalidate is allowed. `hard TTL` means the snapshot must not be served without a successful refresh unless the UI explicitly enters a degraded/fail-open state.
+Existing native-header search must use the same search snapshot, rather than a second cache. HOST, VM and Datastore trees must retain their independent collapse preferences. Preserve stable-ID VM deep links and all existing card enrichments.
 
-## Request behavior
+## What the next preflight proves
 
-### Fresh snapshot
+`bash tools/live-vmware-phase5f34-cache-preflight.sh /var/www/html`
 
-Return cache immediately. No vCenter request.
+It exact-verifies the installed 5F.3.3.2 baseline, surveys CLI PHP capabilities, observes non-root Apache/PHP-FPM process UIDs, checks prospective paths outside webroot, detects symlinks/unsafe parent permissions, reports local filesystem/free space and flags already-existing cache/key paths for review. It does not write cache/config/application files, read key contents, make vCenter requests, or prove web-SAPI extensions match CLI.
 
-### Soft-stale snapshot
+`CACHE_ENVIRONMENT_READY_FOR_INTEGRATION` is environmental evidence only, NOT production activation approval. Multiple runtime users, unknown/network filesystem, existing paths, missing extensions or low free space yield review-required, not chmod/delete/workarounds.
 
-Return cached data immediately with cache-age metadata. Trigger one background refresh from the active authenticated VMware page. The refresh request acquires the connector lock; other callers do not duplicate the refresh.
+Next: integrate scoped providers and cache-age UI, test endpoint guards and actual workload/timing, prepare a rollback-protected provisioner/installer, then obtain separate exact-head production approval. Do not provide an installer for this foundation-only candidate.
 
-The already-rendered page must not block on the refresh and need not redraw automatically.
+## Primary references
 
-### Missing / hard-stale snapshot
+- PHP `flock`: https://www.php.net/manual/en/function.flock.php
+- PHP authenticated encryption: https://www.php.net/manual/en/function.sodium-crypto-secretbox.php
+- PHP session lock release for future endpoint integration: https://www.php.net/manual/en/function.session-write-close.php
 
-Perform one synchronous bounded refresh, write the new snapshot atomically, then return it. This preserves correctness after cold start while subsequent requests become fast.
-
-### Manual Refresh button
-
-May request `force_refresh=1`, bypassing the soft TTL while still honoring the connector lock and all read-only safety limits.
-
-## Periodic refresh under current TLS state
-
-The saved production connector is currently `TLS-INSECURE`. Existing project policy forbids unattended scheduler/systemd/cron refresh while TLS verification is disabled.
-
-Therefore Phase 5F.3.4 must **not** install cron/systemd timers now.
-
-Instead, while an authenticated administrator has the VMware workspace open, the browser may request a cache-refresh endpoint at a bounded interval (proposed 60 s). This is cache maintenance only: it must not repeatedly reload/redraw the whole Explorer. The server globally coalesces refreshes using TTL + `flock`, so multiple open browsers still produce at most one refresh per connector interval.
-
-When internal CA trust is fixed and saved connector TLS becomes VERIFY, a later optional phase may add an unattended systemd timer.
-
-## Performance and load rules
-
-- No per-keystroke vCenter calls.
-- No periodic VM detail/performance/network-path polling.
-- Core inventory refresh should use the existing bounded topology/datastore collectors.
-- Folder refresh should reuse the authoritative stable-ID Folder collector.
-- Search refresh should reuse Phase 5F.3.3 bulk `RetrieveProperties` batches and bulk tag association path already proven against 634 VMs.
-- Refreshes must be globally coalesced per connector.
-- Failures must leave the last valid soft/hard-bounded cache intact; never replace a valid snapshot with a partial/error payload.
-
-## UI
-
-Show a compact cache indicator near Explorer runtime summary, for example:
-
-- `cache: fresh · 18s`
-- `cache: refreshing · 74s`
-- `cache: stale · 6m`
-
-Do not add a large warning banner for normal cache aging.
-
-The existing Refresh button remains available for an explicit refresh.
-
-## Security / safety invariants
-
-- read-only vCenter calls only;
-- no phpIPAM object mutation;
-- no vCenter inventory/tag mutation;
-- no SQL schema change required;
-- no credentials/session tokens/cookies in cache;
-- direct/no-proxy internal vCenter path retained where compatibility requires it;
-- legacy `RetrieveProperties` retained for PropertyCollector compatibility;
-- saved connector TLS mode remains authoritative;
-- scheduler remains prohibited while saved connector TLS is INSECURE;
-- Phase 5D remains protected fallback.
-
-## Deployment sequence
-
-This phase is currently design-only and intentionally based on the Phase 5F.3.3 compatibility head. It must be restacked on the final accepted Phase 5F.3.3 UI/runtime baseline before production deployment.
-
-Before implementation/deployment:
-
-1. finish and browser-accept Phase 5F.3.2;
-2. finish Phase 5F.3.3 enriched-search UI/runtime;
-3. restack this cache phase on that exact accepted head;
-4. static CI + filesystem permission/unit tests;
-5. production read-only/cache-path preflight;
-6. exact-head Owner approval;
-7. rollback-protected install;
-8. browser timing/behavior validation.
+References describe primitives, not independent security validation of this implementation. CI tests synthetic fixtures, not the production server.

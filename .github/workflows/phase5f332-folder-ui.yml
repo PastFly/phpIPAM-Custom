@@ -1,0 +1,48 @@
+name: Phase 5F.3.3.2 Folder UI
+on:
+  push:
+    branches: ['phase5f332/vm-datastore-folders']
+  pull_request:
+    branches: ['phase5f331/global-header-search']
+permissions:
+  contents: read
+jobs:
+  folder-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        php: ['8.2', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: dom, curl, mbstring
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax and proven collector pin
+        run: |
+          find layers/phase5f332 -name '*.php' -exec php -l {} \;
+          node --check layers/phase5f332/app/integrations/vmware/phase5f332-object-folders.js
+          python3 -m py_compile tools/phase5f332-ui.py
+          bash -n tools/live-vmware-phase5f332-ui-preflight.sh
+          bash -n installer/install-vmware-vcenter-phase5f332-folders.sh
+          bash -n installer/verify-vmware-vcenter-phase5f332-folders.sh
+          test "$(git hash-object layers/phase5f332/functions/classes/class.IntegrationVmwareVcenterObjectFolders.php)" = a46c03da333a5d1e2b1ab31ffd358a7b2101394d
+          git diff --exit-code 55c664fb91bb361b6c691d5aed33d0f4064ca16b HEAD -- layers/phase5d layers/phase5e layers/phase5f layers/phase5f1 layers/phase5f2 layers/phase5f21 layers/phase5f22 layers/phase5f23 layers/phase5f24 layers/phase5f25 layers/phase5f26 layers/phase5f3 layers/phase5f31 layers/phase5f32 layers/phase5f33 layers/phase5f331
+      - name: Existing collector graph and SOAP tests
+        run: php tests/phase5f332-object-folders.test.php
+      - name: Endpoint session/admin/CSRF, saved TLS and sanitized optional reads
+        run: python3 tests/phase5f332-endpoint.test.py
+      - name: Source pins, staging, permissions, drift and rollback fixtures
+        run: python3 tests/phase5f332-deployment.test.py
+      - name: Install isolated DOM test dependencies
+        run: npm install --prefix "$RUNNER_TEMP/phase5f332-node" jsdom@24.1.3 jquery@3.7.1 --ignore-scripts --no-audit --no-fund
+      - name: Folder UI DOM and model regressions
+        run: NODE_PATH="$RUNNER_TEMP/phase5f332-node/node_modules" node tests/phase5f332-ui.test.js
+      - name: Retained native-header search and VM deeplink regressions
+        run: NODE_PATH="$RUNNER_TEMP/phase5f332-node/node_modules" node tests/phase5f331-browser.test.js

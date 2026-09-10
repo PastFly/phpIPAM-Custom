@@ -1,0 +1,55 @@
+name: Phase 5F.3.3.2 VM and Datastore Folders
+on:
+  push:
+    branches: [phase5f332/vm-datastore-folders]
+  pull_request:
+    paths:
+      - 'layers/phase5f332/**'
+      - 'tools/live-vmware-phase5f332-object-folders-preview.php'
+      - 'tests/phase5f332-object-folders.test.php'
+      - '.github/workflows/phase5f332-object-folders.yml'
+      - 'design/PHASE5F332_VM_DATASTORE_FOLDERS.md'
+permissions:
+  contents: read
+jobs:
+  folder-model:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.2', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '${{ matrix.php }}'
+          extensions: dom, libxml
+          coverage: none
+      - name: Syntax
+        run: |
+          php -l layers/phase5f332/functions/classes/class.IntegrationVmwareVcenterObjectFolders.php
+          php -l tools/live-vmware-phase5f332-object-folders-preview.php
+          php -l tests/phase5f332-object-folders.test.php
+      - name: Protected accepted ancestor sources
+        run: |
+          set -euo pipefail
+          BASE=55c664fb91bb361b6c691d5aed33d0f4064ca16b
+          git diff --exit-code "$BASE" HEAD -- layers/phase5f25 layers/phase5f26 layers/phase5f33 layers/phase5f331
+          # Existing installers remain byte-for-byte protected; permit only this slice's two NEW wrappers.
+          git diff --exit-code --diff-filter=DMRT "$BASE" HEAD -- installer
+          while IFS= read -r file; do
+            case "$file" in
+              installer/install-vmware-vcenter-phase5f332-folders.sh|installer/verify-vmware-vcenter-phase5f332-folders.sh) ;;
+              '') ;;
+              *) echo "Unexpected new installer: $file"; exit 1 ;;
+            esac
+          done < <(git diff --name-only --diff-filter=A "$BASE" HEAD -- installer)
+      - name: SOAP fixture, graph fidelity, limits and cleanup regressions
+        run: php tests/phase5f332-object-folders.test.php
+      - name: Preview arguments fail before runtime or network access
+        run: |
+          set +e
+          php tools/live-vmware-phase5f332-object-folders-preview.php
+          rc=$?
+          test "$rc" -eq 2
