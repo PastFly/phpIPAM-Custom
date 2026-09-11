@@ -42,6 +42,7 @@ jobs:
             case "$file" in
               installer/install-vmware-vcenter-phase5f332-folders.sh|installer/verify-vmware-vcenter-phase5f332-folders.sh) ;;
               installer/install-vmware-vcenter-phase5f34-cache.sh|installer/verify-vmware-vcenter-phase5f34-cache.sh|installer/rollback-vmware-vcenter-phase5f34-cache.sh) ;;
+              installer/install-vmware-vcenter-phase5f35-vmcard.sh|installer/verify-vmware-vcenter-phase5f35-vmcard.sh|installer/rollback-vmware-vcenter-phase5f35-vmcard.sh) ;;
               '') ;;
               *) echo "Unexpected new installer: $file"; exit 1 ;;
             esac
