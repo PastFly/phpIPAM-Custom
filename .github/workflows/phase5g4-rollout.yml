@@ -1,0 +1,49 @@
+name: Phase 5G Unified Inventory Rollout
+on:
+  push:
+    branches: ['phase5g/**']
+  pull_request:
+    paths:
+      - 'layers/phase5g*/**'
+      - 'tools/phase5g4-*'
+      - 'tools/vmware-inventory-cycle.php'
+      - 'tools/build-phase5g2-native.py'
+      - 'tests/phase5g4-*'
+      - '.github/workflows/phase5g4-rollout.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  rollout:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: sodium, posix, pcntl, curl, dom, mbstring
+          coverage: none
+      - name: Pure readiness and exact source package
+        run: |
+          set -euo pipefail
+          export PYTHONDONTWRITEBYTECODE=1
+          php tests/phase5g4-readiness.test.php
+          python3 -B tests/phase5g4-package.test.py
+      - name: Isolated rollback, resume, drift and ownership transactions
+        run: sudo env PYTHONDONTWRITEBYTECODE=1 python3 -B tests/phase5g4-deployment.test.py
+      - name: Retained storage, sampling and HTTP contracts
+        run: |
+          set -euo pipefail
+          python3 -B tests/phase5g-contracts.test.py
+          php tests/phase5g-inventory.test.php
+          php tests/phase5g-source-adapter.test.php
+          php tests/phase5g3-telemetry.test.php
+          php tests/phase5g3-source.test.php
+          python3 -B tests/phase5g2-contracts.test.py
