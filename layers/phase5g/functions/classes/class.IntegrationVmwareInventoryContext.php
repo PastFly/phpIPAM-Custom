@@ -50,6 +50,13 @@ final class IntegrationVmwareInventoryContext
     {
         return new IntegrationVmwareInventoryStore($this->directory, $this->key, $this->binding);
     }
+    public function telemetry(): ?IntegrationVmwareInventoryTelemetryStore
+    {
+        $path = $this->directory . '/telemetry';
+        IntegrationVmwareInventoryStore::noLinks($path);
+        if (@lstat($path) === false) return null; // Provisioning is never a web-read side effect.
+        return new IntegrationVmwareInventoryTelemetryStore($path, $this->key, $this->binding);
+    }
     public function workerRuntime(IntegrationSecretCipher $cipher): array
     {
         if (PHP_SAPI !== 'cli' || !$this->current()) throw new RuntimeException('mirror_access_denied');

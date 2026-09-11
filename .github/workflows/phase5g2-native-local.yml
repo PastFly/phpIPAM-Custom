@@ -38,7 +38,7 @@ jobs:
           set -euo pipefail
           BASE=56ed3b9b1091cd34d075ff49bdd37b6fe0277555
           git merge-base --is-ancestor "$BASE" HEAD
-          git diff --exit-code --diff-filter=DMRT "$BASE" HEAD -- layers tools installer
+          python3 -B tests/phase5g3-preservation.test.py
           python3 -B tools/build-phase5g2-native.py "$RUNNER_TEMP/native-generated"
           python3 -B tests/phase5g2-contracts.test.py
       - name: Native renderer and real encrypted local reader fixtures

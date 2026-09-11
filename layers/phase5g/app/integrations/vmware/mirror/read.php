@@ -29,12 +29,12 @@ try {
     foreach (['config_id', 'page', 'page_size'] as $key) {
         if (!preg_match('/^[1-9][0-9]{0,9}$/D', $input[$key])) throw new InvalidArgumentException('invalid_request');
     }
-    foreach (['IntegrationVmwareSnapshotService', 'IntegrationVmwareInventoryStore', 'IntegrationVmwareInventoryContext', 'IntegrationVmwareInventoryReader'] as $class) {
+    foreach (['IntegrationVmwareSnapshotService', 'IntegrationVmwareInventoryStore', 'IntegrationVmwareInventoryContext', 'IntegrationVmwareInventoryReader', 'IntegrationVmwareInventoryTelemetryStore'] as $class) {
         require_once($application . '/functions/classes/class.' . $class . '.php');
     }
     $context = new IntegrationVmwareInventoryContext($Database, $application, (int)$input['config_id']);
     if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
-    $reader = new IntegrationVmwareInventoryReader($context->store(), [$context, 'current']);
+    $reader = new IntegrationVmwareInventoryReader($context->store(), [$context, 'current'], null, $context->telemetry());
     $result = $reader->query($input['view'], $input['id'], $input['search'], (int)$input['page'], (int)$input['page_size']);
     $result['connector_id'] = (int)$input['config_id']; $result['verify_tls'] = true;
     header('X-Phpipam-Inventory-Vcenter-Requests: 0');

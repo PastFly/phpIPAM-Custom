@@ -1,0 +1,58 @@
+name: Phase 5G Independent Metrics and Status
+on:
+  push:
+    branches: ['phase5g/**']
+  pull_request:
+    paths:
+      - 'layers/phase5g/**'
+      - 'layers/phase5g2/**'
+      - 'layers/phase5g3/**'
+      - 'tools/vmware-inventory-cycle.php'
+      - 'tests/phase5g3-*'
+      - '.github/workflows/phase5g3-metrics-status.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  metrics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: sodium, posix, pcntl, curl, dom, mbstring
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Source preservation, syntax and local HTTP guards
+        run: |
+          set -euo pipefail
+          python3 -B tests/phase5g3-preservation.test.py
+          python3 -B tests/phase5g-contracts.test.py
+          find layers/phase5g3 -name '*.php' -print0 | xargs -0 -n1 php -l
+          php -l tools/vmware-inventory-cycle.php
+          php tools/vmware-inventory-cycle.php --help
+      - name: Independent encrypted graphs, restart, denial epochs and retained inventory
+        run: |
+          set -euo pipefail
+          php tests/phase5g3-telemetry.test.php
+          php tests/phase5g3-source.test.php
+          php tests/phase5g-inventory.test.php
+          php tests/phase5g-source-adapter.test.php
+      - name: Synthetic concurrent sizing, not a production benchmark
+        run: python3 -B tests/phase5g3-sizing.test.py
+      - name: Browser status without collection or navigation races
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/status-node" --ignore-scripts --no-audit --no-fund --no-package-lock jquery@3.7.1 jsdom@24.1.3
+          NODE_PATH="$RUNNER_TEMP/status-node/node_modules" node tests/phase5g3-status-browser.test.js

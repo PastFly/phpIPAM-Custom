@@ -1,0 +1,92 @@
+{
+  "synthetic_sizing": [
+    {
+      "vm_count": 640,
+      "host_count": 64,
+      "datastore_count": 70,
+      "inventory_wire_bytes": 3983975,
+      "writer_php_peak_bytes": 22441984,
+      "concurrent_readers": 4,
+      "total_reads": 48,
+      "readers": [
+        {
+          "median_ms": 27.205358,
+          "p95_ms": 54.424778,
+          "php_peak_bytes": 32927744,
+          "linux_maxrss_kib": 92580,
+          "reads": 12,
+          "provider_classes_loaded": 0
+        },
+        {
+          "median_ms": 39.628304,
+          "p95_ms": 117.436484,
+          "php_peak_bytes": 32927744,
+          "linux_maxrss_kib": 92580,
+          "reads": 12,
+          "provider_classes_loaded": 0
+        },
+        {
+          "median_ms": 39.680873,
+          "p95_ms": 77.15728,
+          "php_peak_bytes": 32927744,
+          "linux_maxrss_kib": 92580,
+          "reads": 12,
+          "provider_classes_loaded": 0
+        },
+        {
+          "median_ms": 29.783839,
+          "p95_ms": 63.160316,
+          "php_peak_bytes": 32927744,
+          "linux_maxrss_kib": 92580,
+          "reads": 12,
+          "provider_classes_loaded": 0
+        }
+      ],
+      "scope": "synthetic local PHP readers; filesystem cache uncontrolled; not HTTP/vCenter/production"
+    },
+    {
+      "vm_count": 1000,
+      "host_count": 64,
+      "datastore_count": 70,
+      "inventory_wire_bytes": 6216474,
+      "writer_php_peak_bytes": 33333248,
+      "concurrent_readers": 4,
+      "total_reads": 48,
+      "readers": [
+        {
+          "median_ms": 70.667,
+          "p95_ms": 109.518134,
+          "php_peak_bytes": 45916160,
+          "linux_maxrss_kib": 93220,
+          "reads": 12,
+          "provider_classes_loaded": 0
+        },
+        {
+          "median_ms": 43.8356,
+          "p95_ms": 72.863021,
+          "php_peak_bytes": 45916160,
+          "linux_maxrss_kib": 93220,
+          "reads": 12,
+          "provider_classes_loaded": 0
+        },
+        {
+          "median_ms": 70.99846,
+          "p95_ms": 156.017933,
+          "php_peak_bytes": 45916160,
+          "linux_maxrss_kib": 93220,
+          "reads": 12,
+          "provider_classes_loaded": 0
+        },
+        {
+          "median_ms": 48.011324,
+          "p95_ms": 76.210061,
+          "php_peak_bytes": 45916160,
+          "linux_maxrss_kib": 93220,
+          "reads": 12,
+          "provider_classes_loaded": 0
+        }
+      ],
+      "scope": "synthetic local PHP readers; filesystem cache uncontrolled; not HTTP/vCenter/production"
+    }
+  ]
+}

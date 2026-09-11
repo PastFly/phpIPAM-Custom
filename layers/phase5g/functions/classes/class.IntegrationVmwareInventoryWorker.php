@@ -79,7 +79,10 @@ final class IntegrationVmwareInventoryWorker
             if (($current['retry_at'] ?? 0) > $now) return ['state' => 'backoff', 'retry_at' => $current['retry_at'], 'work_done' => 0];
             $pending = $this->store->read('pending');
             if ($pending === null && !empty($current['inventory']) && empty($current['blocked']) &&
-                ($current['published_at'] ?? 0) + $refreshSeconds > $now) return ['state' => 'idle', 'work_done' => 0];
+                ($current['published_at'] ?? 0) + $refreshSeconds > $now) {
+                $current['heartbeat_at'] = $now; $this->store->write('current', $current);
+                return ['state' => 'idle', 'work_done' => 0];
+            }
             $work = 0; $deadline = hrtime(true) + $seconds * 1000000000;
             try {
                 if ($pending !== null && (!is_int($pending['started_at'] ?? null) ||
@@ -128,7 +131,8 @@ final class IntegrationVmwareInventoryWorker
                     // Publication is atomic locally, not an instantaneous snapshot of all vCenter properties.
                     // Keep the initial core; every record exposes its own collection timestamp.
                     $this->guard();
-                    $current = ['state' => 'ready', 'blocked' => false, 'last_error' => null, 'failures' => 0, 'retry_at' => 0,
+                    $epoch = $current['access_epoch'] ?? 'initial';
+                    $current = ['access_epoch' => $epoch, 'heartbeat_at' => ($this->clock)(), 'state' => 'ready', 'blocked' => false, 'last_error' => null, 'failures' => 0, 'retry_at' => 0,
                         'generation' => $pending['generation'], 'started_at' => $pending['started_at'], 'published_at' => ($this->clock)(),
                         'progress' => ['completed' => $total, 'total' => $total], 'inventory' => $pending['inventory']];
                     $this->store->write('current', $current); $this->store->discardPending();
@@ -148,7 +152,7 @@ final class IntegrationVmwareInventoryWorker
                 $current['state'] = 'error'; $current['heartbeat_at'] = ($this->clock)();
                 if ($category === 'membership_changed') $this->store->discardPending();
                 if (self::denied($error) || $category === 'binding_changed') {
-                    $current['blocked'] = true; $this->store->discardPending();
+                    $current['blocked'] = true; $current['access_epoch'] = bin2hex(random_bytes(16)); $this->store->discardPending();
                 }
                 $this->store->write('current', $current);
                 return ['state' => 'error', 'error' => $category, 'retry_at' => $current['retry_at'], 'work_done' => $work];
