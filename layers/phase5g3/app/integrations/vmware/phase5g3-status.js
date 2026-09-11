@@ -9,7 +9,7 @@
         var $panel = $('<div id="phase5g3-status" class="panel panel-default" role="status" aria-live="polite">').insertBefore($form);
         var $body = $('<div class="panel-body">').appendTo($panel);
         var $title = $('<strong>').appendTo($body);
-        var $progress = $('<progress max="100" value="0" aria-label="Прогресс синхронизации">').css({width: '100%', display: 'block'}).appendTo($body);
+        var $progress = $('<progress max="100" value="0" aria-label="Прогресс синхронизации">').css({width: '100%'}).appendTo($body);
         var $detail = $('<div class="small text-muted">').appendTo($body);
         var $metrics = $('<div class="small text-muted">').appendTo($body);
         var $retry = $('<button type="button" class="btn btn-default btn-xs">Обновить состояние</button>').appendTo($body);
