@@ -1,0 +1,42 @@
+'use strict';
+const assert = require('node:assert/strict'), fs = require('node:fs'), path = require('node:path');
+const {JSDOM} = require('jsdom'), jquery = require('jquery');
+const delay = ms => new Promise(r => setTimeout(r, ms));
+let activeDom;
+const watchdog = setTimeout(() => { if (activeDom) activeDom.window.close(); console.error('STATUS_TEST_TIMEOUT'); process.exit(1); }, 15000);
+(async () => {
+    const dom = new JSDOM('<base href="https://ipam.test/sub/"><div id="vmware-phase5e"><form id="phase5e-workspace-form"><input name="csrf_cookie" value="fixture"><select id="phase5e-config"><option value="1">one</option><option value="2">two</option></select><button id="phase5e-refresh" type="button">Refresh</button></form><a class="phase5e-vm-link">one</a></div>', {url:'https://ipam.test/sub/', runScripts:'outside-only'});
+    activeDom = dom;
+    const w = dom.window, $ = jquery(w); w.$ = w.jQuery = $;
+    let hidden = false; Object.defineProperty(w.document, 'visibilityState', {get: () => hidden ? 'hidden' : 'visible'});
+    let reloads=0, aborts=0; const sent=[], queued=[];
+    $('#phase5e-refresh').on('click', () => reloads++);
+    const state = (id, extra={}) => ({ok:true, connector_id:id, has_inventory:true, state:'ready', published_at:1789084800,
+        stale:false, worker_silent:false, vcenter_requests:0, progress:{completed:6,total:6}, telemetry:{state:'idle'}, ...extra});
+    $.ajaxTransport('+*', options => ({send(headers, complete) {
+        sent.push(options); const params=new URLSearchParams(options.data); const reply=queued.shift()||{};
+        assert.equal(options.url,'app/integrations/vmware/mirror/read.php');assert.equal(params.get('view'),'status');
+        assert.equal(options.type,'POST');assert.equal(options.global,false);assert.equal(params.has('force_refresh'),false);
+        this.timer=w.setTimeout(()=>complete(reply.code||200,'OK',{text:JSON.stringify(reply.data||state(params.get('config_id')))},'Content-Type: application/json\r\n'),reply.wait||1);
+    }, abort() {aborts++;w.clearTimeout(this.timer);}}));
+    queued.push({data:state('1',{state:'collecting',has_inventory:false,progress:{completed:3,total:10}})});
+    w.eval(fs.readFileSync(path.join(__dirname,'../layers/phase5g3/app/integrations/vmware/phase5g3-status.js'),'utf8'));
+    for (let i=0;i<40 && !$('#phase5g3-status').text().includes('3 из 10');i++) await delay(25);
+    assert.match($('#phase5g3-status').text(),/3 из 10/);assert.equal(reloads,0);
+    $('#phase5g3-status button').trigger('click');await delay(30);assert.equal(reloads,1,'initial publication reloads untouched local workspace once');
+    assert.equal($('#phase5g3-status progress').prop('hidden'),true,'completed initial progress is hidden');
+    assert.notEqual($('#phase5g3-status progress')[0].style.display,'block','inline display must not override hidden');
+    $('#phase5g3-status button').trigger('click');await delay(30);assert.equal(reloads,1,'later ready polls cannot redraw selection');
+    queued.push({data:state('1',{last_error:'<img src=x onerror=bad()>',stale:true,worker_silent:true})});
+    $('#phase5g3-status button').trigger('click');await delay(30);assert.equal($('#phase5g3-status img').length,0);
+    assert.match($('#phase5g3-status').text(),/ранее собранные/);assert.match($('#phase5g3-status').text(),/Давно нет сигнала/);
+    queued.push({data:state('1'),wait:150});$('#phase5g3-status button').trigger('click');
+    $('#phase5e-config').val('2').trigger('change');await delay(40);assert.ok(aborts>0,'connector change cancels old status request');
+    hidden=true;w.document.dispatchEvent(new w.Event('visibilitychange'));const before=sent.length;
+    $('#phase5g3-status button').trigger('click');await delay(25);assert.equal(sent.length,before,'hidden page sends no poll');
+    hidden=false;w.document.dispatchEvent(new w.Event('visibilitychange'));await delay(25);assert.equal(sent.length,before+1);
+    queued.push({code:403});$('#phase5g3-status button').trigger('click');await delay(30);assert.match($('#phase5g3-status').text(),/Нет доступа/);
+    assert.equal(w.localStorage.length,0);assert.equal(w.sessionStorage.length,0);
+    w.dispatchEvent(new w.Event('pagehide'));const end=sent.length;$('#phase5g3-status button').trigger('click');await delay(20);assert.equal(sent.length,end);
+    dom.window.close();console.log('PHASE5G3_LOCAL_STATUS_VISIBILITY_RACE_BOOTSTRAP_OK');
+})().catch(error=>{console.error(error);process.exitCode=1;}).finally(()=>{clearTimeout(watchdog);if(activeDom)activeDom.window.close();});

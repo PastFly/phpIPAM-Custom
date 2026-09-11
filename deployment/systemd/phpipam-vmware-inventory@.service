@@ -9,7 +9,7 @@ Type=oneshot
 User=www-data
 Group=www-data
 WorkingDirectory=/opt/phpipam-custom/inventory
-ExecStart=/usr/bin/php /opt/phpipam-custom/inventory/tools/vmware-inventory-worker.php --tick --connector=%i
+ExecStart=/usr/bin/php /opt/phpipam-custom/inventory/tools/vmware-inventory-cycle.php --tick --connector=%i
 UMask=0077
 TimeoutStartSec=135s
 TimeoutStopSec=10s

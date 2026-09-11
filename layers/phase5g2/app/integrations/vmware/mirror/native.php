@@ -32,12 +32,12 @@ try {
     if ((!is_string($id) && !is_int($id)) || !preg_match('/^[1-9][0-9]{0,8}$/D', (string)$id)) throw new InvalidArgumentException('invalid_request');
     foreach (['IntegrationVmwareSnapshotService', 'IntegrationVmwareInventoryStore', 'IntegrationVmwareInventoryContext',
         'IntegrationVmwareInventoryReader', 'IntegrationVmwareInventoryNative', 'IntegrationVmwareVcenterExplorer',
-        'IntegrationPhpIpamAddressLinkResolver'] as $class) require_once($application . '/functions/classes/class.' . $class . '.php');
+        'IntegrationPhpIpamAddressLinkResolver', 'IntegrationVmwareInventoryTelemetryStore'] as $class) require_once($application . '/functions/classes/class.' . $class . '.php');
     $context = new IntegrationVmwareInventoryContext($Database, $application, (int)$id);
     if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
     define('PHPIPAM_VMWARE_MIRROR_GUARDED', true);
     require_once(__DIR__ . '/native-views.php');
-    $reader = new IntegrationVmwareInventoryReader($context->store(), [$context, 'current']);
+    $reader = new IntegrationVmwareInventoryReader($context->store(), [$context, 'current'], null, $context->telemetry());
     $links = null;
     if ($operation === 'vm') {
         try { $links = new IntegrationPhpIpamAddressLinkResolver($Database); } catch (Throwable $ignored) { /* Optional native links must not hide the saved card. */ }
