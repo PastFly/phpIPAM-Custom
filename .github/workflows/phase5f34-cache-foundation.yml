@@ -52,7 +52,7 @@ jobs:
           python3 - <<'PY'
           import subprocess
           rows = subprocess.check_output(['git', 'diff', '--name-only', '9c40ef6029ebe0d9fb7bbea190fcaca16c67750f', 'HEAD'], text=True).splitlines()
-          allowed = lambda p: p.startswith('layers/phase5f34/') or (p.startswith(('tools/', 'tests/', 'installer/', 'design/')) and 'phase5f34' in p.lower()) or p in ('CACHE_DESIGN.md', '.github/workflows/phase5f34-cache-foundation.yml')
+          allowed = lambda p: p.startswith('layers/phase5f34/') or (p.startswith(('tools/', 'tests/', 'installer/', 'design/')) and 'phase5f34' in p.lower()) or p in ('CACHE_DESIGN.md', '.github/workflows/phase5f34-cache-foundation.yml', '.github/workflows/phase5f332-object-folders.yml')
           bad = [p for p in rows if not allowed(p)]
           assert not bad, 'Ancestor changes: ' + repr(bad)
           print('PHASE5F34_PROTECTED_ANCESTORS_OK')

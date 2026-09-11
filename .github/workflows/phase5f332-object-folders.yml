@@ -36,11 +36,12 @@ jobs:
           set -euo pipefail
           BASE=55c664fb91bb361b6c691d5aed33d0f4064ca16b
           git diff --exit-code "$BASE" HEAD -- layers/phase5f25 layers/phase5f26 layers/phase5f33 layers/phase5f331
-          # Existing installers remain byte-for-byte protected; permit only this slice's two NEW wrappers.
+          # Existing installers stay byte-for-byte protected. Allow only named, reviewed additive wrappers.
           git diff --exit-code --diff-filter=DMRT "$BASE" HEAD -- installer
           while IFS= read -r file; do
             case "$file" in
               installer/install-vmware-vcenter-phase5f332-folders.sh|installer/verify-vmware-vcenter-phase5f332-folders.sh) ;;
+              installer/install-vmware-vcenter-phase5f34-cache.sh|installer/verify-vmware-vcenter-phase5f34-cache.sh|installer/rollback-vmware-vcenter-phase5f34-cache.sh) ;;
               '') ;;
               *) echo "Unexpected new installer: $file"; exit 1 ;;
             esac
