@@ -46,7 +46,7 @@ foreach (array('config_id', 'csrf_cookie', 'vm_id', 'include_tags', 'force_refre
     }
 }
 ''' + anchor)
-    text = replace(text, "if ($vmId === '' || strlen($vmId) > 1024 || preg_match('/[\x00-\x20\x7F\/?#]/', $vmId)) {",
+    text = replace(text, r"if ($vmId === '' || strlen($vmId) > 1024 || preg_match('/[\x00-\x20\x7F\/?#]/', $vmId)) {",
         "if (!preg_match('/^vm-[0-9]{1,20}$/D', $vmId)) {")
     text = replace(text, "$includeTags = phase5e_vmcard_post_bool($POST, 'include_tags');",
         "$includeTags = phase5e_vmcard_post_bool($POST, 'include_tags');\n    $forceContext = phase5e_vmcard_post_bool($POST, 'force_refresh');")
