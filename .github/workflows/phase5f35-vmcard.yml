@@ -1,0 +1,79 @@
+name: Phase 5F.3.5 VM Card Shared Context
+on:
+  push:
+    branches: [phase5f35/vmcard-shared-context]
+  pull_request:
+    branches: [master]
+    paths:
+      - 'layers/phase5f35/**'
+      - 'tools/*phase5f35*'
+      - 'installer/*phase5f35*'
+      - 'tests/*phase5f35*'
+      - 'design/PHASE5F35_VM_CARD_CONTEXT.md'
+      - '.github/workflows/phase5f35-vmcard.yml'
+permissions:
+  contents: read
+jobs:
+  context:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '${{ matrix.php }}'
+          extensions: sodium, posix, pcntl, curl, dom, mbstring
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Preserved merged stack and exact candidate source
+        run: |
+          set -euo pipefail
+          python3 -B tests/phase5f35-ancestry.test.py
+          python3 -B - <<'PY'
+          import importlib.util
+          s = importlib.util.spec_from_file_location('deploy', 'tools/phase5f35-vmcard-deploy.py')
+          m = importlib.util.module_from_spec(s); s.loader.exec_module(m)
+          assert len(m.sources()) == 3
+          print('PHASE5F35_PROTECTED_C33_SOURCE_OK')
+          PY
+      - name: Generate and lint without altering tracked sources
+        run: |
+          set -euo pipefail
+          python3 -B tools/build-phase5f34-providers.py layers/phase5f34
+          python3 -B tools/build-phase5f35-vmcard.py "$RUNNER_TEMP/vmcard-generated"
+          find layers/phase5f35 "$RUNNER_TEMP/vmcard-generated" -name '*.php' -print0 | xargs -0 -n 1 php -l
+          node --check layers/phase5f35/app/integrations/vmware/phase5f35-vmcard.js
+          for f in tools/*phase5f35*.sh installer/*phase5f35*.sh; do bash -n "$f"; done
+      - name: Context service, generated endpoint and inherited cache guards
+        run: |
+          set -euo pipefail
+          php tests/phase5f35-context.test.php
+          python3 -B tests/phase5f35-endpoint.test.py
+          php tests/phase5f34-cache.test.php
+          php tests/phase5f34-service.test.php
+          php tests/phase5f34-providers.test.php
+          python3 -B tests/phase5f34-controller.test.py
+      - name: Disposable deployment and rollback, not live DB evidence
+        run: |
+          set -euo pipefail
+          sudo env PATH="$PATH" PYTHONDONTWRITEBYTECODE=1 python3 tests/phase5f35-deployment.test.py
+          sudo env PATH="$PATH" PYTHONDONTWRITEBYTECODE=1 python3 tests/phase5f34-deployment.test.py
+      - name: Isolated DOM dependencies
+        run: npm install --prefix "$RUNNER_TEMP/context-node" jsdom@24.1.3 jquery@3.7.1 --ignore-scripts --no-audit --no-fund
+      - name: Actual completion listeners, aborts, cache and retained search/folders
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/context-node/node_modules"
+          node tests/phase5f35-browser.test.js
+          node tests/phase5f34-browser.test.js
+          node tests/phase5f332-ui.test.js
+          node tests/phase5f331-browser.test.js
