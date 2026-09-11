@@ -1,0 +1,26 @@
+name: VMware TLS survey safety
+on:
+  pull_request:
+    branches: [master]
+    paths: ['tools/live-vmware-tls-survey.sh', 'tests/tls-survey.test.py', '.github/workflows/tls-survey.yml']
+  push:
+    branches: ['security/vcenter-tls-survey']
+permissions:
+  contents: read
+jobs:
+  tls:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        php: ['8.2', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '${{ matrix.php }}'
+          extensions: curl, openssl, pdo_mysql
+          coverage: none
+      - run: python3 -B tests/tls-survey.test.py
