@@ -1,0 +1,60 @@
+name: Phase 5G Native Local Inventory Bridge
+on:
+  push:
+    branches: ['phase5g/**']
+  pull_request:
+    paths:
+      - 'layers/phase5g2/**'
+      - 'tools/build-phase5g2-native.py'
+      - 'tests/phase5g2-*'
+      - 'design/phase5g2-native-pins.json'
+      - 'deployment/systemd/phpipam-vmware-inventory@.*'
+      - '.github/workflows/phase5g2-native-local.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: sodium, posix, pcntl, curl, dom, mbstring
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Preserve accepted source and generate pure renderers
+        run: |
+          set -euo pipefail
+          BASE=56ed3b9b1091cd34d075ff49bdd37b6fe0277555
+          git merge-base --is-ancestor "$BASE" HEAD
+          git diff --exit-code --diff-filter=DMRT "$BASE" HEAD -- layers tools installer
+          python3 -B tools/build-phase5g2-native.py "$RUNNER_TEMP/native-generated"
+          python3 -B tests/phase5g2-contracts.test.py
+      - name: Native renderer and real encrypted local reader fixtures
+        run: php tests/phase5g2-native.test.php "$RUNNER_TEMP/native-generated" "$RUNNER_TEMP/native-fixtures.json"
+      - name: Isolated browser dependencies
+        run: npm install --prefix "$RUNNER_TEMP/native-node" --ignore-scripts --no-audit --no-fund --no-package-lock jquery@3.7.1 jsdom@24.1.3
+      - name: Actual native HTML with retained completion handlers
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/native-node/node_modules"
+          node tests/phase5g2-native-browser.test.js "$RUNNER_TEMP/native-fixtures.json"
+          node tests/phase5f331-browser.test.js
+          node tests/phase5f332-ui.test.js
+      - name: Retained independent core and strict transport fixtures
+        run: |
+          set -euo pipefail
+          python3 -B tests/phase5g-contracts.test.py
+          php tests/phase5g-inventory.test.php
+          php tests/phase5g-source-adapter.test.php
