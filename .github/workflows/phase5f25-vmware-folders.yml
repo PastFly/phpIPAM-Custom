@@ -1,0 +1,73 @@
+name: Phase 5F.2.5 VMware Folder Hierarchy
+
+on:
+  push:
+    branches:
+      - phase5f25/vmware-folder-hierarchy
+  pull_request:
+    paths:
+      - 'design/PHASE5F25_VMWARE_FOLDER_HIERARCHY.md'
+      - 'tools/live-vmware-phase5f25-folder-preview.php'
+      - 'tools/live-vmware-phase5f25-ui-preflight.sh'
+      - 'installer/verify-vmware-vcenter-phase5f25-folders.sh'
+      - 'installer/install-vmware-vcenter-phase5f25-folders.sh'
+      - 'layers/phase5f25/**'
+      - '.github/workflows/phase5f25-vmware-folders.yml'
+
+jobs:
+  folder-preview-static-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Syntax
+        run: |
+          set -euo pipefail
+          php -l tools/live-vmware-phase5f25-folder-preview.php
+          php -l layers/phase5f25/functions/classes/class.IntegrationVmwareVcenterFolderInventory.php
+          php -l layers/phase5f25/app/integrations/vmware/folder-result.php
+          node --check layers/phase5f25/app/integrations/vmware/phase5f25-folders.js
+          bash -n tools/live-vmware-phase5f25-ui-preflight.sh
+          bash -n installer/verify-vmware-vcenter-phase5f25-folders.sh
+          bash -n installer/install-vmware-vcenter-phase5f25-folders.sh
+
+      - name: Read-only and direct-transport invariants
+        run: |
+          set -euo pipefail
+          preview=tools/live-vmware-phase5f25-folder-preview.php
+          collector=layers/phase5f25/functions/classes/class.IntegrationVmwareVcenterFolderInventory.php
+          result=layers/phase5f25/app/integrations/vmware/folder-result.php
+          js=layers/phase5f25/app/integrations/vmware/phase5f25-folders.js
+
+          grep -Fq 'PHASE5F25_FOLDER_PERSISTENCE=0' "$preview"
+          grep -Fq 'PHASE5F25_FOLDER_PHPIPAM_MUTATIONS=0' "$preview"
+          grep -Fq 'PHASE5F25_FOLDER_VCENTER_MUTATIONS=0' "$preview"
+          grep -Fq "CURLOPT_PROXY => ''" "$preview"
+          grep -Fq "CURLOPT_PROXY => ''" "$collector"
+          grep -Fq "'/api/vcenter/folder'" "$collector"
+          grep -Fq "array('folders' => \$folderId)" "$collector"
+          grep -Fq 'persistent_inventory_written' "$collector" "$result"
+          grep -Fq 'root_folder_by_datacenter' "$collector"
+          grep -Fq 'CACHE_TTL_MS = 300000' "$js"
+          grep -Fq 'phase5f25-folder-node' "$js"
+
+          ! grep -Eiq 'INSERT[[:space:]]+INTO|UPDATE[[:space:]]+custom_|DELETE[[:space:]]+FROM|PowerOnVM|PowerOffVM|ReconfigVM|Destroy_Task|MigrateVM|RelocateVM|CreateVM|RefreshNetworkSystem|UpdateNetworkConfig' \
+            "$preview" "$collector" "$result" "$js"
+
+      - name: Deployment gate contract
+        run: |
+          set -euo pipefail
+          grep -Fq 'PHASE5F25_BASE_PHASE5F24_OK=1' tools/live-vmware-phase5f25-ui-preflight.sh
+          grep -Fq 'PREFLIGHT_WRITE_OPERATIONS=0' tools/live-vmware-phase5f25-ui-preflight.sh
+          grep -Fq 'PREFLIGHT_VCENTER_REQUESTS=0' tools/live-vmware-phase5f25-ui-preflight.sh
+          grep -Fq 'PREFLIGHT_RESULT=READY_FOR_PHASE5F25_FOLDER_UI_OWNER_APPROVAL' tools/live-vmware-phase5f25-ui-preflight.sh
+          grep -Fq 'PHASE5F25_FOLDER_UI_VERIFY_OK' installer/verify-vmware-vcenter-phase5f25-folders.sh
+          grep -Fq 'PHASE5F25_FOLDER_UI_INSTALL_OK' installer/install-vmware-vcenter-phase5f25-folders.sh
+          grep -Fq 'PHASE5F24_STABILITY_VERIFY_OK' installer/verify-vmware-vcenter-phase5f24-stability.sh
+
+      - name: Scope contract
+        run: |
+          set -euo pipefail
+          grep -Fq 'HOST-type' design/PHASE5F25_VMWARE_FOLDER_HIERARCHY.md
+          grep -Fq 'Do not infer folder membership' design/PHASE5F25_VMWARE_FOLDER_HIERARCHY.md
+          grep -Fq 'Phase 5D remains the protected fallback' design/PHASE5F25_VMWARE_FOLDER_HIERARCHY.md

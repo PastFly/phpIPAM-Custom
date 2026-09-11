@@ -1,0 +1,44 @@
+/* phpIPAM Custom — Phase 5F.3.1 VM network path presentation. */
+#vmware-phase5e .phase5f31-vm-network-path {
+    margin-top: 10px;
+}
+
+#vmware-phase5e .phase5f31-vm-network-path h5 {
+    margin-top: 0;
+    margin-bottom: 6px;
+}
+
+#vmware-phase5e .phase5f31-path-summary {
+    margin-bottom: 7px;
+}
+
+#vmware-phase5e .phase5f31-vnic-block {
+    border-top: 1px solid rgba(255,255,255,.12);
+    padding-top: 8px;
+    margin-top: 8px;
+}
+
+#vmware-phase5e .phase5f31-vnic-block:first-of-type {
+    border-top: 0;
+    margin-top: 0;
+}
+
+#vmware-phase5e .phase5f31-vnic-head,
+#vmware-phase5e .phase5f31-vnic-meta,
+#vmware-phase5e .phase5f31-current-note {
+    margin-bottom: 5px;
+}
+
+#vmware-phase5e .phase5f31-path-table {
+    margin: 5px 0;
+}
+
+#vmware-phase5e .phase5f31-path-table th,
+#vmware-phase5e .phase5f31-path-table td {
+    vertical-align: top;
+}
+
+#vmware-phase5e .phase5f31-path-value {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}

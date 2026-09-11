@@ -1,0 +1,80 @@
+name: Phase 5F.3.3 VMware VM Enriched Search
+
+on:
+  push:
+    branches: ["phase5f33/vm-enriched-search"]
+  pull_request:
+    branches: ["phase5f32/vm-guest-facts"]
+
+jobs:
+  phase5f33:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax
+        run: |
+          php -l layers/phase5f33/functions/classes/class.IntegrationVmwareVcenterDirectRestTransport.php
+          php -l layers/phase5f33/functions/classes/class.IntegrationVmwareVcenterVmSearchFacts.php
+          php -l layers/phase5f33/functions/classes/class.IntegrationVmwareVcenterVmTagIndex.php
+          php -l layers/phase5f33/app/integrations/vmware/enriched-search-result.php
+          php -l tools/live-vmware-phase5f33-enriched-search-preview.php
+          node --check layers/phase5f33/app/integrations/vmware/phase5f33-enriched-search.js
+          bash -n tools/live-vmware-phase5f33-ui-preflight.sh
+          bash -n installer/verify-vmware-vcenter-phase5f33-enriched-search.sh
+          bash -n installer/install-vmware-vcenter-phase5f33-enriched-search.sh
+      - name: Enforce Phase 5F.3.2 baseline
+        run: |
+          test -f installer/verify-vmware-vcenter-phase5f32-vm-guest-facts.sh
+          grep -Fq 'PHASE5F32_VM_GUEST_FACTS_VERIFY_OK' installer/verify-vmware-vcenter-phase5f32-vm-guest-facts.sh
+      - name: Enforce direct no-proxy transport
+        run: |
+          grep -Fq 'CURLOPT_PROXY => '\''''' layers/phase5f33/functions/classes/class.IntegrationVmwareVcenterDirectRestTransport.php
+          grep -Fq "CURLOPT_NOPROXY" layers/phase5f33/functions/classes/class.IntegrationVmwareVcenterDirectRestTransport.php
+          grep -Fq 'CURLOPT_PROXY => '\''''' layers/phase5f33/functions/classes/class.IntegrationVmwareVcenterVmTagIndex.php
+          grep -Fq "CURLOPT_NOPROXY" layers/phase5f33/functions/classes/class.IntegrationVmwareVcenterVmTagIndex.php
+      - name: Enforce bulk VM search facts
+        run: |
+          grep -Fq '<RetrieveProperties xmlns="urn:vim25">' layers/phase5f33/functions/classes/class.IntegrationVmwareVcenterVmSearchFacts.php
+          grep -Fq "'config.annotation'" layers/phase5f33/functions/classes/class.IntegrationVmwareVcenterVmSearchFacts.php
+          grep -Fq "'config.hardware.device'" layers/phase5f33/functions/classes/class.IntegrationVmwareVcenterVmSearchFacts.php
+          grep -Fq "'guest.guestFullName'" layers/phase5f33/functions/classes/class.IntegrationVmwareVcenterVmSearchFacts.php
+          grep -Fq "'config.version'" layers/phase5f33/functions/classes/class.IntegrationVmwareVcenterVmSearchFacts.php
+          grep -Fq "isset(\$requested[\$id])" layers/phase5f33/functions/classes/class.IntegrationVmwareVcenterVmSearchFacts.php
+      - name: Enforce bulk tag/category surface
+        run: |
+          grep -Fq '/api/cis/tagging/tag' layers/phase5f33/functions/classes/class.IntegrationVmwareVcenterVmTagIndex.php
+          grep -Fq 'list-attached-objects-on-tags' layers/phase5f33/functions/classes/class.IntegrationVmwareVcenterVmTagIndex.php
+          grep -Fq "'vm_tag_association_count'" layers/phase5f33/functions/classes/class.IntegrationVmwareVcenterVmTagIndex.php
+      - name: Enforce enriched UI model
+        run: |
+          grep -Fq 'phase5f33_enriched_search_transient_index' layers/phase5f33/app/integrations/vmware/enriched-search-result.php
+          grep -Fq "'search_blob'" layers/phase5f33/app/integrations/vmware/enriched-search-result.php
+          grep -Fq "'tags' => \$tags" layers/phase5f33/app/integrations/vmware/enriched-search-result.php
+          grep -Fq 'CACHE_TTL_MS = 300000' layers/phase5f33/app/integrations/vmware/phase5f33-enriched-search.js
+          grep -Fq "enriched-search-result.php" layers/phase5f33/app/integrations/vmware/phase5f33-enriched-search.js
+          grep -Fq ".off('input.phase5f1')" layers/phase5f33/app/integrations/vmware/phase5f33-enriched-search.js
+          ! grep -Fq 'localStorage' layers/phase5f33/app/integrations/vmware/phase5f33-enriched-search.js
+      - name: Enforce read-only invariants
+        run: |
+          grep -Fq "'persistent_inventory_written' => false" layers/phase5f33/functions/classes/class.IntegrationVmwareVcenterVmSearchFacts.php
+          grep -Fq "'phpipam_objects_modified' => false" layers/phase5f33/functions/classes/class.IntegrationVmwareVcenterVmSearchFacts.php
+          grep -Fq "'vcenter_objects_modified' => false" layers/phase5f33/functions/classes/class.IntegrationVmwareVcenterVmSearchFacts.php
+          grep -Fq "'persistent_inventory_written' => false" layers/phase5f33/functions/classes/class.IntegrationVmwareVcenterVmTagIndex.php
+          grep -Fq "'phpipam_objects_modified' => false" layers/phase5f33/functions/classes/class.IntegrationVmwareVcenterVmTagIndex.php
+          grep -Fq "'vcenter_objects_modified' => false" layers/phase5f33/functions/classes/class.IntegrationVmwareVcenterVmTagIndex.php
+          grep -Fq "'persistent_inventory_written' => false" layers/phase5f33/app/integrations/vmware/enriched-search-result.php
+          grep -Fq "'phpipam_objects_modified' => false" layers/phase5f33/app/integrations/vmware/enriched-search-result.php
+          grep -Fq "'vcenter_objects_modified' => false" layers/phase5f33/app/integrations/vmware/enriched-search-result.php
+          ! grep -Eq '<(Update|Add|Remove|Destroy|Reconfig|Power|Migrate|Relocate|Refresh)' layers/phase5f33/functions/classes/class.IntegrationVmwareVcenterVmSearchFacts.php
+          ! grep -Eq 'action=(attach|detach)|/attach|/detach|/create|/update|/delete' layers/phase5f33/functions/classes/class.IntegrationVmwareVcenterVmTagIndex.php
+      - name: Enforce preview and deployment safety
+        run: |
+          grep -Fq 'PHASE5F33_PREVIEW_PERSISTENCE=0' tools/live-vmware-phase5f33-enriched-search-preview.php
+          grep -Fq 'PHASE5F33_PREVIEW_PHPIPAM_MUTATIONS=0' tools/live-vmware-phase5f33-enriched-search-preview.php
+          grep -Fq 'PHASE5F33_PREVIEW_VCENTER_MUTATIONS=0' tools/live-vmware-phase5f33-enriched-search-preview.php
+          grep -Fq 'PHASE5F33_PREVIEW_RESULT=READ_ONLY_COMPATIBILITY_OK' tools/live-vmware-phase5f33-enriched-search-preview.php
+          grep -Fq 'PREFLIGHT_WRITE_OPERATIONS=0' tools/live-vmware-phase5f33-ui-preflight.sh
+          grep -Fq 'PREFLIGHT_VCENTER_REQUESTS=0' tools/live-vmware-phase5f33-ui-preflight.sh
+          grep -Fq 'PHASE5F33_ENRICHED_SEARCH_VERIFY_OK' installer/verify-vmware-vcenter-phase5f33-enriched-search.sh
+          grep -Fq 'PHASE5F33_ENRICHED_SEARCH_INSTALL_OK' installer/install-vmware-vcenter-phase5f33-enriched-search.sh
+          grep -Fq 'PHASE5F33_ENRICHED_SEARCH_ROLLBACK_OK' installer/install-vmware-vcenter-phase5f33-enriched-search.sh

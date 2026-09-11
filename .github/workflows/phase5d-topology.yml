@@ -1,0 +1,94 @@
+name: Phase 5D VMware Explorer Regression
+
+on:
+  push:
+    branches:
+      - phase5d/vmware-topology-details
+  pull_request:
+    branches: [master]
+    paths:
+      - 'design/PHASE5D_VMWARE_TOPOLOGY_DETAILS.md'
+      - 'layers/phase5d/**'
+      - 'tools/live-vmware-phase5d-preview.php'
+      - 'tools/live-vmware-phase5d-ui-preflight.sh'
+      - 'installer/install-vmware-vcenter-phase5d-ui.sh'
+      - 'installer/verify-vmware-vcenter-phase5d-ui.sh'
+      - 'tests/vmware-vcenter-topology-regression.php'
+      - 'tests/vmware-vcenter-datastore-regression.php'
+      - 'tests/vmware-vcenter-datastore-resolver-regression.php'
+      - 'tests/vmware-vcenter-vm-detail-regression.php'
+      - 'tests/vmware-vcenter-metadata-regression.php'
+      - 'tests/vmware-vcenter-phase5d-live-preview-regression.php'
+      - 'tests/vmware-vcenter-explorer-model-regression.php'
+      - 'tests/vmware-vcenter-explorer-ui-regression.php'
+      - 'tests/vmware-vcenter-phase5d-installer-source-regression.sh'
+      - '.github/workflows/phase5d-topology.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  explorer-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install PHP CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y php-cli php-curl
+
+      - name: Validate Phase 5D syntax
+        run: |
+          php -l layers/phase5d/functions/classes/class.IntegrationVmwareVcenterTopology.php
+          php -l layers/phase5d/functions/classes/class.IntegrationVmwareVcenterDatastore.php
+          php -l layers/phase5d/functions/classes/class.IntegrationVmwareVcenterDatastoreResolver.php
+          php -l layers/phase5d/functions/classes/class.IntegrationVmwareVcenterVmDetail.php
+          php -l layers/phase5d/functions/classes/class.IntegrationVmwareVcenterMetadata.php
+          php -l layers/phase5d/functions/classes/class.IntegrationVmwareVcenterExplorer.php
+          php -l layers/phase5d/app/admin/integrations/vmware-explorer-panel.php
+          php -l layers/phase5d/app/admin/integrations/vmware-explorer-result.php
+          php -l layers/phase5d/app/admin/integrations/vmware-vm-card-result.php
+          php -l layers/phase5d/app/admin/integrations/index-phase5d-append.php
+          php -l tools/live-vmware-phase5d-preview.php
+          php -l tests/vmware-vcenter-topology-regression.php
+          php -l tests/vmware-vcenter-datastore-regression.php
+          php -l tests/vmware-vcenter-datastore-resolver-regression.php
+          php -l tests/vmware-vcenter-vm-detail-regression.php
+          php -l tests/vmware-vcenter-metadata-regression.php
+          php -l tests/vmware-vcenter-phase5d-live-preview-regression.php
+          php -l tests/vmware-vcenter-explorer-model-regression.php
+          php -l tests/vmware-vcenter-explorer-ui-regression.php
+          bash -n tools/live-vmware-phase5d-ui-preflight.sh
+          bash -n installer/install-vmware-vcenter-phase5d-ui.sh
+          bash -n installer/verify-vmware-vcenter-phase5d-ui.sh
+          bash -n tests/vmware-vcenter-phase5d-installer-source-regression.sh
+
+      - name: Run Phase 5D topology regression
+        run: php tests/vmware-vcenter-topology-regression.php
+
+      - name: Run Phase 5D datastore regression
+        run: php tests/vmware-vcenter-datastore-regression.php
+
+      - name: Run Phase 5D datastore correlation regression
+        run: php tests/vmware-vcenter-datastore-resolver-regression.php
+
+      - name: Run Phase 5D VM detail regression
+        run: php tests/vmware-vcenter-vm-detail-regression.php
+
+      - name: Run Phase 5D VM tags and categories regression
+        run: php tests/vmware-vcenter-metadata-regression.php
+
+      - name: Run Phase 5D live preview safety regression
+        run: php tests/vmware-vcenter-phase5d-live-preview-regression.php
+
+      - name: Run Phase 5D Explorer projection regression
+        run: php tests/vmware-vcenter-explorer-model-regression.php
+
+      - name: Run Phase 5D Explorer UI security regression
+        run: php tests/vmware-vcenter-explorer-ui-regression.php
+
+      - name: Run Phase 5D installer source-pin regression
+        run: bash tests/vmware-vcenter-phase5d-installer-source-regression.sh

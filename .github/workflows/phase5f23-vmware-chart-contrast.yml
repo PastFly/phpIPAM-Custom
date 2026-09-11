@@ -1,0 +1,33 @@
+name: Phase 5F.2.3 VMware Chart Contrast
+
+on:
+  push:
+    branches: ["phase5f23/vmware-chart-contrast"]
+  pull_request:
+    branches: ["phase5f22/vmware-toolbar-compact"]
+
+jobs:
+  phase5f23:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax
+        run: |
+          bash -n tools/live-vmware-phase5f23-chart-preflight.sh
+          bash -n installer/verify-vmware-vcenter-phase5f23-chart.sh
+          bash -n installer/install-vmware-vcenter-phase5f23-chart.sh
+      - name: Enforce exact presentation blob
+        run: |
+          test "$(git hash-object layers/phase5f23/app/integrations/vmware/phase5f23-chart-contrast.css)" = "a4a7f5b7d256c75b5a1f395f8c718e55cba5a46c"
+      - name: Enforce chart contrast behavior
+        run: |
+          grep -Fq 'background: #ffffff;' layers/phase5f23/app/integrations/vmware/phase5f23-chart-contrast.css
+          grep -Fq 'fill: #333333 !important;' layers/phase5f23/app/integrations/vmware/phase5f23-chart-contrast.css
+          grep -Fq 'stroke: #d8d8d8 !important;' layers/phase5f23/app/integrations/vmware/phase5f23-chart-contrast.css
+          grep -Fq '#vmware-phase5e .phase5f-chart svg polyline' layers/phase5f23/app/integrations/vmware/phase5f23-chart-contrast.css
+      - name: Enforce deployment gate
+        run: |
+          grep -Fq 'PREFLIGHT_WRITE_OPERATIONS=0' tools/live-vmware-phase5f23-chart-preflight.sh
+          grep -Fq 'PREFLIGHT_VCENTER_REQUESTS=0' tools/live-vmware-phase5f23-chart-preflight.sh
+          grep -Fq 'PHASE5F23_CHART_INSTALL_OK' installer/install-vmware-vcenter-phase5f23-chart.sh
+          grep -Fq 'PHASE5F23_CHART_VERIFY_OK' installer/verify-vmware-vcenter-phase5f23-chart.sh

@@ -1,0 +1,28 @@
+/* phpIPAM Custom — Phase 5F.2.3 chart contrast hotfix.
+ * Presentation only: CPU/RAM/Disk SVG chart surfaces become light for readability.
+ */
+
+#vmware-phase5e .phase5f-chart svg {
+    background: #ffffff;
+    border: 1px solid #c8c8c8;
+    border-radius: 3px;
+    box-sizing: border-box;
+    padding: 6px;
+}
+
+#vmware-phase5e .phase5f-chart svg text {
+    fill: #333333 !important;
+    opacity: 0.90 !important;
+}
+
+#vmware-phase5e .phase5f-chart svg line {
+    stroke: #d8d8d8 !important;
+    opacity: 1 !important;
+}
+
+/* Keep the actual metric series in its existing semantic color
+ * (CPU/RAM/Disk inherit currentColor from their existing Bootstrap class).
+ */
+#vmware-phase5e .phase5f-chart svg polyline {
+    vector-effect: non-scaling-stroke;
+}

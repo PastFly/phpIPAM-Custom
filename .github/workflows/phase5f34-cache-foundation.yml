@@ -1,0 +1,88 @@
+name: Phase 5F.3.4 Snapshot Cache Integration
+on:
+  push:
+    branches: [phase5f34/vmware-snapshot-cache]
+  pull_request:
+    branches: [phase5f332/vm-datastore-folders]
+permissions:
+  contents: read
+jobs:
+  sources:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Archive committed source only, never test output or runtime data
+        run: |
+          git archive --format=tar HEAD layers installer tools tests .github CACHE_DESIGN.md design | gzip > "$RUNNER_TEMP/cache-test-sources.tar.gz"
+          git rev-parse HEAD > "$RUNNER_TEMP/cache-source-commit.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cache-test-sources
+          path: |
+            ${{ runner.temp }}/cache-test-sources.tar.gz
+            ${{ runner.temp }}/cache-source-commit.txt
+          retention-days: 1
+  cache:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '${{ matrix.php }}'
+          extensions: sodium, posix, pcntl, curl, dom, mbstring
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Protected installed baseline
+        run: |
+          python3 - <<'PY'
+          import subprocess
+          rows = subprocess.check_output(['git', 'diff', '--name-only', '9c40ef6029ebe0d9fb7bbea190fcaca16c67750f', 'HEAD'], text=True).splitlines()
+          allowed = lambda p: p.startswith('layers/phase5f34/') or (p.startswith(('tools/', 'tests/', 'installer/', 'design/')) and 'phase5f34' in p.lower()) or p in ('CACHE_DESIGN.md', '.github/workflows/phase5f34-cache-foundation.yml', '.github/workflows/phase5f332-object-folders.yml')
+          bad = [p for p in rows if not allowed(p)]
+          assert not bad, 'Ancestor changes: ' + repr(bad)
+          print('PHASE5F34_PROTECTED_ANCESTORS_OK')
+          PY
+      - name: Syntax
+        run: |
+          set -euo pipefail
+          python3 tools/build-phase5f34-providers.py layers/phase5f34
+          find layers/phase5f34 -name '*.php' -print0 | xargs -0 -n 1 php -l
+          for f in layers/phase5f34/app/integrations/vmware/*.js; do node --check "$f"; done
+          for f in tools/*phase5f34*.sh installer/*phase5f34*.sh; do bash -n "$f"; done
+          python3 -m compileall -q tools tests
+      - name: Engine and service (no vCenter)
+        run: |
+          set -euo pipefail
+          php tests/phase5f34-cache.test.php
+          php tests/phase5f34-service.test.php
+          php tests/phase5f34-providers.test.php
+      - name: Endpoint guards, survey and disposable installation/rollback
+        run: |
+          set -euo pipefail
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/phase5f34-preflight.test.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/phase5f34-controller.test.py
+          sudo env PYTHONDONTWRITEBYTECODE=1 PATH="$PATH" python3 tests/phase5f34-deployment.test.py
+      - name: Isolated DOM test dependencies
+        run: npm install --prefix "$RUNNER_TEMP/cache-node" jsdom@24.1.3 jquery@3.7.1 --ignore-scripts --no-audit --no-fund
+      - name: Cache middleware, retained folder state and header/deeplink tests
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/cache-node/node_modules"
+          node tests/phase5f34-browser.test.js
+          node tests/phase5f332-ui.test.js
+          node tests/phase5f331-browser.test.js

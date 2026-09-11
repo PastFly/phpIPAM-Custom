@@ -1,0 +1,77 @@
+/* phpIPAM Custom — Phase 5F.2 layout refinements.
+ * Layout only; phpIPAM/Bootstrap remains authoritative for theme colors.
+ */
+
+#vmware-phase5e .phase5f2-vm-search-bar {
+    padding: 8px 10px 0;
+}
+
+#vmware-phase5e .phase5f2-vm-search-bar .form-group {
+    margin-bottom: 8px;
+}
+
+#vmware-phase5e .phase5f2-annotation-text {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    margin-bottom: 6px;
+}
+
+#vmware-phase5e .phase5e-detail-table th {
+    width: 32%;
+}
+
+#vmware-phase5e .phase5f2-layout-reset {
+    margin-left: 6px;
+}
+
+@media (min-width: 1200px) {
+    #vmware-phase5e .phase5e-workspace-row.phase5f2-resizable {
+        display: grid !important;
+        grid-template-columns: var(--phase5f2-left, 18%) 6px minmax(0, 1fr) 6px var(--phase5f2-right, 34%);
+        align-items: stretch;
+    }
+
+    #vmware-phase5e .phase5e-workspace-row.phase5f2-resizable > .phase5e-workspace-col {
+        width: auto !important;
+        float: none !important;
+        min-width: 0;
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+
+    #vmware-phase5e .phase5e-workspace-row.phase5f2-resizable > .phase5f2-splitter {
+        display: block;
+        cursor: col-resize;
+        position: relative;
+        min-height: 520px;
+        touch-action: none;
+        user-select: none;
+    }
+
+    #vmware-phase5e .phase5e-workspace-row.phase5f2-resizable > .phase5f2-splitter:before {
+        content: '';
+        position: absolute;
+        top: 8px;
+        bottom: 20px;
+        left: 2px;
+        width: 2px;
+        border-left: 1px solid currentColor;
+        opacity: .22;
+    }
+
+    #vmware-phase5e .phase5e-workspace-row.phase5f2-resizing {
+        cursor: col-resize;
+    }
+
+    #vmware-phase5e .phase5e-workspace-row.phase5f2-resizing iframe,
+    #vmware-phase5e .phase5e-workspace-row.phase5f2-resizing a {
+        pointer-events: none;
+    }
+}
+
+@media (max-width: 1199px) {
+    #vmware-phase5e .phase5f2-splitter,
+    #vmware-phase5e .phase5f2-layout-reset {
+        display: none !important;
+    }
+}

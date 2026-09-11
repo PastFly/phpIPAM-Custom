@@ -1,0 +1,53 @@
+/* phpIPAM Custom — Phase 5F.2.2 compact toolbar/TLS presentation.
+ * Presentation only; no collector/runtime semantics are changed.
+ */
+
+#vmware-phase5e .phase5e-toolbar {
+    margin-bottom: 4px;
+}
+
+#vmware-phase5e .phase5e-toolbar > .panel {
+    margin-bottom: 4px;
+}
+
+#vmware-phase5e .phase5e-toolbar > .panel > .panel-body {
+    padding-top: 7px;
+    padding-bottom: 7px;
+}
+
+#vmware-phase5e .phase5e-toolbar .form-group {
+    margin-bottom: 0;
+}
+
+#vmware-phase5e .phase5e-toolbar .form-group > label {
+    margin-bottom: 2px;
+    line-height: 1.2;
+}
+
+#vmware-phase5e #phase5e-client-warning:empty,
+#vmware-phase5e #phase5e-runtime-summary:empty {
+    display: none;
+}
+
+#vmware-phase5e .phase5f21-runtime-summary {
+    margin: 0 0 4px;
+    padding: 0;
+    min-height: 0;
+    line-height: 1.2;
+}
+
+#vmware-phase5e .phase5f21-tls-indicator,
+#vmware-phase5e .phase5f21-detail-tls {
+    min-width: 14px;
+    margin-left: 4px;
+    text-align: center;
+}
+
+#vmware-phase5e .phase5f22-icon-only {
+    font-size: 12px;
+    vertical-align: baseline;
+}
+
+#vmware-phase5e .phase5f21-detail-tls {
+    margin-right: 2px;
+}

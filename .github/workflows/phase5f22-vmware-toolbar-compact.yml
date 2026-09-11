@@ -1,0 +1,35 @@
+name: Phase 5F.2.2 VMware Toolbar Compact
+
+on:
+  push:
+    branches: ["phase5f22/vmware-toolbar-compact"]
+  pull_request:
+    branches: ["phase5f21/vmware-layout-tls-hotfix"]
+
+jobs:
+  phase5f22:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax
+        run: |
+          bash -n tools/live-vmware-phase5f22-compact-preflight.sh
+          bash -n installer/verify-vmware-vcenter-phase5f22-compact.sh
+          bash -n installer/install-vmware-vcenter-phase5f22-compact.sh
+          node --check layers/phase5f22/app/integrations/vmware/phase5f22-compact.js
+      - name: Enforce exact presentation blobs
+        run: |
+          test "$(git hash-object layers/phase5f22/app/integrations/vmware/phase5f22-compact.css)" = "64e18426b0f74f99b24a7c3310667309e9a2b4fe"
+          test "$(git hash-object layers/phase5f22/app/integrations/vmware/phase5f22-compact.js)" = "27855f4c708ff49d5e56db490f0a8ad7fea24633"
+      - name: Enforce compact toolbar behavior
+        run: |
+          grep -Fq '.phase5e-toolbar > .panel > .panel-body' layers/phase5f22/app/integrations/vmware/phase5f22-compact.css
+          grep -Fq '.phase5e-toolbar .form-group' layers/phase5f22/app/integrations/vmware/phase5f22-compact.css
+          grep -Fq 'compactTlsIcons' layers/phase5f22/app/integrations/vmware/phase5f22-compact.js
+          grep -Fq 'compactRuntimeSummary' layers/phase5f22/app/integrations/vmware/phase5f22-compact.js
+      - name: Enforce deployment gate
+        run: |
+          grep -Fq 'PREFLIGHT_WRITE_OPERATIONS=0' tools/live-vmware-phase5f22-compact-preflight.sh
+          grep -Fq 'PREFLIGHT_VCENTER_REQUESTS=0' tools/live-vmware-phase5f22-compact-preflight.sh
+          grep -Fq 'PHASE5F22_COMPACT_INSTALL_OK' installer/install-vmware-vcenter-phase5f22-compact.sh
+          grep -Fq 'PHASE5F22_COMPACT_VERIFY_OK' installer/verify-vmware-vcenter-phase5f22-compact.sh

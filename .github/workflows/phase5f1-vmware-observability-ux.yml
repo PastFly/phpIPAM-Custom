@@ -1,0 +1,65 @@
+name: Phase 5F.1 VMware Observability UX
+
+on:
+  push:
+    branches:
+      - phase5f1/vmware-observability-ux
+  pull_request:
+    branches:
+      - phase5f/vmware-observability
+    paths:
+      - 'layers/phase5f1/**'
+      - 'tools/live-vmware-phase5f1-**'
+      - 'installer/*phase5f1*'
+      - '.github/workflows/phase5f1-vmware-observability-ux.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  phase5f1:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install validators
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y php-cli php-xml php-curl
+      - name: Syntax
+        run: |
+          php -l layers/phase5f1/functions/classes/class.IntegrationVmwareVcenterStoragePerformance.php
+          php -l layers/phase5f1/app/integrations/vmware/storage-performance-result.php
+          node --check layers/phase5f1/app/integrations/vmware/phase5f1-ux.js
+          bash -n tools/live-vmware-phase5f1-ui-preflight.sh
+          bash -n installer/install-vmware-vcenter-phase5f1-ui.sh
+          bash -n installer/verify-vmware-vcenter-phase5f1-ui.sh
+      - name: Enforce optional dynamic disk performance
+        run: |
+          grep -Fq 'disk.usage.average' layers/phase5f1/functions/classes/class.IntegrationVmwareVcenterStoragePerformance.php
+          grep -Fq '<pathSet>perfCounter</pathSet>' layers/phase5f1/functions/classes/class.IntegrationVmwareVcenterStoragePerformance.php
+          grep -Fq '<QueryAvailablePerfMetric' layers/phase5f1/functions/classes/class.IntegrationVmwareVcenterStoragePerformance.php
+          grep -Fq '<QueryPerf ' layers/phase5f1/functions/classes/class.IntegrationVmwareVcenterStoragePerformance.php
+          grep -Fq '<RetrieveProperties xmlns="urn:vim25">' layers/phase5f1/functions/classes/class.IntegrationVmwareVcenterStoragePerformance.php
+          if grep -Fq '<RetrievePropertiesEx ' layers/phase5f1/functions/classes/class.IntegrationVmwareVcenterStoragePerformance.php; then exit 1; fi
+      - name: Enforce UX behavior
+        run: |
+          grep -Fq 'Поиск применяется автоматически' layers/phase5f1/app/integrations/vmware/phase5f1-ux.js
+          grep -Fq 'phase5f1-tree-filter' layers/phase5f1/app/integrations/vmware/phase5f1-ux.js
+          grep -Fq "trigger('submit')" layers/phase5f1/app/integrations/vmware/phase5f1-ux.js
+          grep -Fq "gib <= 1000" layers/phase5f1/app/integrations/vmware/phase5f1-ux.js
+          grep -Fq "gib / 1024" layers/phase5f1/app/integrations/vmware/phase5f1-ux.js
+          grep -Fq 'storage-performance-result.php' layers/phase5f1/app/integrations/vmware/phase5f1-ux.js
+      - name: Enforce read-only boundary
+        run: |
+          if grep -REni '\b(ReconfigVM_Task|PowerOnVM_Task|PowerOffVM_Task|ResetVM_Task|ShutdownGuest|RebootGuest|EnterMaintenanceMode_Task|ExitMaintenanceMode_Task|Destroy_Task|CreateVM_Task|RelocateVM_Task|MigrateVM_Task|UpdateOptions|UpdateConfig|CreatePerfInterval|RemovePerfInterval|UpdatePerfInterval)\b' layers/phase5f1; then exit 1; fi
+          if grep -REni '\b(INSERT|UPDATE|DELETE|REPLACE|ALTER|DROP|TRUNCATE)[[:space:]]' layers/phase5f1; then exit 1; fi
+      - name: Enforce deployment gate
+        run: |
+          grep -Fq 'PREFLIGHT_RESULT=READY_FOR_PHASE5F1_UI_OWNER_APPROVAL' tools/live-vmware-phase5f1-ui-preflight.sh
+          grep -Fq 'PREFLIGHT_WRITE_OPERATIONS=0' tools/live-vmware-phase5f1-ui-preflight.sh
+          grep -Fq 'PREFLIGHT_VCENTER_REQUESTS=0' tools/live-vmware-phase5f1-ui-preflight.sh
+          grep -Fq 'PHASE5F1_UI_VERIFY_OK' installer/verify-vmware-vcenter-phase5f1-ui.sh
+          grep -Fq 'PHASE5F1_UI_INSTALL_OK' installer/install-vmware-vcenter-phase5f1-ui.sh

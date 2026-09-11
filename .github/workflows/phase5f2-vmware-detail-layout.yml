@@ -1,0 +1,64 @@
+name: Phase 5F.2 VMware Detail Layout
+
+on:
+  push:
+    branches:
+      - phase5f2/vmware-detail-layout
+  pull_request:
+    branches:
+      - phase5f1/vmware-observability-ux
+    paths:
+      - 'layers/phase5f2/**'
+      - 'tests/phase5f2-**'
+      - 'tools/live-vmware-phase5f2-**'
+      - 'installer/*phase5f2*'
+      - '.github/workflows/phase5f2-vmware-detail-layout.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  phase5f2:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install validators
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y php-cli php-xml php-curl
+      - name: Syntax and unit regression
+        run: |
+          php -l layers/phase5f2/functions/classes/class.IntegrationVmwareVcenterVmAnnotation.php
+          php -l layers/phase5f2/app/integrations/vmware/vm-annotation-result.php
+          php tests/phase5f2-vm-annotation-regression.php
+          node --check layers/phase5f2/app/integrations/vmware/phase5f2-ux.js
+          bash -n tools/live-vmware-phase5f2-ui-preflight.sh
+          bash -n installer/install-vmware-vcenter-phase5f2-ui.sh
+          bash -n installer/verify-vmware-vcenter-phase5f2-ui.sh
+      - name: Enforce VM Notes read path
+        run: |
+          grep -Fq '<type>VirtualMachine</type>' layers/phase5f2/functions/classes/class.IntegrationVmwareVcenterVmAnnotation.php
+          grep -Fq '<pathSet>config.annotation</pathSet>' layers/phase5f2/functions/classes/class.IntegrationVmwareVcenterVmAnnotation.php
+          grep -Fq '<RetrieveProperties xmlns="urn:vim25">' layers/phase5f2/functions/classes/class.IntegrationVmwareVcenterVmAnnotation.php
+          if grep -Fq '<RetrievePropertiesEx ' layers/phase5f2/functions/classes/class.IntegrationVmwareVcenterVmAnnotation.php; then exit 1; fi
+      - name: Enforce UX behavior
+        run: |
+          grep -Fq 'Поиск VM по всей инфраструктуре' layers/phase5f2/app/integrations/vmware/phase5f2-ux.js
+          grep -Fq 'phase5f2-splitter' layers/phase5f2/app/integrations/vmware/phase5f2-ux.js
+          grep -Fq 'phpipam.vmware.phase5f2.layout.v1' layers/phase5f2/app/integrations/vmware/phase5f2-ux.js
+          grep -Fq 'vm-annotation-result.php' layers/phase5f2/app/integrations/vmware/phase5f2-ux.js
+          grep -Fq 'grid-template-columns: var(--phase5f2-left, 18%)' layers/phase5f2/app/integrations/vmware/phase5f2-ux.css
+      - name: Enforce read-only boundary
+        run: |
+          if grep -REni '\b(ReconfigVM_Task|PowerOnVM_Task|PowerOffVM_Task|ResetVM_Task|ShutdownGuest|RebootGuest|EnterMaintenanceMode_Task|ExitMaintenanceMode_Task|Destroy_Task|CreateVM_Task|RelocateVM_Task|MigrateVM_Task|UpdateOptions|UpdateConfig|CreatePerfInterval|RemovePerfInterval|UpdatePerfInterval)\b' layers/phase5f2; then exit 1; fi
+          if grep -REni '\b(INSERT|UPDATE|DELETE|REPLACE|ALTER|DROP|TRUNCATE)[[:space:]]' layers/phase5f2; then exit 1; fi
+      - name: Enforce deployment gate
+        run: |
+          grep -Fq 'PREFLIGHT_RESULT=READY_FOR_PHASE5F2_UI_OWNER_APPROVAL' tools/live-vmware-phase5f2-ui-preflight.sh
+          grep -Fq 'PREFLIGHT_WRITE_OPERATIONS=0' tools/live-vmware-phase5f2-ui-preflight.sh
+          grep -Fq 'PREFLIGHT_VCENTER_REQUESTS=0' tools/live-vmware-phase5f2-ui-preflight.sh
+          grep -Fq 'PHASE5F2_UI_VERIFY_OK' installer/verify-vmware-vcenter-phase5f2-ui.sh
+          grep -Fq 'PHASE5F2_UI_INSTALL_OK' installer/install-vmware-vcenter-phase5f2-ui.sh
