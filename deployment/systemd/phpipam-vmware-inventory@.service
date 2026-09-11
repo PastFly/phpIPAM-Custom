@@ -1,0 +1,32 @@
+[Unit]
+Description=phpIPAM independent VMware inventory tick for connector %i
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=/etc/phpipam-custom/vmware-inventory.json
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/phpipam-custom/inventory
+ExecStart=/usr/bin/php /opt/phpipam-custom/inventory/tools/vmware-inventory-worker.php --tick --connector=%i
+UMask=0077
+TimeoutStartSec=135s
+TimeoutStopSec=10s
+KillMode=control-group
+SendSIGKILL=yes
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/phpipam-custom/vmware-inventory
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryMax=512M
+TasksMax=16
+Nice=10
+StandardOutput=journal
+StandardError=journal
