@@ -58,7 +58,7 @@ def fixture(root):
 
 with tempfile.TemporaryDirectory(prefix='phase5g4-transaction-') as tmp:
     base = Path(tmp)
-    for case in range(10):
+    for case in range(12):
         root = base / str(case); root.mkdir(); r, p, h = fixture(root)
         if case == 0:
             r.prepare(p); check(r.receipt['stage'] == 'prepared'); r.assert_app(); check('start_worker' not in h.events)
@@ -111,6 +111,16 @@ with tempfile.TemporaryDirectory(prefix='phase5g4-transaction-') as tmp:
             finally: m.atomic = original
             check(r.receipt['stage'] == 'preparing'); r.abort_preparing(); r.assert_app()
             check('start_worker' not in h.events); check('stop_web' not in h.events)
+        elif case == 10:
+            # Failure restarting old Apache after restoring files/config remains recoverable.
+            r.prepare(p); r.activate(); h.fail_web_once = True
+            check(fails(r.rollback)); check(r.receipt['stage'] == 'restoring')
+            r.pause(); check(r.receipt['stage'] == 'restoring')
+            r.rollback(); check(r.receipt['stage'] == 'rolled_back'); r.assert_app()
+        elif case == 11:
+            r.prepare(p)
+            h.inspect = lambda release: (_ for _ in ()).throw(RuntimeError('rollout_interrupted'))
+            check(fails(lambda: r.wait_ready(1))); r.pause(); check(r.receipt['stage'] == 'paused')
     # Path and hardlink rejection are exercised separately from source verification.
     p = base / 'file'; p.write_text('public fixture'); q = base / 'hardlink'; os.link(p, q)
     check(fails(lambda: m.safe(p)))

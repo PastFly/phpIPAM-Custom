@@ -172,7 +172,7 @@ echo 'CONNECTOR1_STRICT_TLS_METADATA_OK'; } catch(Throwable $e) { exit(1); }"""
             for name in [TEMPLATE + 'service', TEMPLATE + 'timer', UNIT + '.service', UNIT + '.timer']:
                 if (Path(base) / name).exists() or (Path(base) / (name + '.d')).exists(): raise RuntimeError('existing_units_require_review')
         for suffix in ['service', 'timer']:
-            state = self.systemctl('show', UNIT + '.' + suffix, '-p', 'LoadState', '--value').strip()
+            state = self.systemctl('show', UNIT + '.' + suffix, '-p', 'LoadState', '--value', allowed=(0, 1, 4)).strip()
             if state != b'not-found': raise RuntimeError('existing_unit_loaded')
 
     def systemctl(self, *args, allowed=(0,), timeout=180):
@@ -208,9 +208,22 @@ echo 'CONNECTOR1_STRICT_TLS_METADATA_OK'; } catch(Throwable $e) { exit(1); }"""
         self.check_web()
     def inspect(self, release):
         args = ['/usr/sbin/runuser', '-u', 'www-data', '--', '/usr/bin/python3', release / 'tools/phase5g4-worker.py', '--inspect', '--connector=1']
-        p = command(args, capture=True, timeout=120)
-        if len(p.stdout) > 16384: raise RuntimeError('readiness_output_size')
-        out = json.loads(p.stdout)
+        p = subprocess.Popen([str(a) for a in args], stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+        try:
+            stdout, stderr = p.communicate(timeout=120)
+        except BaseException:
+            # runuser can have a PHP child: terminate/reap the entire diagnostic group.
+            try: os.killpg(p.pid, signal.SIGTERM)
+            except ProcessLookupError: pass
+            try: p.communicate(timeout=5)
+            except subprocess.TimeoutExpired:
+                try: os.killpg(p.pid, signal.SIGKILL)
+                except ProcessLookupError: pass
+                p.communicate()
+            raise
+        if p.returncode != 0: raise RuntimeError('readiness_subprocess_failed')
+        if len(stdout) > 16384: raise RuntimeError('readiness_output_size')
+        out = json.loads(stdout)
         if not isinstance(out, dict): raise RuntimeError('readiness_format')
         return out
 
@@ -244,12 +257,14 @@ class Rollout:
             if digest(p.read_bytes()) != expected or meta(p) != {'uid': 0, 'gid': 0, 'mode': 0o444}: raise RuntimeError('release_drift')
         for rel, expected in self.receipt['dependencies'].items():
             if digest(self.path(APP + '/' + rel).read_bytes()) != expected: raise RuntimeError('dependency_drift:' + rel)
-    def verify_resources(self):
+    def verify_resources(self, allow_disabled=False):
         self.verify_release()
         for path, expected in self.receipt['units'].items():
             p = self.path(path)
             if digest(p.read_bytes()) != expected or meta(p) != {'uid': 0, 'gid': 0, 'mode': 0o644}: raise RuntimeError('unit_drift')
-        if self.path(CONFIG).read_bytes() != encoded(self.receipt['config']) or meta(self.path(CONFIG)) != {'uid': 0, 'gid': 33, 'mode': 0o640}:
+        configs = [encoded(self.receipt['config'])]
+        if allow_disabled: configs.append(encoded(dict(self.receipt['config'], enabled=False)))
+        if self.path(CONFIG).read_bytes() not in configs or meta(self.path(CONFIG)) != {'uid': 0, 'gid': 33, 'mode': 0o640}:
             raise RuntimeError('configuration_drift')
     def assert_app(self, new=False, mixed=False):
         for rel, record in self.receipt['app_files'].items():
@@ -341,7 +356,8 @@ class Rollout:
         while time.monotonic() < deadline:
             try:
                 result = self.host.inspect(self.path(RELEASE)); failures = 0
-            except Exception:
+            except Exception as error:
+                if str(error) == 'rollout_interrupted': raise
                 failures += 1
                 if failures >= 5: raise RuntimeError('readiness_probe_failed')
                 time.sleep(15); continue
@@ -371,18 +387,20 @@ class Rollout:
                 atomic(target, (self.backup / 'new' / rel).read_bytes(), record['installed_metadata'])
             self.assert_app(new=True); self.verify_resources()
             self.host.start_web(); self.host.start_worker()
+            self.receipt['stage'] = 'active'; self.save()
         except BaseException:
             if writes_started:
                 self.rollback()
             else:
                 self.host.start_web(); self.receipt['stage'] = 'paused'; self.save()
             raise
-        self.receipt['stage'] = 'active'; self.save()
         print('PHASE5G4_INITIAL_PUBLICATION_OK=1\nPHASE5G4_RUNTIME_FILES_OK=' + str(len(self.receipt['app_files'])), flush=True)
         print('PHASE5G4_INSTALL_OK\nAUTHENTICATED_BROWSER_ACCEPTANCE=PENDING', flush=True)
 
     def pause(self):
         if self.receipt is None or self.receipt['stage'] in ['active', 'rolled_back', 'preparing']: return
+        if self.receipt['stage'] == 'restoring':
+            print('PHASE5G4_RECOVERY_REQUIRED=1', flush=True); return
         if self.receipt['stage'] == 'switching': self.rollback(); return
         self.host.stop_worker(); self.receipt['stage'] = 'paused'; self.save()
         print('PHASE5G4_PAUSED=1\nPRODUCTION_ROUTES_CHANGED=0', flush=True)
@@ -402,7 +420,7 @@ class Rollout:
             print('PHASE5G4_PREPARE_NOT_DEPLOYED=1', flush=True); return
         if self.receipt['stage'] == 'rolled_back':
             self.assert_app(); print('PHASE5G4_ALREADY_ROLLED_BACK=1', flush=True); return
-        self.verify_resources(); self.assert_app(mixed=True)
+        self.verify_resources(allow_disabled=self.receipt['stage'] == 'restoring'); self.assert_app(mixed=True)
         self.host.stop_worker()
         changed = self.receipt['stage'] in ['switching', 'active', 'restoring']
         self.receipt['stage'] = 'restoring'; self.save()
@@ -437,7 +455,7 @@ def main():
         if args.action != 'install': rollout.load(Path(args.backup))
         if args.action == 'status':
             print('ROLLOUT_STAGE=' + rollout.receipt['stage'])
-            if rollout.receipt['stage'] not in ['preparing', 'rolled_back']:
+            if rollout.receipt['stage'] not in ['preparing', 'prepare_failed', 'restoring', 'rolled_back']:
                 rollout.verify_resources(); print(encoded(rollout.host.inspect(rollout.path(RELEASE))).decode().strip())
             return
         if args.action == 'rollback': rollout.rollback(); return
