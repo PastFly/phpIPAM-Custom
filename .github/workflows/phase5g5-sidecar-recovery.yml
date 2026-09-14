@@ -1,0 +1,39 @@
+name: Phase 5G Receipt-aware Recovery
+on:
+  push:
+    branches: ['phase5g/**']
+  pull_request:
+    paths: ['tools/*phase5g5*', 'tests/phase5g5-*', 'layers/phase5g5/**', '.github/workflows/phase5g5-sidecar-recovery.yml']
+permissions:
+  contents: read
+jobs:
+  recovery:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: dom, sodium, posix, pcntl, curl, mbstring
+          coverage: none
+      - name: Generated runtime, real storage and initial-priority behavior
+        run: python3 -B tests/phase5g5-runtime-package.test.py
+      - name: Parent-preserving seed, rollback, interruption and drift transactions
+        run: sudo python3 -B tests/phase5g5-recovery-transaction.test.py
+      - name: Retained provider, rendering and HTTP boundary tests
+        run: |
+          set -euo pipefail
+          OUT=$(mktemp -d)
+          python3 -B tools/build-phase5g5-collectors.py "$OUT"
+          php tests/phase5g5-collectors.test.php "$OUT"
+          php tests/phase5g5-provider-compat.test.php "$OUT/collectors"
+          python3 -B tests/phase5g2-contracts.test.py
+          php tests/phase5g3-telemetry.test.php
+          php tests/phase5g4-readiness.test.php
