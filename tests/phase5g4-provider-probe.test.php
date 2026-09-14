@@ -73,7 +73,7 @@ if (class_exists('DOMDocument')) {
     $soap = static function ($method, $url, $headers, $body, $tls, $connect, $timeout) use ($envelope): array {
         check($tls === true);
         if (str_contains($body, '<RetrieveServiceContent')) $xml = '<RetrieveServiceContentResponse><returnval><sessionManager>SessionManager</sessionManager><propertyCollector>propertyCollector</propertyCollector><perfManager>perfManager</perfManager></returnval></RetrieveServiceContentResponse>';
-        elseif (str_contains($body, '<Login')) return ['status' => 200, 'headers' => ['set-cookie' => ['vmware_soap_session="fixture"; Path=/']], 'body' => $envelope('<LoginResponse/>')];
+        elseif (str_contains($body, '<Login')) return ['status' => 200, 'headers' => ['Set-Cookie: vmware_soap_session="fixture"; Path=/'], 'body' => $envelope('<LoginResponse/>')];
         elseif (str_contains($body, '<QueryPerfProviderSummary')) $xml = '<QueryPerfProviderSummaryResponse><returnval><currentSupported>false</currentSupported><summarySupported>true</summarySupported><refreshRate>-1</refreshRate></returnval></QueryPerfProviderSummaryResponse>';
         elseif (str_contains($body, '<Logout')) $xml = '<LogoutResponse/>';
         else throw new RuntimeException('unexpected_request');
