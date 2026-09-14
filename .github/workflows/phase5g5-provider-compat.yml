@@ -1,0 +1,40 @@
+name: Phase 5G Provider Compatibility
+on:
+  push:
+    branches: ['phase5g/**']
+  pull_request:
+    paths:
+      - 'tools/build-phase5g5-provider-compat.py'
+      - 'tests/phase5g5-provider-*'
+      - '.github/workflows/phase5g5-provider-compat.yml'
+permissions:
+  contents: read
+jobs:
+  compat:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: dom
+          coverage: none
+      - name: Generate pinned variants and exercise full providers
+        run: |
+          set -euo pipefail
+          php -r 'if (!class_exists("DOMDocument")) exit(1);'
+          python3 -B tests/phase5g5-provider-build.test.py
+          TARGET="$(mktemp -d)/variants"
+          trap 'rm -rf -- "$(dirname "$TARGET")"' EXIT
+          python3 -B tools/build-phase5g5-provider-compat.py --output "$TARGET"
+          php tests/phase5g5-provider-compat.test.php "$TARGET"
+      - name: Unmodified legacy regressions
+        run: |
+          php tests/vmware-vcenter-phase5f-performance-regression.php
+          php tests/vmware-vcenter-guest-network-regression.php
