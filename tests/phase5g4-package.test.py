@@ -11,6 +11,8 @@ p = m.source_package()
 assert len(p['routes']) == 20
 assert len(p['app']) == 34, sorted(p['app'])
 assert len(p['release']) == 18, sorted(p['release'])
+assert len(p['dependencies']) == 32
+assert 'functions/classes/class.IntegrationVmwareVcenterSoapHostResolver.php' not in p['dependencies']
 assert 'functions/functions.php' in p['dependencies']
 assert 'app/integrations/vmware/cache/search-provider.php' in p['dependencies']
 assert p['release']['tools/phase5g4-rollout.py'] == (ROOT / 'tools/phase5g4-rollout.py').read_bytes()

@@ -36,6 +36,8 @@ jobs:
           export PYTHONDONTWRITEBYTECODE=1
           php tests/phase5g4-readiness.test.php
           python3 -B tests/phase5g4-package.test.py
+      - name: Repository-only versus deployed dependency regression
+        run: sudo env PYTHONDONTWRITEBYTECODE=1 python3 -B tests/phase5g4-dependencies.test.py
       - name: Isolated rollback, resume, drift and ownership transactions
         run: sudo env PYTHONDONTWRITEBYTECODE=1 python3 -B tests/phase5g4-deployment.test.py
       - name: Retained storage, sampling and HTTP contracts
