@@ -74,7 +74,7 @@ class Host(engine.Host):
                 for name in ['phpipam-vmware-recovery5g5-initial@.' + suffix, INIT_UNIT + '.' + suffix]:
                     for path in [Path(root) / name, Path(root) / (name + '.d')]:
                         if path.exists() or path.is_symlink(): raise RuntimeError('existing_initial_unit')
-            state = self.systemctl('show', INIT_UNIT + '.' + suffix, '-p', 'LoadState', '--value').strip()
+            state = self.systemctl('show', INIT_UNIT + '.' + suffix, '-p', 'LoadState', '--value', allowed=(0, 1, 4)).strip()
             if state != b'not-found': raise RuntimeError('existing_initial_unit_loaded')
     def start_worker(self):
         selected = INIT_UNIT if self.initial else NEW_UNIT
