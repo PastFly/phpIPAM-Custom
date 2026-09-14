@@ -1,0 +1,24 @@
+name: Phase 5G Read-only Diagnostic
+on:
+  push:
+    branches: ['phase5g/**']
+  pull_request:
+    paths: ['tools/phase5g4-diagnose.php', 'tests/phase5g4-diagnose.test.php', '.github/workflows/phase5g4-diagnostics.yml']
+permissions:
+  contents: read
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - run: php -l tools/phase5g4-diagnose.php && php tests/phase5g4-diagnose.test.php
