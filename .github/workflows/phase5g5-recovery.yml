@@ -1,0 +1,43 @@
+name: Phase 5G Capability Corrections and Recovery
+on:
+  push:
+    branches: ['phase5g/capability-recovery']
+  pull_request:
+    paths: ['tools/*phase5g5*', 'tests/phase5g5-*', 'layers/phase5g5/**', '.github/workflows/phase5g5-recovery.yml']
+permissions:
+  contents: read
+jobs:
+  corrections:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: dom, sodium, posix, pcntl, curl, mbstring
+          coverage: none
+      - name: Versioned collector generation and transport fixtures
+        run: |
+          set -euo pipefail
+          php -r 'if (!class_exists("DOMDocument")) exit(1);'
+          OUT=$(mktemp -d)
+          python3 -B tools/build-phase5g5-collectors.py "$OUT"
+          find "$OUT" -name '*.php' -exec php -l {} \;
+          php tests/phase5g5-collectors.test.php "$OUT"
+      - name: Source-only development bundle
+        if: matrix.php == '8.4'
+        run: git bundle create /tmp/phpipam-source.bundle --all
+      - uses: actions/upload-artifact@v4
+        if: matrix.php == '8.4'
+        with:
+          name: phase5g5-source
+          path: /tmp/phpipam-source.bundle
+          retention-days: 2
+          if-no-files-found: error
