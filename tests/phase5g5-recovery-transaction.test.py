@@ -85,7 +85,8 @@ with tempfile.TemporaryDirectory(prefix='recovery-transactions-')as tmp:
             check(fails(lambda:r.seed(parent)));check(r.receipt['stage']=='seeding')
         check(parent_bytes=={str(f.relative_to(parent)):f.read_bytes()for f in parent.rglob('*')if f.is_file()})
     for bad in ['symlink','hardlink','foreign']:
-        root=Path(tmp)/bad;root.mkdir();r,p,h,parent=fixture(root);f=parent/'connector-1/current.enc'
+        root=Path(tmp)/bad;root.mkdir();r,p,h,parent=fixture(root)
+        f=parent/'connector-1/current.enc'
         if bad=='symlink': f.unlink();f.symlink_to(parent/'connector-1/pending.enc')
         elif bad=='hardlink': f.unlink();os.link(parent/'connector-1/pending.enc',f)
         else:
@@ -93,3 +94,24 @@ with tempfile.TemporaryDirectory(prefix='recovery-transactions-')as tmp:
         check(fails(lambda:m.snapshot_files(parent)))
 print('PHASE5G5_RECOVERY_TRANSACTION_ASSERTIONS='+str(checks))
 print('PHASE5G5_PARENT_BYTES_RETAINED_ROLLBACK_RESUME_OFFLINE_OK')
+
+# Match the reviewed base preflight contract: a missing unit is not an installed unit.
+# Nonzero show status is accepted only alongside the exact not-found LoadState.
+base_preflight=m.engine.Host.preflight
+m.engine.Host.preflight=lambda self:None
+try:
+    calls=[]
+    host=m.Host()
+    def missing(*args,**kwargs):
+        assert kwargs.get('allowed')==(0,1,4)
+        calls.append(args)
+        return b'not-found\n'
+    host.systemctl=missing
+    host.preflight();check(len(calls)==2)
+    host.systemctl=lambda *args,**kwargs:b'loaded\n'
+    check(fails(host.preflight))
+    host.systemctl=lambda *args,**kwargs:b'\n'
+    check(fails(host.preflight))
+finally:
+    m.engine.Host.preflight=base_preflight
+print('PHASE5G5_MISSING_UNIT_PREFLIGHT_CONTRACT_OK')
