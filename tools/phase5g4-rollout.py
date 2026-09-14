@@ -97,6 +97,29 @@ def command(args, timeout=180, capture=False, allowed=(0,)):
     return p
 
 
+# Repository pins also cover preview/test helpers that were never installed.
+# This is an exact source-role exclusion, NOT a filter for missing live files.
+REPOSITORY_ONLY_CLASSES = frozenset({
+    'functions/classes/class.IntegrationVmwareVcenterSoapHostResolver.php',
+})
+
+
+def runtime_dependencies(pins):
+    classes = {p.split('/', 2)[2] for p in pins if '/functions/classes/' in p}
+    if not REPOSITORY_ONLY_CLASSES <= classes:
+        raise RuntimeError('repository_only_dependency_manifest_drift')
+    return sorted((classes - REPOSITORY_ONLY_CLASSES) |
+        {'functions/functions.php', 'app/integrations/vmware/cache/search-provider.php'})
+
+
+def dependency_hashes(app, dependencies):
+    paths = {rel: safe(app / rel) for rel in dependencies}
+    missing = sorted(rel for rel, path in paths.items() if not path.is_file())
+    if missing:
+        raise RuntimeError('runtime_dependencies_missing:' + ','.join(missing))
+    return {rel: digest(path.read_bytes()) for rel, path in paths.items()}
+
+
 def source_package():
     """Uses the checked-out immutable commit, not remote master or staged git changes."""
     head = git('rev-parse', 'HEAD').decode().strip()
@@ -124,8 +147,7 @@ def source_package():
         if release[rel] != git('show', 'HEAD:' + rel): raise RuntimeError('working_source_drift')
     release['staged-app/app/integrations/vmware/mirror/native-views.php'] = generated['app/integrations/vmware/mirror/native-views.php']
     pins = json.loads((ROOT / 'design/phase5g-source-pins.json').read_text())['sources']
-    dependencies = sorted({p.split('/', 2)[2] for p in pins if '/functions/classes/' in p} |
-        {'functions/functions.php', 'app/integrations/vmware/cache/search-provider.php'})
+    dependencies = runtime_dependencies(pins)
     units = {}
     for suffix in ['service', 'timer']:
         rel = 'deployment/systemd/' + TEMPLATE + suffix
@@ -304,7 +326,8 @@ class Rollout:
             records[rel] = {'old': digest(path.read_bytes()) if exists else None, 'new': digest(value),
                 'metadata': meta(path) if exists else None,
                 'installed_metadata': meta(path) if exists else {'uid': 0, 'gid': 0, 'mode': 0o644}}
-        dependencies = {rel: digest(safe(app / rel).read_bytes()) for rel in package['dependencies']}
+        dependencies = dependency_hashes(app, package['dependencies'])
+        print('PHASE5G4_RUNTIME_DEPENDENCIES_OK=' + str(len(dependencies)), flush=True)
         # Validate all staged outputs before the first persistent provisioning step.
         with tempfile.TemporaryDirectory(prefix='phpipam-rollout-lint-') as tmp:
             for rel, value in {**files, **{ 'worker/' + k: v for k, v in package['release'].items()}}.items():
