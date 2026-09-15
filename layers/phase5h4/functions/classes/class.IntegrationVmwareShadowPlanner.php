@@ -43,9 +43,16 @@ final class IntegrationVmwareShadowPlanner
             $cached=IntegrationVmwareCapabilityCache::get($capabilities,$kind,$id,$now);
             if (is_array($cached)) {
                 if (($cached['current_supported'] ?? null) === false) { $unsupported[]=['kind'=>$kind,'id'=>$id,'reason'=>'provider_not_realtime']; continue; }
-                $counters=[];
-                foreach (self::METRIC_MAP as $name=>$_) if (($cached['counters'][$name] ?? null)==='available') $counters[]=$name;
+                $counters=[]; $resolved=0;
+                foreach (self::METRIC_MAP as $name=>$_) {
+                    $status=$cached['counters'][$name] ?? null;
+                    if (in_array($status,['available','aggregate_unavailable','counter_unavailable'],true)) ++$resolved;
+                    if ($status==='available') $counters[]=$name;
+                }
                 if ($counters!==[]) { $plans[]=['kind'=>$kind,'id'=>$id,'interval_id'=>$cached['refresh_rate'],'counters'=>$counters]; continue; }
+                // A complete, unexpired negative capability result is resolved until its TTL expires.
+                // Do not spend the bounded revalidation budget on the same aggregate-unavailable entity every cycle.
+                if ($resolved===count(self::METRIC_MAP)) { $unsupported[]=['kind'=>$kind,'id'=>$id,'reason'=>'aggregate_metrics_unavailable']; continue; }
             }
             $parts=$telemetryRead($id);
             if (!is_array($parts)) { $due[]=['kind'=>$kind,'id'=>$id]; continue; }
@@ -77,7 +84,10 @@ final class IntegrationVmwareShadowPlanner
         }
         $wanted=[];
         foreach ($plans as $plan) {
-            if (!is_array($plan) || !is_string($plan['id'] ?? null) || !is_array($plan['counters'] ?? null)) throw new InvalidArgumentException('shadow_metric_plan_invalid');
+            if (!is_array($plan) || !is_string($plan['id'] ?? null) || !is_array($plan['counters'] ?? null) ||
+                !is_int($plan['interval_id'] ?? null) || $plan['interval_id']<1 || $plan['interval_id']>300) {
+                throw new InvalidArgumentException('shadow_metric_plan_invalid');
+            }
             $wanted[$plan['id']]=$plan;
         }
         $out=[];
@@ -86,18 +96,35 @@ final class IntegrationVmwareShadowPlanner
             if (!is_array($row) || ($row['id'] ?? null)!==$id || ($row['kind'] ?? null)!==($plan['kind'] ?? null)) throw new RuntimeException('shadow_metric_result_missing');
             $state=$row['state'] ?? null;
             if (!in_array($state,['returned','empty','partial','not_returned'],true)) throw new RuntimeException('shadow_metric_state_invalid');
+            $attempt=is_int($row['collected_at'] ?? null)?$row['collected_at']:$now;
             $record=['kind'=>$plan['kind'],'id'=>$id,'state'=>$state==='not_returned'?'not_returned':($state==='partial'?'partial':'ok'),
-                'attempted_at'=>is_int($row['collected_at'] ?? null)?$row['collected_at']:$now,'series'=>[]];
+                'attempted_at'=>$attempt,'series'=>[]];
             if ($state!=='not_returned') {
+                $samples=$row['samples'] ?? [];
+                if (!is_array($samples) || !array_is_list($samples)) throw new RuntimeException('shadow_metric_sample_invalid');
+                $latest=null;
+                foreach ($samples as $sample) {
+                    if (!is_array($sample) || !is_int($sample['observed_at'] ?? null) || !is_array($sample['values'] ?? null)) {
+                        throw new RuntimeException('shadow_metric_sample_invalid');
+                    }
+                    $latest=$latest===null ? $sample['observed_at'] : max($latest,$sample['observed_at']);
+                }
+                $freshness=min(300,max(60,$plan['interval_id']*3));
+                if ($latest===null || $latest < $now-$freshness) {
+                    // QueryPerf can legitimately return only an old historical sample. That is not fresh evidence.
+                    // Preserve the prior good series in FastDomain and mark this attempt stale instead of republishing old data as fresh.
+                    $record['state']='stale_source';
+                    $out[]=$record;
+                    continue;
+                }
                 $missing=array_fill_keys($row['missing_counters'] ?? [],true);
                 foreach ($plan['counters'] as $canonical) {
                     if (isset($missing[$canonical])) continue;
                     $name=self::METRIC_MAP[$canonical] ?? null;
                     if ($name===null) throw new RuntimeException('shadow_metric_counter_invalid');
                     $points=[];
-                    foreach ($row['samples'] ?? [] as $sample) {
-                        if (!is_array($sample) || !is_int($sample['observed_at'] ?? null) || !is_array($sample['values'] ?? null) ||
-                            !array_key_exists($canonical,$sample['values'])) throw new RuntimeException('shadow_metric_sample_invalid');
+                    foreach ($samples as $sample) {
+                        if (!array_key_exists($canonical,$sample['values'])) throw new RuntimeException('shadow_metric_sample_invalid');
                         $points[]=['observed_at'=>$sample['observed_at'],'value'=>$sample['values'][$canonical]];
                     }
                     $record['series'][$name]=$points;
