@@ -56,6 +56,8 @@ jobs:
               'git clone --shared --no-checkout "$REPO" "$WORK/patch"',
               'test -z "$(git -C "$WORK/base" status --porcelain)"',
               'test -z "$(git -C "$WORK/patch" status --porcelain)"',
+              'PYTHONDONTWRITEBYTECODE=1 python3 -B -',
+              'test -z "$(git -C "$root" status --porcelain)"',
               'PHASE5G5_STALE_HOST_PATCH_WAIT=1',
               'PHASE5G5_STALE_HOST_PATCH_IDLE_WINDOW=1',
               'PHASE5G5_STALE_HOST_PATCH_TIMEOUT=5G5_BUSY',
