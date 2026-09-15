@@ -66,9 +66,10 @@ IFS=: read -r TARGET_UID TARGET_GID TARGET_MODE TARGET_LINKS TARGET_SIZE <<<"$TA
 test "$TARGET_LINKS" = '1'
 test "$TARGET_SIZE" -gt 1024
 test "$TARGET_SIZE" -lt 1048576
-case "$TARGET_MODE" in
-    *[2367][2367]|*[2367]) echo 'STOP: runtime source is group/other writable.'; exit 1 ;;
-esac
+if [ "$((8#$TARGET_MODE & 0022))" -ne 0 ]; then
+    echo 'STOP: runtime source is group/other writable.'
+    exit 1
+fi
 
 WORK="$(mktemp -d /var/tmp/phpipam-phase5g5-stale-host.XXXXXXXX)"
 chmod 0700 "$WORK"
