@@ -10,9 +10,11 @@ on:
       - 'layers/phase5h4/**'
       - 'tools/phase5h4-shadow-run.php'
       - 'tools/phase5h4-post-stale-diagnose.php'
+      - 'tools/phase5h4-counter-registry-diagnose.php'
       - 'tools/install-phase5h4-shadow.py'
       - 'tools/live/phase5h-stale-mor-rebench.sh'
       - 'tools/live/phase5h-post-stale-diagnose.sh'
+      - 'tools/live/phase5h-counter-registry-diagnose.sh'
       - 'tests/phase5h-*'
       - '.github/workflows/phase5h4-shadow.yml'
       - 'design/PHASE5H4_SHADOW_CYCLE.md'
@@ -42,8 +44,10 @@ jobs:
           php -l layers/phase5h4/functions/classes/class.IntegrationVmwareShadowCycle.php
           php -l tools/phase5h4-shadow-run.php
           php -l tools/phase5h4-post-stale-diagnose.php
+          php -l tools/phase5h4-counter-registry-diagnose.php
           bash -n tools/live/phase5h-stale-mor-rebench.sh
           bash -n tools/live/phase5h-post-stale-diagnose.sh
+          bash -n tools/live/phase5h-counter-registry-diagnose.sh
           python3 - <<'PY'
           from pathlib import Path
           compile(Path('tools/install-phase5h4-shadow.py').read_text(), 'tools/install-phase5h4-shadow.py', 'exec')
@@ -58,9 +62,21 @@ jobs:
           diag_live=Path('tools/live/phase5h-post-stale-diagnose.sh').read_text()
           for required in ['PHASE5H_POSTSTALE_SOURCE=', 'phase5h4-post-stale-diagnose.php', 'runuser -u www-data', 'timeout --signal=TERM']:
               assert required in diag_live, required
+          counter=Path('tools/phase5h4-counter-registry-diagnose.php').read_text()
+          for required in ['PHASE5H_COUNTERDIAG_RESULT=', "'selected_mapping_safe'", "'selected_canonical_conflicts'", "'selected_id_conflicts'", "'selected_unit_conflicts'", "'shadow_written' = false"]:
+              if required == "'shadow_written' = false":
+                  assert "$result['shadow_written'] = false;" in counter
+              else:
+                  assert required in counter, required
+          for forbidden in ["->update(", "->publish(", 'systemctl', 'faultstring', 'base64']:
+              assert forbidden not in counter, forbidden
+          counter_live=Path('tools/live/phase5h-counter-registry-diagnose.sh').read_text()
+          for required in ['PHASE5H_COUNTERDIAG_SOURCE=', 'phase5h4-counter-registry-diagnose.php', 'runuser -u www-data', 'timeout --signal=TERM']:
+              assert required in counter_live, required
           for forbidden in ['systemctl stop', 'systemctl disable', 'base64']:
               assert forbidden not in live, forbidden
               assert forbidden not in diag_live, forbidden
+              assert forbidden not in counter_live, forbidden
           PY
           php tests/phase5h4-shadow-planner.test.php
           php tests/phase5h4-shadow-cycle.test.php
