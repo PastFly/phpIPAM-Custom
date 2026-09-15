@@ -136,8 +136,6 @@ else:
     rh=receipt.setdefault('runtime_hotfixes',[])
     if not isinstance(rh,list): raise SystemExit('metadata_shape')
     rh.append({'id':'stale_host_membership','source':patch,'backup':backup})
-    # Worker guard consumes release.json only. Publish that complete manifest atomically first;
-    # receipt follows solely for receipt-aware recovery history.
     atomic(manifest_path,new_manifest,0o444)
     atomic(receipt_path,encoded(receipt),0o600)
     print('PHASE5G5_STALE_HOST_METADATA_V2_RECONCILE_OK=1')
@@ -159,10 +157,25 @@ runuser -u www-data -- /usr/bin/python3 "$RELEASE/tools/phase5g4-worker.py" --st
 STATUS_RC=$?
 set -e
 printf 'PHASE5G5_STALE_HOST_METADATA_V2_GUARD_STATUS_EXIT=%s\n' "$STATUS_RC"
-if [ "$STATUS_RC" -ne 0 ]; then
+if [ "$STATUS_RC" -ne 0 ] && [ "$STATUS_RC" -ne 2 ]; then
     echo "PHASE5G5_STALE_HOST_METADATA_V2_GUARD_STATUS_LOG=$STATUS_LOG"
     exit "$STATUS_RC"
 fi
+STATUS_LOG="$STATUS_LOG" STATUS_RC="$STATUS_RC" PYTHONDONTWRITEBYTECODE=1 python3 -B - <<'PY'
+import json, os
+from pathlib import Path
+path=Path(os.environ['STATUS_LOG']); rc=int(os.environ['STATUS_RC'])
+try:
+    value=json.loads(path.read_text())
+except Exception:
+    raise SystemExit('status_json_invalid')
+if not isinstance(value,dict): raise SystemExit('status_json_invalid')
+state=value.get('state')
+if rc == 2 and state != 'error': raise SystemExit('status_exit_state_mismatch')
+if rc == 0 and state == 'error': raise SystemExit('status_exit_state_mismatch')
+print('PHASE5G5_STALE_HOST_METADATA_V2_GUARD_ACCEPTED=1')
+print('PHASE5G5_STALE_HOST_METADATA_V2_STATUS_STATE=' + str(state))
+PY
 rm -f -- "$STATUS_LOG"
 
 printf 'PHASE5G5_STALE_HOST_METADATA_V2_SERVICE_AFTER=%s/%s pid=%s\n' \
