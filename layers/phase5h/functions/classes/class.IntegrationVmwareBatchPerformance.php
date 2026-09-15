@@ -34,11 +34,19 @@ final class IntegrationVmwareBatchPerformance
             $rollup = IntegrationVmwareBatchSession::text(IntegrationVmwareBatchSession::one($counter, 'rollupType'));
             foreach ([$group, $name, $unit, $rollup] as $token) if (!preg_match('/^[A-Za-z][A-Za-z0-9_.-]{0,127}$/D', $token)) throw new RuntimeException('batch_counter_registry_invalid');
             $canonical = $group . '.' . $name . '.' . $rollup;
-            if (isset($names[$canonical]) || isset($ids[$id])) throw new RuntimeException('batch_counter_duplicate');
-            $names[$canonical] = true; $ids[$id] = true;
-            if (!isset(self::UNITS[$canonical])) continue;
-            if (self::UNITS[$canonical] !== $unit) throw new RuntimeException('batch_counter_unit_invalid');
-            $defs[$canonical] = ['id' => $id, 'unit' => $unit];
+            if (isset(self::UNITS[$canonical]) && self::UNITS[$canonical] !== $unit) throw new RuntimeException('batch_counter_unit_invalid');
+            $definition = ['id' => $id, 'unit' => $unit];
+            // Some vCenter versions return the same PerfCounterInfo more than once. An operationally
+            // equivalent duplicate is harmless for this collector; conflicting ID/name/unit mappings
+            // remain fail-closed so QueryPerf can never be issued against an ambiguous registry.
+            if (isset($names[$canonical]) || isset($ids[$id])) {
+                if (($names[$canonical] ?? null) !== $definition || ($ids[$id] ?? null) !== ['canonical' => $canonical, 'unit' => $unit]) {
+                    throw new RuntimeException('batch_counter_duplicate');
+                }
+                continue;
+            }
+            $names[$canonical] = $definition; $ids[$id] = ['canonical' => $canonical, 'unit' => $unit];
+            if (isset(self::UNITS[$canonical])) $defs[$canonical] = $definition;
         }
         return $this->definitions = $defs;
     }

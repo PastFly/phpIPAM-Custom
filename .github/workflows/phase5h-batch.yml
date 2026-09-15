@@ -28,6 +28,7 @@ jobs:
           set -euo pipefail
           php -r 'if (!class_exists("DOMDocument")) exit(1);'
           php -d memory_limit=256M tests/phase5h-batch.test.php
+          php tests/phase5h-counter-registry-duplicate.test.php
           python3 -B tests/phase5h-boundary.test.py
       - name: Retained encrypted state, metrics and installed runtime contracts
         run: |
