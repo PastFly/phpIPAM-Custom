@@ -15,6 +15,7 @@ INSPECT_REL='tools/phase5h5-shadow-inspect.php'
 INSPECT_BLOB='ce31b97df4422fde2cfd64e154ae61ab9d2da592'
 CYCLES=3
 INTERVAL=60
+LOCK_WAIT_LIMIT=180
 
 TMP=''
 SUMMARY=''
@@ -82,6 +83,33 @@ verify_timer() {
     [ "$(systemctl show "$TIMER" -p ActiveState --value)" = active ] || { echo 'STOP: production timer not active'; exit 1; }
     [ "$(systemctl show "$TIMER" -p UnitFileState --value)" = enabled ] || { echo 'STOP: production timer not enabled'; exit 1; }
 }
+
+acquire_production_lock() {
+    local cycle="$1" start now elapsed last_report=-1
+    exec 9<>"$LOCK"
+    start="$(date +%s)"
+    printf 'PHASE5H5_CYCLE_%s_LOCK_WAIT=1\n' "$cycle"
+    while ! flock -x -n 9; do
+        verify_timer
+        now="$(date +%s)"
+        elapsed=$((now-start))
+        if [ "$elapsed" -ge "$LOCK_WAIT_LIMIT" ]; then
+            printf 'PHASE5H5_CYCLE_%s_LOCK_TIMEOUT_SECONDS=%s\n' "$cycle" "$elapsed"
+            exec 9>&-
+            return 1
+        fi
+        if [ "$elapsed" -eq 0 ] || [ $((elapsed/10)) -ne "$last_report" ]; then
+            printf 'PHASE5H5_CYCLE_%s_LOCK_WAIT_SECONDS=%s\n' "$cycle" "$elapsed"
+            last_report=$((elapsed/10))
+        fi
+        sleep 5
+    done
+    LOCK_HELD=1
+    now="$(date +%s)"
+    LOCK_WAIT=$((now-start))
+    printf 'PHASE5H5_CYCLE_%s_LOCK_ACQUIRED=1\nPHASE5H5_CYCLE_%s_LOCK_WAIT_SECONDS=%s\n' "$cycle" "$cycle" "$LOCK_WAIT"
+}
+
 verify_timer
 
 echo 'PHASE5H5_RECURRING_PREFLIGHT_OK=1'
@@ -97,15 +125,9 @@ for cycle in $(seq 1 "$CYCLES"); do
     CYCLE_START="$(date +%s)"
     RUN_LOG="$TMP/run-$cycle.log"
     INSPECT_LOG="$TMP/inspect-$cycle.log"
+    LOCK_WAIT=0
 
-    exec 9<>"$LOCK"
-    LOCK_START="$(date +%s)"
-    printf 'PHASE5H5_CYCLE_%s_LOCK_WAIT=1\n' "$cycle"
-    flock -x -w 180 9 || { echo "STOP: cycle $cycle timed out waiting for production worker lock"; exit 1; }
-    LOCK_HELD=1
-    LOCK_END="$(date +%s)"
-    LOCK_WAIT=$((LOCK_END-LOCK_START))
-    printf 'PHASE5H5_CYCLE_%s_LOCK_ACQUIRED=1\nPHASE5H5_CYCLE_%s_LOCK_WAIT_SECONDS=%s\n' "$cycle" "$cycle" "$LOCK_WAIT"
+    acquire_production_lock "$cycle" || { echo "STOP: cycle $cycle timed out waiting for production worker lock"; exit 1; }
 
     set +e
     timeout --signal=TERM --kill-after=5s 150s runuser -u www-data -- php -d memory_limit=512M "$RUNNER" >"$RUN_LOG" 2>&1
@@ -195,7 +217,7 @@ PY
     fi
 done
 
-SUMMARY="$SUMMARY" INTERVAL="$INTERVAL" PYTHONDONTWRITEBYTECODE=1 python3 -B - <<'PY'
+SUMMARY="$SUMMARY" PYTHONDONTWRITEBYTECODE=1 python3 -B - <<'PY'
 import json, os
 from pathlib import Path
 rows=[json.loads(line) for line in Path(os.environ['SUMMARY']).read_text().splitlines() if line.strip()]
