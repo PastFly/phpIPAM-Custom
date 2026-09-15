@@ -25,6 +25,7 @@ cleanup() {
 trap cleanup EXIT
 
 [ "$(id -u)" -eq 0 ] || { echo 'STOP: root required'; exit 1; }
+for cmd in git php runuser timeout systemctl; do command -v "$cmd" >/dev/null; done
 cd -- "$REPO"
 [ "$(git rev-parse --show-toplevel)" = "$REPO" ]
 [ "$(git rev-parse HEAD)" = "$PROTECTED" ] || { echo 'STOP: protected checkout HEAD changed'; exit 1; }
@@ -45,7 +46,9 @@ DIAG="$WORK/worktree/$REL"
 [ "$(git -C "$WORK/worktree" rev-parse HEAD)" = "$SOURCE" ]
 [ -f "$DIAG" ] && [ ! -L "$DIAG" ]
 [ "$(git -C "$WORK/worktree" hash-object "$DIAG")" = "$DIAG_BLOB" ]
+php -l "$DIAG" >/dev/null
 runuser -u www-data -- test -r "$DIAG"
+echo 'PHASE5G5_FAILDIAG_SOURCE_VERIFIED=1'
 
 LOG="$(mktemp /var/tmp/phpipam-phase5g5-faildiag.XXXXXXXX.log)"
 chmod 600 "$LOG"
