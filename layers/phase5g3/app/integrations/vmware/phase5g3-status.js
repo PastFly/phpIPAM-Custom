@@ -64,7 +64,10 @@
             if (hasTotal && data.state === 'collecting') message += ' Обработано ' + Math.max(0, count) + ' из ' + total + '.';
             if (data.stale && !initializing) message += ' Показаны ранее собранные данные.';
             if (data.worker_silent) message += ' Давно нет сигнала от фоновой службы; проверьте её состояние.';
-            if (data.last_error) message += ' Ошибка: ' + (errors[data.last_error] || 'сбой фоновой службы') + '.';
+            if (data.last_error) {
+                message += (data.state === 'collecting' ? ' Предыдущая ошибка: ' : ' Ошибка: ') +
+                    (errors[data.last_error] || 'сбой фоновой службы') + '.';
+            }
             if (data.retry_at) message += ' Следующая попытка не раньше ' + date(data.retry_at) + '.';
             $detail.text(message + ' Открытие страницы не запускает сбор.');
             var metrics = data.telemetry || {};
