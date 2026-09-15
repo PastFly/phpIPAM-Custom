@@ -53,10 +53,6 @@ if [ "$TIMER_ACTIVE" != 'active' ] || [ "$TIMER_ENABLED" != 'enabled' ]; then
     echo 'STOP: normal 5G.5 timer is not active/enabled.'
     exit 1
 fi
-if [ "$SERVICE_ACTIVE" != 'inactive' ]; then
-    echo 'PHASE5G5_STALE_HOST_PATCH_DEFERRED=5G5_BUSY'
-    exit 0
-fi
 
 test -f "$TARGET"
 test ! -L "$TARGET"
@@ -139,6 +135,42 @@ if [ "$TARGET_BLOB" = "$NEW_BLOB" ]; then
 fi
 if [ "$TARGET_BLOB" != "$OLD_BLOB" ]; then
     echo 'STOP: installed 5G.5 source does not match reviewed baseline.'
+    exit 1
+fi
+
+# Do not stop or disable production. Wait for a naturally idle service window.
+WAIT_STARTED="$(date +%s)"
+WAIT_ANNOUNCED=0
+while :; do
+    TIMER_ACTIVE_NOW="$(systemctl show "$TIMER" -p ActiveState --value)"
+    TIMER_ENABLED_NOW="$(systemctl show "$TIMER" -p UnitFileState --value)"
+    SERVICE_ACTIVE_NOW="$(systemctl show "$SERVICE" -p ActiveState --value)"
+    SERVICE_SUB_NOW="$(systemctl show "$SERVICE" -p SubState --value)"
+    if [ "$TIMER_ACTIVE_NOW" != 'active' ] || [ "$TIMER_ENABLED_NOW" != 'enabled' ]; then
+        echo 'STOP: normal 5G.5 timer changed state while waiting.'
+        exit 1
+    fi
+    if [ "$SERVICE_ACTIVE_NOW" = 'inactive' ]; then
+        break
+    fi
+    if [ "$WAIT_ANNOUNCED" -eq 0 ]; then
+        echo 'PHASE5G5_STALE_HOST_PATCH_WAIT=1'
+        WAIT_ANNOUNCED=1
+    fi
+    NOW="$(date +%s)"
+    if [ $((NOW - WAIT_STARTED)) -ge 900 ]; then
+        echo 'PHASE5G5_STALE_HOST_PATCH_TIMEOUT=5G5_BUSY'
+        exit 1
+    fi
+    sleep 2
+done
+WAIT_SECONDS=$(( $(date +%s) - WAIT_STARTED ))
+printf 'PHASE5G5_STALE_HOST_PATCH_IDLE_WINDOW=1\nPHASE5G5_STALE_HOST_PATCH_WAIT_SECONDS=%s\n' "$WAIT_SECONDS"
+
+# Re-check that the runtime file did not drift while preflight/waiting.
+TARGET_BLOB="$(git hash-object "$TARGET")"
+if [ "$TARGET_BLOB" != "$OLD_BLOB" ]; then
+    echo 'STOP: installed 5G.5 source changed while waiting.'
     exit 1
 fi
 
