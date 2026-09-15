@@ -3,7 +3,7 @@ on:
   push:
     branches: ['phase5h/**']
   pull_request:
-    paths: ['layers/phase5h/**', 'tests/phase5h-*', '.github/workflows/phase5h-batch.yml', 'design/PHASE5H_BATCH_COLLECTION.md']
+    paths: ['layers/phase5h/**', 'layers/phase5h4/**', 'tests/phase5h-*', '.github/workflows/phase5h-batch.yml', 'design/PHASE5H_BATCH_COLLECTION.md']
 permissions:
   contents: read
 jobs:
@@ -23,12 +23,13 @@ jobs:
           php-version: ${{ matrix.php }}
           extensions: dom, sodium, posix, pcntl, curl, mbstring
           coverage: none
-      - name: SOAP batching, fault handling, session scope and full-scale fixtures
+      - name: SOAP batching, recoverable stale MORs, fault handling and full-scale fixtures
         run: |
           set -euo pipefail
           php -r 'if (!class_exists("DOMDocument")) exit(1);'
           php -d memory_limit=256M tests/phase5h-batch.test.php
           php tests/phase5h-counter-registry-duplicate.test.php
+          php tests/phase5h-stale-mor.test.php
           python3 -B tests/phase5h-boundary.test.py
       - name: Retained encrypted state, metrics and installed runtime contracts
         run: |

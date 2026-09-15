@@ -71,7 +71,6 @@ final class IntegrationVmwareBatchSession
             if ($this->cookie !== null && isset($this->managers['sessionManager'])) {
                 try { $this->exchange('Logout', '<_this type="SessionManager">' . self::xml($this->managers['sessionManager']) . '</_this>', true); }
                 catch (Throwable $e) {
-                    // Authorization loss during cleanup must never authorize publishing the earlier result.
                     if ($error === null || in_array($e->getMessage(), ['batch_access_denied', 'batch_binding_changed'], true)) $error = $e;
                 }
             }
@@ -95,7 +94,13 @@ final class IntegrationVmwareBatchSession
             throw new RuntimeException('batch_read_scope');
         }
         try { return $this->exchange($operation, $body); }
-        catch (Throwable $e) { $this->failed = true; throw $e; }
+        catch (Throwable $e) {
+            // ManagedObjectNotFound is an object-level race/stale-roster condition, not a poisoned
+            // authenticated SOAP session. Collectors may isolate that MOR and continue. Every other
+            // failure remains fail-closed for the entire session.
+            if ($e->getMessage() !== 'batch_managed_object_not_found') $this->failed = true;
+            throw $e;
+        }
     }
     public function statistics(): array
     {
@@ -109,25 +114,17 @@ final class IntegrationVmwareBatchSession
         }
         $wire = '<s:Envelope xmlns:s="' . self::SOAP . '"><s:Body><' . $operation . ' xmlns="urn:vim25">' . $inner . '</' . $operation . '></s:Body></s:Envelope>';
         if (strlen($wire) > 1048576) throw new RuntimeException('batch_request_limit');
-        // Reparse generated requests as well: callers cannot smuggle a second operation or a DTD.
         self::response($wire, $operation, false);
         $headers = ['Content-Type: text/xml; charset=utf-8', 'Accept: text/xml'];
         if ($this->cookie !== null) $headers[] = 'Cookie: ' . $this->cookie;
         ++$this->requests; $this->operations[$operation] = ($this->operations[$operation] ?? 0) + 1;
         $timeout = min($cleanup ? 3 : 20, max(1, (int)$remaining));
         try { $reply = ($this->transport)('POST', $this->runtime['endpoint'] . '/sdk', $headers, $wire, true, min(8, $timeout), $timeout); }
-        catch (Throwable $e) {
-            // Never propagate arbitrary cURL/provider text or raw request bodies.
-            throw new RuntimeException('batch_transport_failed');
-        }
+        catch (Throwable $e) { throw new RuntimeException('batch_transport_failed'); }
         $this->guard();
-        if (!is_array($reply) || !is_int($reply['status'] ?? null) || !is_string($reply['body'] ?? null)) {
-            throw new RuntimeException('batch_transport_shape');
-        }
+        if (!is_array($reply) || !is_int($reply['status'] ?? null) || !is_string($reply['body'] ?? null)) throw new RuntimeException('batch_transport_shape');
         if (in_array($reply['status'], [401, 403], true)) throw new RuntimeException('batch_access_denied');
-        if (strlen($reply['body']) > 8388608 || ($this->bytes += strlen($reply['body'])) > 67108864) {
-            throw new RuntimeException('batch_response_limit');
-        }
+        if (strlen($reply['body']) > 8388608 || ($this->bytes += strlen($reply['body'])) > 67108864) throw new RuntimeException('batch_response_limit');
         if ($reply['status'] === 200 && $operation === 'Login') {
             $cookies = [];
             foreach ($reply['headers'] ?? [] as $line) {
@@ -135,15 +132,12 @@ final class IntegrationVmwareBatchSession
                 if (stripos($line, 'Set-Cookie:') !== 0) continue;
                 $pair = trim(explode(';', substr($line, 11), 2)[0]);
                 if (stripos($pair, 'vmware_soap_session=') !== 0) continue;
-                if (!preg_match('/^vmware_soap_session=(?:"[A-Za-z0-9._~+\/=\-]{1,512}"|[A-Za-z0-9._~+\/=\-]{1,512})$/D', $pair)) {
-                    throw new RuntimeException('batch_cookie_invalid');
-                }
+                if (!preg_match('/^vmware_soap_session=(?:"[A-Za-z0-9._~+\/=\-]{1,512}"|[A-Za-z0-9._~+\/=\-]{1,512})$/D', $pair)) throw new RuntimeException('batch_cookie_invalid');
                 $cookies[] = $pair;
             }
             if (count($cookies) !== 1) throw new RuntimeException('batch_session_cookie_missing');
             $this->cookie = $cookies[0];
         }
-        // SOAP faults may arrive with HTTP 500. Classify structural access faults before status.
         $element = self::response($reply['body'], $operation . 'Response');
         if ($reply['status'] !== 200) throw new RuntimeException('batch_http_failed');
         return $element;
@@ -164,16 +158,20 @@ final class IntegrationVmwareBatchSession
         foreach ($bodies[0]->childNodes as $n) if ($n instanceof DOMElement) $entries[] = $n;
         if (count($entries) !== 1) throw new RuntimeException('batch_operation_invalid');
         if ($checkFault) {
-            $xp = new DOMXPath($doc);
+            $xp = new DOMXPath($doc); $managedObjectMissing = false;
             foreach ($xp->query('//*') as $n) {
-                $type = $n->getAttributeNS('http://www.w3.org/2001/XMLSchema-instance', 'type');
-                $type = preg_replace('/^.*:/', '', $type);
+                $type = preg_replace('/^.*:/', '', $n->getAttributeNS('http://www.w3.org/2001/XMLSchema-instance', 'type'));
                 if (in_array($n->localName, ['NoPermission', 'NoPermissionFault', 'NotAuthenticated', 'NotAuthenticatedFault'], true) ||
                     in_array($type, ['NoPermission', 'NoPermissionFault', 'NotAuthenticated', 'NotAuthenticatedFault'], true)) {
                     throw new RuntimeException('batch_access_denied');
                 }
+                if (in_array($n->localName, ['ManagedObjectNotFound', 'ManagedObjectNotFoundFault'], true) ||
+                    in_array($type, ['ManagedObjectNotFound', 'ManagedObjectNotFoundFault'], true)) $managedObjectMissing = true;
             }
-            if ($entries[0]->localName === 'Fault') throw new RuntimeException('batch_soap_fault');
+            if ($entries[0]->localName === 'Fault') {
+                if ($managedObjectMissing) throw new RuntimeException('batch_managed_object_not_found');
+                throw new RuntimeException('batch_soap_fault');
+            }
         }
         if ($entries[0]->namespaceURI !== self::VIM || $entries[0]->localName !== $name) throw new RuntimeException('batch_operation_invalid');
         return $entries[0];
