@@ -58,10 +58,11 @@ IntegrationVmwareVcenterDirectTransport::$reply = [
 ];
 expect_code(fn() => $soap('POST', $runtime['endpoint'] . '/sdk', [], $request, true, 8, 20), 'mirror_membership_changed');
 
+// XML Schema Instance namespace prefix is intentionally not "xsi".
 IntegrationVmwareVcenterDirectTransport::$reply = [
     'status' => 500,
     'headers' => [],
-    'body' => '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><s:Body><s:Fault><detail><fault xsi:type="ManagedObjectNotFound"/></detail></s:Fault></s:Body></s:Envelope>',
+    'body' => '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" xmlns:q="http://www.w3.org/2001/XMLSchema-instance" xmlns:vim="urn:vim25"><s:Body><s:Fault><detail><fault q:type="vim:ManagedObjectNotFound"/></detail></s:Fault></s:Body></s:Envelope>',
 ];
 expect_code(fn() => $soap('POST', $runtime['endpoint'] . '/sdk', [], $request, true, 8, 20), 'mirror_membership_changed');
 
@@ -74,6 +75,15 @@ IntegrationVmwareVcenterDirectTransport::$reply = [
 $result = $soap('POST', $runtime['endpoint'] . '/sdk', [], $request, true, 8, 20);
 if (($result['status'] ?? null) !== 500) throw new RuntimeException('generic_fault_was_reclassified');
 
+// A similarly named element outside a SOAP Fault is not authoritative evidence of stale membership.
+IntegrationVmwareVcenterDirectTransport::$reply = [
+    'status' => 500,
+    'headers' => [],
+    'body' => '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><RetrievePropertiesResponse xmlns="urn:vim25"><ManagedObjectNotFoundFault/></RetrievePropertiesResponse></s:Body></s:Envelope>',
+];
+$result = $soap('POST', $runtime['endpoint'] . '/sdk', [], $request, true, 8, 20);
+if (($result['status'] ?? null) !== 500) throw new RuntimeException('non_fault_element_was_reclassified');
+
 // Authorization faults retain the stronger existing fail-closed path.
 IntegrationVmwareVcenterDirectTransport::$reply = [
     'status' => 500,
@@ -82,7 +92,7 @@ IntegrationVmwareVcenterDirectTransport::$reply = [
 ];
 expect_code(fn() => $soap('POST', $runtime['endpoint'] . '/sdk', [], $request, true, 8, 20), 'mirror_access_denied');
 
-// HTTP success carrying an ordinary property value cannot trigger drift classification.
+// HTTP success carrying ordinary text cannot trigger drift classification.
 IntegrationVmwareVcenterDirectTransport::$reply = [
     'status' => 200,
     'headers' => [],
