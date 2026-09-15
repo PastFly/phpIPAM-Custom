@@ -14,8 +14,9 @@ INSPECT_SOURCE='da2e4d10534044023dc3acd073fc37ead50741a8'
 INSPECT_REL='tools/phase5h5-shadow-inspect.php'
 INSPECT_BLOB='ce31b97df4422fde2cfd64e154ae61ab9d2da592'
 RUNNER_BLOB='7ecaa1af168933456069e057bd23de2d2a185dcb'
-FAST_BLOB='366ce1d6a702c91a3556d3a2a969ff9993aad1d4'
+FAST_BLOB='48279e71f7621e249435d47396c09e765e664340'
 PLANNER_BLOB='898d9bf64cfe328dc2243fc938b1c709e234c486'
+CYCLE_BLOB='9064e26f6d76f6e09ee7e615f2ae7e5c2506e129'
 PERF_BLOB='b35127f8e28e503f558a08327b73cf9c6d41002a'
 MAX_CYCLES=7
 STEADY_REQUIRED=3
@@ -67,6 +68,7 @@ check_blob() {
 check_blob 'tools/phase5h4-shadow-run.php' "$RUNNER_BLOB"
 check_blob 'layers/phase5h2/functions/classes/class.IntegrationVmwareFastDomain.php' "$FAST_BLOB"
 check_blob 'layers/phase5h4/functions/classes/class.IntegrationVmwareShadowPlanner.php' "$PLANNER_BLOB"
+check_blob 'layers/phase5h4/functions/classes/class.IntegrationVmwareShadowCycle.php' "$CYCLE_BLOB"
 check_blob 'layers/phase5h/functions/classes/class.IntegrationVmwareBatchPerformance.php' "$PERF_BLOB"
 
 for dir in "$SHADOW_DATA" "$SHADOW_DATA/properties" "$SHADOW_DATA/metrics" "$SHADOW_DATA/capabilities" "$SHADOW_DATA/roster"; do
@@ -114,6 +116,7 @@ echo 'PHASE5H5_STEADY_PREFLIGHT_OK=1'
 echo 'PHASE5H5_STEADY_NO_VIEWER=1'
 echo 'PHASE5H5_STEADY_EXPECTS_NEW_FAST_DOMAIN=1'
 echo 'PHASE5H5_STEADY_EXPECTS_NEW_PLANNER=1'
+echo 'PHASE5H5_STEADY_EXPECTS_NEW_SHADOW_CYCLE=1'
 echo 'PHASE5H5_STEADY_WEBSITE_CHANGED=0'
 echo 'PHASE5H5_STEADY_SYSTEMD_CHANGED=0'
 
