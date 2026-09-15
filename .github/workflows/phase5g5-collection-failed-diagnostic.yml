@@ -5,7 +5,9 @@ on:
   pull_request:
     paths:
       - 'tools/phase5g5-collection-failed-diagnose.php'
+      - 'tools/phase5g5-host-fault-type-diagnose.php'
       - 'tools/live/phase5g5-collection-failed-diagnose.sh'
+      - 'tools/live/phase5g5-host-fault-type-diagnose.sh'
       - '.github/workflows/phase5g5-collection-failed-diagnostic.yml'
 permissions:
   contents: read
@@ -30,11 +32,15 @@ jobs:
         run: |
           set -euo pipefail
           php -l tools/phase5g5-collection-failed-diagnose.php
+          php -l tools/phase5g5-host-fault-type-diagnose.php
           bash -n tools/live/phase5g5-collection-failed-diagnose.sh
+          bash -n tools/live/phase5g5-host-fault-type-diagnose.sh
           python3 - <<'PY'
           from pathlib import Path
           diag=Path('tools/phase5g5-collection-failed-diagnose.php').read_text()
+          host=Path('tools/phase5g5-host-fault-type-diagnose.php').read_text()
           live=Path('tools/live/phase5g5-collection-failed-diagnose.sh').read_text()
+          host_live=Path('tools/live/phase5g5-host-fault-type-diagnose.sh').read_text()
           for required in [
               'PHASE5G5_FAILDIAG_STATE=', 'PHASE5G5_FAILDIAG_REPLAY=',
               'ACTIVE_WORKER_LOCK', 'flock($productionLock, LOCK_EX | LOCK_NB)',
@@ -42,15 +48,32 @@ jobs:
               "return 'managed_object_not_found';", "return 'timeout';", "return 'transport';"
           ]:
               assert required in diag, required
-          for forbidden in ['->write(', 'discardPending(', '->tick(', 'systemctl', 'var_dump(', 'print_r(']:
-              assert forbidden not in diag, forbidden
+          for required in [
+              'PHASE5G5_HOSTFAULT_STATE=', 'PHASE5G5_HOSTFAULT_RESULT=',
+              'flock($productionLock, LOCK_EX | LOCK_NB)',
+              "str_contains($normalized, 'managedobjectnotfound')",
+              "return 'invalid_property';", "return 'soap_fault_unclassified';",
+              'IntegrationVmwareVcenterSoapReadOnly($soap', "'shadow_written'=>false"
+          ]:
+              assert required in host, required
+          for text in [diag, host]:
+              for forbidden in ['->write(', 'discardPending(', '->tick(', 'systemctl', 'var_dump(', 'print_r(']:
+                  assert forbidden not in text, forbidden
           for required in [
               "SOURCE='a98d0e4f6dd3526bd084af5156e26ab971968c6f'",
               "DIAG_BLOB='ce8959fdd7aabffdebdd84ea3d2ba5ac0933f115'",
               'runuser -u www-data', 'timeout --signal=TERM', 'PHASE5G5_FAILDIAG_BLOCK_EXIT='
           ]:
               assert required in live, required
-          for forbidden in ['systemctl stop', 'systemctl disable', 'base64']:
-              assert forbidden not in live, forbidden
+          for required in [
+              "SOURCE='d346f47456b32e8f7c7452454cba5471995f06bb'",
+              "DIAG_BLOB='e157e5b95021945fcba9fe3381e5bfdc3c71b776'",
+              'php -l "$DIAG"', 'runuser -u www-data',
+              'PHASE5G5_HOSTFAULT_SOURCE_VERIFIED=1', 'PHASE5G5_HOSTFAULT_BLOCK_EXIT='
+          ]:
+              assert required in host_live, required
+          for text in [live, host_live]:
+              for forbidden in ['systemctl stop', 'systemctl disable', 'base64']:
+                  assert forbidden not in text, forbidden
           print('PHASE5G5_COLLECTION_FAILED_DIAGNOSTIC_BOUNDARY_OK')
           PY
