@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dormancy, source-preservation and no-persistence contracts. DOM behavior runs separately."""
+"""Dormancy, source-preservation and no-production-wiring contracts. DOM behavior runs separately."""
 from pathlib import Path
 import hashlib
 import subprocess
@@ -23,10 +23,28 @@ for path in files:
     text = path.read_text()
     for forbidden in ['$_POST', '$_GET', 'file_put_contents(', 'fopen(', 'mysqli', 'Database_PDO', 'systemctl', 'exec(', '->write(']:
         assert forbidden not in text, (path, forbidden)
-# No production collector, route, installer, or timer references the dormant batch classes yet.
+
+# PR47 introduced exactly two reviewed, non-serving shadow tools. They may reference the batch
+# classes, but their exact blobs are pinned here and their dedicated transaction tests prove that
+# they do not wire Phase5H into /var/www/html or the active 5G.5 systemd units/data.
+shadow_tools = {
+    'tools/install-phase5h4-shadow.py': '249d591396ee88f9b594220c55c4eb672c62dc17',
+    'tools/phase5h4-shadow-run.php': '7ecaa1af168933456069e057bd23de2d2a185dcb',
+}
+for relative, expected in shadow_tools.items():
+    raw = (ROOT / relative).read_bytes()
+    assert hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest() == expected, relative
+    assert 'IntegrationVmwareBatch' in raw.decode(), relative
+
+# No production collector, website route, rollout/recovery engine or timer references the batch
+# classes. Only the exact isolated one-shot shadow package above is exempted.
 for folder in ['tools', 'deployment', 'layers/phase5g', 'layers/phase5g2', 'layers/phase5g3', 'layers/phase5g4', 'layers/phase5g5']:
     for path in (ROOT / folder).rglob('*'):
         if path.is_file() and path.suffix in ['.php', '.py', '.js', '.service', '.timer']:
+            relative = path.relative_to(ROOT).as_posix()
+            if relative in shadow_tools:
+                continue
             assert 'IntegrationVmwareBatch' not in path.read_text(), path
 print('PHASE5H_PRESERVED_PINS=7')
+print('PHASE5H_REVIEWED_SHADOW_TOOL_PINS=2')
 print('PHASE5H_NO_PRODUCTION_WIRING_OR_PERSISTENCE_OK')
