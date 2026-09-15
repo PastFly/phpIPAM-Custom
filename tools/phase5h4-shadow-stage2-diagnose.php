@@ -2,8 +2,9 @@
 <?php
 /**
  * Bounded non-writing diagnostic for a live Phase5H shadow pass after counter-registry compatibility.
- * Uses the same active 5G.5 inventory/context and the reviewed Phase5H batch/planner classes,
- * but never publishes any fast domain.
+ * Uses the same active 5G.5 context plus the reviewed Phase5H batch/planner classes,
+ * but never publishes any fast domain. It shares the exact 5G.5 connector worker mutex so a
+ * production inventory/telemetry tick and this diagnostic can never overlap upstream SOAP work.
  */
 if (PHP_SAPI !== 'cli' || !function_exists('posix_geteuid') || posix_geteuid() !== 33 || posix_getegid() !== 33 || $argc !== 1) {
     fwrite(STDERR, "PHASE5H_STAGE2_ERROR=identity\nPHASE5H_STAGE2_EXIT=1\n"); exit(1);
@@ -11,7 +12,8 @@ if (PHP_SAPI !== 'cli' || !function_exists('posix_geteuid') || posix_geteuid() !
 const APP = '/var/www/html';
 const ACTIVE = '/opt/phpipam-custom/inventory-recovery5g5';
 const SHADOW_ROOT = '/var/lib/phpipam-custom/vmware-fast-shadow';
-$stage = 'bootstrap'; $runtime = null; $key = null;
+const ACTIVE_WORKER_LOCK = '/var/lib/phpipam-custom/vmware-inventory-recovery5g5/connector-1/worker.lock';
+$stage = 'bootstrap'; $runtime = null; $key = null; $productionLock = null; $lockHeld = false; $lockWaitStarted = null;
 $startedWall = microtime(true);
 $clean = static function (Throwable $e): string {
     $m = $e->getMessage();
@@ -30,9 +32,45 @@ try {
     require_once $root . '/layers/phase5h4/functions/classes/class.IntegrationVmwareShadowPlanner.php';
 
     $stage = 'context';
-    $db = new Database_PDO(); $ctx = new IntegrationVmwareInventoryContext($db, APP, 1);
+    $db = new Database_PDO(); $ctx = new IntegrationVmwareInventoryContext($db, APP, 1); $store = $ctx->store();
+
+    // The active 5G.5 inventory worker and telemetry sampler both serialize all upstream work on
+    // this exact connector worker.lock via IntegrationVmwareInventoryStore::exclusive(). Take the
+    // same lock before reading the active generation and hold it through SOAP Logout. The timer may
+    // fire while we own it, but its tick returns busy instead of opening a second upstream session.
+    $stage = 'production_lock';
+    IntegrationVmwareInventoryStore::noLinks(ACTIVE_WORKER_LOCK);
+    clearstatcache(true, ACTIVE_WORKER_LOCK); $st = @lstat(ACTIVE_WORKER_LOCK);
+    if (!$st || ($st['mode'] & 0170000) !== 0100000 || $st['uid'] !== 33 || $st['gid'] !== 33 ||
+        ($st['mode'] & 0777) !== 0600 || $st['nlink'] !== 1 || $st['size'] !== 0) {
+        throw new RuntimeException('active_worker_lock_invalid');
+    }
+    $productionLock = @fopen(ACTIVE_WORKER_LOCK, 'r+b');
+    if ($productionLock === false) throw new RuntimeException('active_worker_lock_invalid');
+    $opened = fstat($productionLock);
+    if (!$opened || $opened['ino'] !== $st['ino'] || $opened['dev'] !== $st['dev'] ||
+        ($opened['mode'] & 0170000) !== 0100000 || ($opened['mode'] & 0777) !== 0600 ||
+        $opened['uid'] !== 33 || $opened['gid'] !== 33 || $opened['nlink'] !== 1 || $opened['size'] !== 0) {
+        throw new RuntimeException('active_worker_lock_changed');
+    }
+    $lockWaitStarted = microtime(true); $announced = false;
+    while (!flock($productionLock, LOCK_EX | LOCK_NB)) {
+        if (!$announced) { print "PHASE5H_STAGE2_LOCK_WAIT=1\n"; $announced = true; }
+        if (microtime(true) - $lockWaitStarted >= 600) throw new RuntimeException('active_worker_busy');
+        usleep(250000);
+        clearstatcache(true, ACTIVE_WORKER_LOCK); $now = @lstat(ACTIVE_WORKER_LOCK);
+        if (!$now || $now['ino'] !== $st['ino'] || $now['dev'] !== $st['dev'] || $now['size'] !== 0) {
+            throw new RuntimeException('active_worker_lock_changed');
+        }
+    }
+    $lockHeld = true;
+    $lockWaitMs = (int)round((microtime(true) - $lockWaitStarted) * 1000);
+    print 'PHASE5H_STAGE2_LOCK_ACQUIRED=1' . "\n";
+    print 'PHASE5H_STAGE2_LOCK_WAIT_MS=' . $lockWaitMs . "\n";
+
+    $stage = 'context_locked';
     if (!$ctx->current()) throw new RuntimeException('mirror_access_denied');
-    $store = $ctx->store(); $current = $store->read('current');
+    $current = $store->read('current');
     if (!is_array($current) || !is_array($current['inventory'] ?? null) || !empty($current['blocked'])) throw new RuntimeException('shadow_inventory_unavailable');
     $telemetry = $ctx->telemetry(); if ($telemetry === null) throw new RuntimeException('active_telemetry_unavailable');
     $epoch = $current['access_epoch'] ?? 'initial'; if (!is_string($epoch) || $epoch === '') throw new RuntimeException('shadow_epoch_invalid');
@@ -116,13 +154,15 @@ try {
     $generationUnchanged = ($store->read('current')['generation'] ?? null) === ($current['generation'] ?? null);
     print 'PHASE5H_STAGE2_RESULT=' . json_encode($wire + [
         'requests'=>$stats['requests'], 'response_bytes'=>$stats['response_bytes'],
-        'wall_ms'=>(int)round((microtime(true)-$startedWall)*1000),
+        'wall_ms'=>(int)round((microtime(true)-$startedWall)*1000), 'lock_wait_ms'=>$lockWaitMs,
         'active_generation_unchanged'=>$generationUnchanged, 'shadow_written'=>false
     ], JSON_THROW_ON_ERROR) . "\n";
     print "PHASE5H_STAGE2_EXIT=0\n"; $rc=0;
 } catch (Throwable $e) {
     fwrite(STDERR, 'PHASE5H_STAGE2_STAGE=' . $stage . "\nPHASE5H_STAGE2_ERROR=" . $clean($e) . "\nPHASE5H_STAGE2_EXIT=1\n"); $rc=1;
 } finally {
+    if ($lockHeld && is_resource($productionLock)) flock($productionLock, LOCK_UN);
+    if (is_resource($productionLock)) fclose($productionLock);
     if (is_array($runtime) && isset($runtime['password']) && is_string($runtime['password'])) sodium_memzero($runtime['password']);
     if (is_string($key)) sodium_memzero($key);
 }
