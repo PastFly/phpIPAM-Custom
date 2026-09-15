@@ -34,7 +34,8 @@
         function active() { return !closed && win.document.visibilityState !== 'hidden'; }
         function date(value) {
             if (!Number.isFinite(value) || value <= 0) return 'ещё не завершена';
-            var d = new Date(value * 1000); return isNaN(d.getTime()) ? 'неизвестно' : d.toISOString().replace('T', ' ').replace('.000Z', ' UTC');
+            var d = new Date((value + 10800) * 1000);
+            return isNaN(d.getTime()) ? 'неизвестно' : d.toISOString().replace('T', ' ').replace('.000Z', ' UTC+3');
         }
         function abort() { serial++; if (timer !== null) win.clearTimeout(timer); timer = null; if (flight) flight.abort(); flight = null; }
         function schedule() { if (active() && !stopped) timer = win.setTimeout(poll, 30000); }
