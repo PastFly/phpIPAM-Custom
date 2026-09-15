@@ -31,6 +31,7 @@ jobs:
           set -euo pipefail
           php -l tools/phase5h5-shadow-inspect.php
           bash -n tools/live/phase5h5-recurring-shadow-accept.sh
+          bash -u -c 'SHADOW=/tmp; f(){ local rel="$1" expected="$2"; local path="$SHADOW/$rel"; test "$path" = /tmp/example && test "$expected" = deadbeef; }; f example deadbeef'
           python3 - <<'PY'
           from pathlib import Path
           inspect=Path('tools/phase5h5-shadow-inspect.php').read_text()
@@ -41,12 +42,16 @@ jobs:
               "LOCK='/var/lib/phpipam-custom/vmware-inventory-recovery5g5/connector-1/worker.lock'",
               'CYCLES=3','INTERVAL=60','LOCK_WAIT_LIMIT=180',
               'while ! flock -x -n 9','LOCK_WAIT_SECONDS=',
+              'local rel="$1" expected="$2"\n    local path="$SHADOW/$rel"',
               'phase5h4-shadow-run.php','PHASE5H5_RECURRING_ACCEPTANCE=',
               'target_60_300_acceptance','PHASE5H5_RECURRING_SHADOW_ACCEPT_OK=1',
               'PHASE5H5_RECURRING_WEBSITE_CHANGED=0','PHASE5H5_RECURRING_SYSTEMD_CHANGED=0'
           ]:
               assert required in live, required
-          for forbidden in ['systemctl stop','systemctl disable','systemctl enable','base64','flock -x -w 180 9']:
+          for forbidden in [
+              'systemctl stop','systemctl disable','systemctl enable','base64','flock -x -w 180 9',
+              'local rel="$1" expected="$2" path="$SHADOW/$rel"'
+          ]:
               assert forbidden not in live, forbidden
           for required in [
               'PHASE5H5_SHADOW_INSPECT=', 'shadow_read_only_inspection',
