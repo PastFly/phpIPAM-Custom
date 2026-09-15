@@ -4,12 +4,13 @@ on:
     branches: ['phase5h/**']
   pull_request:
     paths:
+      - 'layers/phase5h/**'
       - 'layers/phase5h2/**'
       - 'layers/phase5h3/**'
       - 'layers/phase5h4/**'
       - 'tools/phase5h4-shadow-run.php'
       - 'tools/install-phase5h4-shadow.py'
-      - 'tests/phase5h4-*'
+      - 'tests/phase5h-*'
       - '.github/workflows/phase5h4-shadow.yml'
       - 'design/PHASE5H4_SHADOW_CYCLE.md'
 permissions:
@@ -31,7 +32,7 @@ jobs:
           php-version: ${{ matrix.php }}
           extensions: dom, sodium, posix
           coverage: none
-      - name: Shadow planning, encrypted publication and retained collectors
+      - name: Shadow planning, stale MOR policy, encrypted publication and retained collectors
         run: |
           set -euo pipefail
           php -l layers/phase5h4/functions/classes/class.IntegrationVmwareShadowPlanner.php
@@ -43,6 +44,7 @@ jobs:
           PY
           php tests/phase5h4-shadow-planner.test.php
           php tests/phase5h4-shadow-cycle.test.php
+          php tests/phase5h-stale-mor.test.php
           sudo python3 -B tests/phase5h4-shadow-installer.test.py
           php tests/phase5h2-fast-domain.test.php
           php tests/phase5h2-roster.test.php
