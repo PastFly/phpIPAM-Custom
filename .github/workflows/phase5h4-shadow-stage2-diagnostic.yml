@@ -1,0 +1,46 @@
+name: Phase 5H Shadow Stage2 Diagnostic
+on:
+  push:
+    branches: ['phase5h/shadow-stage2-diagnostic']
+  pull_request:
+    paths:
+      - 'tools/phase5h4-shadow-stage2-diagnose.php'
+      - '.github/workflows/phase5h4-shadow-stage2-diagnostic.yml'
+permissions:
+  contents: read
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: dom, sodium, posix, pcntl, curl, mbstring
+          coverage: none
+      - name: Syntax and no-publication boundary
+        run: |
+          set -euo pipefail
+          php -l tools/phase5h4-shadow-stage2-diagnose.php
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('tools/phase5h4-shadow-stage2-diagnose.php').read_text()
+          for forbidden in ["->update('properties'", "->update('metrics'", "->publish('capabilities'", 'systemctl', '/var/www/html/app/']:
+              assert forbidden not in text, forbidden
+          for required in ['PHASE5H_STAGE2_STAGE=', 'counter_registry', 'capability_provider_', 'capability_availability_', 'metrics_batch_', "'shadow_written'=>false"]:
+              assert required in text, required
+          print('PHASE5H_STAGE2_DIAGNOSTIC_NON_WRITING_CONTRACT_OK')
+          PY
+      - name: Retained batch and shadow planner regressions
+        run: |
+          set -euo pipefail
+          php tests/phase5h-batch.test.php
+          php tests/phase5h-counter-registry-duplicate.test.php
+          php tests/phase5h4-shadow.test.php
