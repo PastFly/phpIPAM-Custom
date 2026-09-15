@@ -3,12 +3,12 @@ set -euo pipefail
 
 REPO='/tmp/phpipam-custom-phase0'
 PROTECTED='f7aedad68781bccfcac1985a1b240c3c515715ef'
-SOURCE='2de23d8b4a236f8737c9edd9c653d90f4fb6918e'
+SOURCE='ff0742af15d5aab2bc8b8ad62f666357ddac4b81'
 SOURCE_BRANCH='phase5g/status-popover-utc3'
 REL='layers/phase5g3/app/integrations/vmware/phase5g3-status.js'
 TARGET='/var/www/html/app/integrations/vmware/phase5g3-status.js'
-OLD_BLOB='f69c7659da79604681cc2a5212871dba1f45825a'
-NEW_BLOB='52b48d09aa3bd65cfc19cd3007068ca8f8219a94'
+OLD_BLOB='52b48d09aa3bd65cfc19cd3007068ca8f8219a94'
+NEW_BLOB='45c0c5004f9416e6e34016b0fa3effcaf3c058ff'
 TIMER='phpipam-vmware-recovery5g5@1.timer'
 
 TMP=''
@@ -21,11 +21,11 @@ cleanup() {
     trap - EXIT
     if [ "$PATCH_IN_PROGRESS" -eq 1 ] && [ "$PATCH_OK" -ne 1 ] && [ -n "$BACKUP" ] && [ -f "$BACKUP/phase5g3-status.js" ]; then
         install -o root -g root -m 0644 "$BACKUP/phase5g3-status.js" "$TARGET" || true
-        echo 'PHASE5G6_UTC3_AUTO_ROLLBACK=1'
+        echo 'PHASE5G6_UTC3_INLINE_AUTO_ROLLBACK=1'
     fi
     [ -n "$TMP" ] && rm -f -- "$TMP"
-    printf '\nPHASE5G6_UTC3_BLOCK_EXIT=%s\n' "$rc"
-    [ -n "$BACKUP" ] && printf 'PHASE5G6_UTC3_BACKUP=%s\n' "$BACKUP"
+    printf '\nPHASE5G6_UTC3_INLINE_BLOCK_EXIT=%s\n' "$rc"
+    [ -n "$BACKUP" ] && printf 'PHASE5G6_UTC3_INLINE_BACKUP=%s\n' "$BACKUP"
     exit "$rc"
 }
 trap cleanup EXIT
@@ -44,9 +44,9 @@ cd -- "$REPO"
 git fetch --no-tags origin "$SOURCE_BRANCH"
 git cat-file -e "${SOURCE}^{commit}"
 git merge-base --is-ancestor "$SOURCE" FETCH_HEAD
-printf 'PHASE5G6_UTC3_SOURCE=%s\n' "$SOURCE"
+printf 'PHASE5G6_UTC3_INLINE_SOURCE=%s\n' "$SOURCE"
 
-TMP="$(mktemp /var/tmp/phpipam-phase5g6-utc3.XXXXXXXX.js)"
+TMP="$(mktemp /var/tmp/phpipam-phase5g6-utc3-inline.XXXXXXXX.js)"
 git show "${SOURCE}:${REL}" > "$TMP"
 [ "$(git hash-object "$TMP")" = "$NEW_BLOB" ] || { echo 'STOP: source blob mismatch'; exit 1; }
 
@@ -60,21 +60,21 @@ read -r uid gid mode links < <(stat -c '%u %g %a %h' "$TARGET")
 CURRENT="$(git hash-object "$TARGET")"
 if [ "$CURRENT" = "$OLD_BLOB" ]; then
     STAMP="$(date -u +%Y%m%d-%H%M%S)"
-    BACKUP="/var/backups/phpipam-custom/vmware-ui-status-utc3-${STAMP}"
+    BACKUP="/var/backups/phpipam-custom/vmware-ui-status-inline-${STAMP}"
     install -d -o root -g root -m 0700 "$BACKUP"
     install -o root -g root -m 0600 "$TARGET" "$BACKUP/phase5g3-status.js"
     PATCH_IN_PROGRESS=1
 
-    NEW_TARGET="${TARGET}.phase5g6-utc3.$$"
+    NEW_TARGET="${TARGET}.phase5g6-inline.$$"
     install -o root -g root -m 0644 "$TMP" "$NEW_TARGET"
     mv -f -- "$NEW_TARGET" "$TARGET"
 
     [ "$(git hash-object "$TARGET")" = "$NEW_BLOB" ] || { echo 'STOP: live JS verify failed'; exit 1; }
     PATCH_OK=1
-    echo 'PHASE5G6_UTC3_PATCH_OK=1'
+    echo 'PHASE5G6_UTC3_INLINE_PATCH_OK=1'
 elif [ "$CURRENT" = "$NEW_BLOB" ]; then
     PATCH_OK=1
-    echo 'PHASE5G6_UTC3_ALREADY_PATCHED=1'
+    echo 'PHASE5G6_UTC3_INLINE_ALREADY_PATCHED=1'
 else
     printf 'STOP: unexpected live JS blob: %s\n' "$CURRENT"
     exit 1
@@ -84,7 +84,8 @@ fi
 [ "$(systemctl show "$TIMER" -p UnitFileState --value)" = enabled ]
 systemctl show "$TIMER" --no-pager -p ActiveState -p SubState -p UnitFileState
 
-echo 'PHASE5G6_UTC3_WORKER_CHANGED=0'
-echo 'PHASE5G6_UTC3_DATA_CHANGED=0'
-echo 'PHASE5G6_UTC3_SYSTEMD_CHANGED=0'
-echo 'PHASE5G6_UTC3_INSTALL_OK=1'
+echo 'PHASE5G6_UTC3_INLINE_LAYOUT_OK=1'
+echo 'PHASE5G6_UTC3_INLINE_WORKER_CHANGED=0'
+echo 'PHASE5G6_UTC3_INLINE_DATA_CHANGED=0'
+echo 'PHASE5G6_UTC3_INLINE_SYSTEMD_CHANGED=0'
+echo 'PHASE5G6_UTC3_INLINE_INSTALL_OK=1'
