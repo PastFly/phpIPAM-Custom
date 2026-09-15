@@ -21,19 +21,10 @@ final class IntegrationVmwareInventoryNative
     }
     public static function h($value): string { return htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
     private static function stamp(?int $value): string { return $value === null ? 'нет данных' : gmdate('Y-m-d H:i:s', $value) . ' UTC'; }
+    /** Freshness is exposed by the single global status popover; cards must not duplicate it inline. */
     public static function freshness(array $entry, ?int $observed = null): string
     {
-        $observed = $observed ?? $entry['collected_at'] ?? $entry['collection_started_at'] ?? null;
-        $warning = !empty($entry['stale']) || !empty($entry['last_error']);
-        $html = '<div class="small phase5g2-freshness ' . ($warning ? 'text-warning' : 'text-muted') . '">';
-        $html .= 'Локальный инвентарь · сбор: ' . self::h(self::stamp($observed));
-        if ($warning) $html .= ' · данные могут быть устаревшими';
-        if (($entry['state'] ?? '') === 'collecting' || empty($entry['has_inventory'])) {
-            $progress = $entry['progress'] ?? [];
-            $html .= ' · синхронизация: ' . (int)($progress['completed'] ?? 0) . ' / ' .
-                (isset($progress['total']) ? (int)$progress['total'] : '—');
-        }
-        return $html . ' · без опроса vCenter</div>';
+        return '';
     }
     private static function section(array $record, string $name): ?array
     {
