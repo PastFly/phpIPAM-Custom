@@ -9,8 +9,10 @@ on:
       - 'layers/phase5h3/**'
       - 'layers/phase5h4/**'
       - 'tools/phase5h4-shadow-run.php'
+      - 'tools/phase5h4-post-stale-diagnose.php'
       - 'tools/install-phase5h4-shadow.py'
       - 'tools/live/phase5h-stale-mor-rebench.sh'
+      - 'tools/live/phase5h-post-stale-diagnose.sh'
       - 'tests/phase5h-*'
       - '.github/workflows/phase5h4-shadow.yml'
       - 'design/PHASE5H4_SHADOW_CYCLE.md'
@@ -33,21 +35,32 @@ jobs:
           php-version: ${{ matrix.php }}
           extensions: dom, sodium, posix
           coverage: none
-      - name: Shadow planning, stale MOR policy, encrypted publication and live launcher
+      - name: Shadow planning, stale MOR policy, diagnostics and live launchers
         run: |
           set -euo pipefail
           php -l layers/phase5h4/functions/classes/class.IntegrationVmwareShadowPlanner.php
           php -l layers/phase5h4/functions/classes/class.IntegrationVmwareShadowCycle.php
           php -l tools/phase5h4-shadow-run.php
+          php -l tools/phase5h4-post-stale-diagnose.php
           bash -n tools/live/phase5h-stale-mor-rebench.sh
+          bash -n tools/live/phase5h-post-stale-diagnose.sh
           python3 - <<'PY'
           from pathlib import Path
           compile(Path('tools/install-phase5h4-shadow.py').read_text(), 'tools/install-phase5h4-shadow.py', 'exec')
           live=Path('tools/live/phase5h-stale-mor-rebench.sh').read_text()
           for required in ['PHASE5H_STALE_MOR_PATCH_OK=1', 'flock -x -w 600 9', 'PHASE5H_STALE_MOR_REBENCH_SOURCE=', 'vmware-fast-shadow-stale-mor-']:
               assert required in live, required
+          diag=Path('tools/phase5h4-post-stale-diagnose.php').read_text()
+          for required in ['PHASE5H_POSTSTALE_STAGE=', 'metrics_batch_', 'properties_merge_dry_run', 'metrics_normalize_dry_run', 'metrics_merge_dry_run', "'shadow_written'=>false"]:
+              assert required in diag, required
+          for forbidden in ["->update('properties'", "->update('metrics'", "->publish('capabilities'", 'systemctl']:
+              assert forbidden not in diag, forbidden
+          diag_live=Path('tools/live/phase5h-post-stale-diagnose.sh').read_text()
+          for required in ['PHASE5H_POSTSTALE_SOURCE=', 'phase5h4-post-stale-diagnose.php', 'runuser -u www-data', 'timeout --signal=TERM']:
+              assert required in diag_live, required
           for forbidden in ['systemctl stop', 'systemctl disable', 'base64']:
               assert forbidden not in live, forbidden
+              assert forbidden not in diag_live, forbidden
           PY
           php tests/phase5h4-shadow-planner.test.php
           php tests/phase5h4-shadow-cycle.test.php
