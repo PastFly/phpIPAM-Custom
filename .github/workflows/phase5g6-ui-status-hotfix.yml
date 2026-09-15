@@ -7,6 +7,7 @@ on:
       - 'layers/phase5g2/functions/classes/class.IntegrationVmwareInventoryNative.php'
       - 'layers/phase5g3/app/integrations/vmware/phase5g3-status.js'
       - 'tools/phase5g6-ui-status-hotfix.py'
+      - 'tools/live/phase5g6-status-utc3-hotfix.sh'
       - 'tests/phase5g6-ui-status-hotfix.test.py'
       - 'tests/phase5g2-native.test.php'
       - 'tests/phase5g3-status-browser.test.js'
@@ -39,6 +40,16 @@ jobs:
           php -l layers/phase5g2/functions/classes/class.IntegrationVmwareInventoryNative.php
           node --check layers/phase5g3/app/integrations/vmware/phase5g3-status.js
           python3 -m py_compile tools/phase5g6-ui-status-hotfix.py
+          bash -n tools/live/phase5g6-status-utc3-hotfix.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('tools/live/phase5g6-status-utc3-hotfix.sh').read_text()
+          for required in ['PHASE5G6_UTC3_PATCH_OK=1','vmware-ui-status-utc3-','OLD_BLOB=','NEW_BLOB=','PHASE5G6_UTC3_INSTALL_OK=1']:
+              assert required in text, required
+          for forbidden in ['systemctl stop','systemctl disable','base64']:
+              assert forbidden not in text, forbidden
+          print('PHASE5G6_UTC3_LIVE_LAUNCHER_BOUNDARY_OK')
+          PY
           sudo python3 -B tests/phase5g6-ui-status-hotfix.test.py
       - name: Native local rendering and status browser regressions
         run: |
