@@ -41,7 +41,7 @@ jobs:
         if: matrix.php == '8.4'
         run: |
           set -euo pipefail
-          PATCH=9ab66bf96ca1540cca03f64041d7abb1898ce246
+          PATCH=b92ff9cf4fad29e8191d551577550a89a32cd48c
           git merge-base --is-ancestor "$PATCH" HEAD
           bash -n tools/live/phase5g5-stale-host-membership-hotfix.sh
           python3 - <<'PY'
@@ -49,14 +49,16 @@ jobs:
           p=Path('tools/live/phase5g5-stale-host-membership-hotfix.sh').read_text()
           required=[
               "BASE='86751be5cde6cdd5e350d9ea50d1feaa2d3ef3ab'",
-              "PATCH='9ab66bf96ca1540cca03f64041d7abb1898ce246'",
+              "PATCH='b92ff9cf4fad29e8191d551577550a89a32cd48c'",
               "TARGET='/opt/phpipam-custom/inventory-recovery5g5/layers/phase5g/functions/classes/class.IntegrationVmwareInventorySource.php'",
               'PHASE5G5_STALE_HOST_PATCH_DEFERRED=5G5_BUSY',
+              'PHASE5G5_STALE_HOST_LOCAL_TESTS_OK=1',
               'PHASE5G5_STALE_HOST_DATA_CHANGED=0',
               'PHASE5G5_STALE_HOST_SYSTEMD_CHANGED=0',
               'PHASE5G5_STALE_HOST_WEB_CHANGED=0',
               'cmp -s "$OLD" "$NEW"',
               'git hash-object "$TARGET"',
+              'python3 -B tests/phase5g5-runtime-package.test.py',
           ]
           for value in required: assert value in p, value
           for forbidden in ['systemctl stop', 'systemctl disable', 'base64', '/var/www/html/']:
