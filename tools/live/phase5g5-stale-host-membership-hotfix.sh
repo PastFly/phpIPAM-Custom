@@ -4,7 +4,7 @@ set -euo pipefail
 REPO='/tmp/phpipam-custom-phase0'
 PROTECTED='f7aedad68781bccfcac1985a1b240c3c515715ef'
 BASE='86751be5cde6cdd5e350d9ea50d1feaa2d3ef3ab'
-PATCH='9ab66bf96ca1540cca03f64041d7abb1898ce246'
+PATCH='b92ff9cf4fad29e8191d551577550a89a32cd48c'
 BRANCH='phase5g5/stale-host-membership-recovery'
 TARGET='/opt/phpipam-custom/inventory-recovery5g5/layers/phase5g/functions/classes/class.IntegrationVmwareInventorySource.php'
 SERVICE='phpipam-vmware-recovery5g5@1.service'
@@ -75,6 +75,13 @@ WORK="$(mktemp -d /var/tmp/phpipam-phase5g5-stale-host.XXXXXXXX)"
 chmod 0700 "$WORK"
 git worktree add --detach "$WORK/base" "$BASE" >/dev/null
 git worktree add --detach "$WORK/patch" "$PATCH" >/dev/null
+
+# Execute the real generated-runtime package tests from the exact patch commit before any live write.
+(
+    cd -- "$WORK/patch"
+    python3 -B tests/phase5g5-runtime-package.test.py
+)
+echo 'PHASE5G5_STALE_HOST_LOCAL_TESTS_OK=1'
 
 build_source() {
     local root="$1" output="$2"
