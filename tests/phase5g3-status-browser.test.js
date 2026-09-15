@@ -49,6 +49,11 @@ const watchdog = setTimeout(() => { if (activeDom) activeDom.window.close(); con
     assert.match($('#phase5g3-status .phase5g3-status-detail').text(),/ранее собранные/);assert.match($('#phase5g3-status .phase5g3-status-detail').text(),/Давно нет сигнала/);
     assert.match($('#phase5g3-status .phase5g3-status-detail').text(),/Следующая попытка не раньше 2026-09-12 00:00:00 UTC\+3/,'retry time uses fixed UTC+3');
     assert.ok($('#phase5g3-status .phase5g3-status-info').hasClass('btn-warning'),'warning stays on compact indicator');
+    queued.push({data:state('1',{state:'collecting',last_error:'generation_expired',stale:true,progress:{completed:68,total:781}})});
+    $('#phase5g3-status .phase5g3-status-retry').trigger('click');await delay(30);
+    assert.match($('#phase5g3-status .phase5g3-status-title').text(),/Синхронизация 68\/781/,'active collection remains primary status');
+    assert.match($('#phase5g3-status .phase5g3-status-detail').text(),/Предыдущая ошибка: прерванный цикл устарел/,'carried error is historical during new generation');
+    assert.ok(!$('#phase5g3-status .phase5g3-status-detail').text().includes(' Ошибка: прерванный цикл устарел'),'historical error is not presented as current failure');
     $(w.document).trigger($.Event('keydown',{key:'Escape'}));assert.equal($('#phase5g3-status .phase5g3-status-popover').css('display'),'none');
     $('#phase5g3-status .phase5g3-status-info').trigger('click');assert.equal($('#phase5g3-status .phase5g3-status-popover').css('display'),'block');
     $(w.document.body).trigger('click');assert.equal($('#phase5g3-status .phase5g3-status-popover').css('display'),'none','outside click closes details');
