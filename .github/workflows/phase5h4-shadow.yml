@@ -58,20 +58,25 @@ jobs:
               assert required in selected, required
           freshness=Path('tools/live/phase5h5-freshness-capability-hotfix.sh').read_text()
           for required in [
-              "BEHAVIOR='0b78752001806c01e3cb1fb5cf517dd16666a116'",
-              "NEW_FAST='366ce1d6a702c91a3556d3a2a969ff9993aad1d4'",
+              "BEHAVIOR='29ef45598b075ba82897e0491a3cbb78b1b65093'",
+              "V1_FAST='366ce1d6a702c91a3556d3a2a969ff9993aad1d4'",
+              "NEW_FAST='48279e71f7621e249435d47396c09e765e664340'",
               "NEW_PLANNER='898d9bf64cfe328dc2243fc938b1c709e234c486'",
-              'PHASE5H5_FRESHNESS_LOCAL_TESTS_OK=1','PHASE5H5_FRESHNESS_PATCH_OK=1',
+              "NEW_CYCLE='9064e26f6d76f6e09ee7e615f2ae7e5c2506e129'",
+              'PHASE5H5_FRESHNESS_V2_LOCAL_TESTS_OK=1','PHASE5H5_FRESHNESS_V2_PATCH_OK=1',
+              'PHASE5H5_FRESHNESS_V2_STATE=',
               "LOCK='/var/lib/phpipam-custom/vmware-inventory-recovery5g5/connector-1/worker.lock'",
-              'while ! flock -x -n 9','PHASE5H5_FRESHNESS_WEBSITE_CHANGED=0','PHASE5H5_FRESHNESS_SYSTEMD_CHANGED=0'
+              'while ! flock -x -n 9','PHASE5H5_FRESHNESS_V2_WEBSITE_CHANGED=0','PHASE5H5_FRESHNESS_V2_SYSTEMD_CHANGED=0'
           ]:
               assert required in freshness, required
           steady=Path('tools/live/phase5h5-steady-state-accept.sh').read_text()
           for required in [
-              "FAST_BLOB='366ce1d6a702c91a3556d3a2a969ff9993aad1d4'",
+              "FAST_BLOB='48279e71f7621e249435d47396c09e765e664340'",
               "PLANNER_BLOB='898d9bf64cfe328dc2243fc938b1c709e234c486'",
+              "CYCLE_BLOB='9064e26f6d76f6e09ee7e615f2ae7e5c2506e129'",
               'MAX_CYCLES=7','STEADY_REQUIRED=3','INTERVAL=60','LOCK_WAIT_LIMIT=180',
               'PHASE5H5_STEADY_CONSECUTIVE_COUNT=', 'PHASE5H5_STEADY_ACCEPTANCE=',
+              'PHASE5H5_STEADY_EXPECTS_NEW_SHADOW_CYCLE=1',
               'target_60_300_acceptance','PHASE5H5_STEADY_SHADOW_ACCEPT_OK=1',
               'PHASE5H5_STEADY_WEBSITE_CHANGED=0','PHASE5H5_STEADY_SYSTEMD_CHANGED=0'
           ]:
