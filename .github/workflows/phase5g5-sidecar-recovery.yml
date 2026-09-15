@@ -51,6 +51,11 @@ jobs:
               "BASE='86751be5cde6cdd5e350d9ea50d1feaa2d3ef3ab'",
               "PATCH='b92ff9cf4fad29e8191d551577550a89a32cd48c'",
               "TARGET='/opt/phpipam-custom/inventory-recovery5g5/layers/phase5g/functions/classes/class.IntegrationVmwareInventorySource.php'",
+              'PHASE5G5_STALE_HOST_CLEAN_CLONES_OK=1',
+              'git clone --shared --no-checkout "$REPO" "$WORK/base"',
+              'git clone --shared --no-checkout "$REPO" "$WORK/patch"',
+              'test -z "$(git -C "$WORK/base" status --porcelain)"',
+              'test -z "$(git -C "$WORK/patch" status --porcelain)"',
               'PHASE5G5_STALE_HOST_PATCH_WAIT=1',
               'PHASE5G5_STALE_HOST_PATCH_IDLE_WINDOW=1',
               'PHASE5G5_STALE_HOST_PATCH_TIMEOUT=5G5_BUSY',
@@ -63,7 +68,7 @@ jobs:
               'python3 -B tests/phase5g5-runtime-package.test.py',
           ]
           for value in required: assert value in p, value
-          for forbidden in ['systemctl stop', 'systemctl disable', 'base64', '/var/www/html/']:
+          for forbidden in ['systemctl stop', 'systemctl disable', 'base64', '/var/www/html/', 'worktree add']:
               assert forbidden not in p, forbidden
           print('PHASE5G5_STALE_HOST_LIVE_BOUNDARY_OK')
           PY
