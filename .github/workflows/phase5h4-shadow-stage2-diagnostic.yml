@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - 'tools/phase5h4-shadow-stage2-diagnose.php'
+      - 'tools/phase5h4-properties-fault-diagnose.php'
       - '.github/workflows/phase5h4-shadow-stage2-diagnostic.yml'
 permissions:
   contents: read
@@ -29,24 +30,40 @@ jobs:
         run: |
           set -euo pipefail
           php -l tools/phase5h4-shadow-stage2-diagnose.php
+          php -l tools/phase5h4-properties-fault-diagnose.php
           python3 - <<'PY'
           from pathlib import Path
-          text=Path('tools/phase5h4-shadow-stage2-diagnose.php').read_text()
-          for forbidden in ["->update('properties'", "->update('metrics'", "->publish('capabilities'", 'systemctl', '/var/www/html/app/']:
-              assert forbidden not in text, forbidden
+          stage=Path('tools/phase5h4-shadow-stage2-diagnose.php').read_text()
+          probe=Path('tools/phase5h4-properties-fault-diagnose.php').read_text()
+          for text in [stage, probe]:
+              for forbidden in ["->update('properties'", "->update('metrics'", "->publish('capabilities'", 'systemctl', '/var/www/html/app/']:
+                  assert forbidden not in text, forbidden
+              assert "const ACTIVE_WORKER_LOCK = '/var/lib/phpipam-custom/vmware-inventory-recovery5g5/connector-1/worker.lock';" in text
+              assert 'IntegrationVmwareInventoryStore::noLinks(ACTIVE_WORKER_LOCK)' in text
+              assert 'flock($productionLock, LOCK_EX | LOCK_NB)' in text
+              assert 'flock($productionLock, LOCK_UN)' in text
           for required in [
               'PHASE5H_STAGE2_STAGE=', 'counter_registry', 'capability_provider_',
               'capability_availability_', 'metrics_batch_', "'shadow_written'=>false",
-              "const ACTIVE_WORKER_LOCK = '/var/lib/phpipam-custom/vmware-inventory-recovery5g5/connector-1/worker.lock';",
-              'IntegrationVmwareInventoryStore::noLinks(ACTIVE_WORKER_LOCK)',
-              'flock($productionLock, LOCK_EX | LOCK_NB)',
               'PHASE5H_STAGE2_LOCK_ACQUIRED=1', 'PHASE5H_STAGE2_LOCK_WAIT_MS='
           ]:
-              assert required in text, required
-          assert text.index('PHASE5H_STAGE2_LOCK_ACQUIRED=1') < text.index("$current = $store->read('current')")
-          assert text.index("$current = $store->read('current')") < text.index('new IntegrationVmwareBatchSession')
-          assert 'flock($productionLock, LOCK_UN)' in text
-          print('PHASE5H_STAGE2_DIAGNOSTIC_SHARED_MUTEX_NON_WRITING_CONTRACT_OK')
+              assert required in stage, required
+          assert stage.index('PHASE5H_STAGE2_LOCK_ACQUIRED=1') < stage.index("$current = $store->read('current')")
+          assert stage.index("$current = $store->read('current')") < stage.index('new IntegrationVmwareBatchSession')
+          for required in [
+              'PHASE5H_PROPFAULT_BATCH=', 'PHASE5H_PROPFAULT_ERROR=',
+              "'ManagedObjectNotFound' => 'managed_object_not_found'",
+              "'InvalidProperty' => 'invalid_property'",
+              "'InvalidArgument' => 'invalid_argument'",
+              "'NotSupported' => 'not_supported'",
+              "'MethodNotFound' => 'method_not_found'",
+              "'InvalidType' => 'invalid_type'",
+              "'shadow_written'=>false"
+          ]:
+              assert required in probe, required
+          for forbidden in ['faultstring', 'textContent);', 'PHASE5H_PROPFAULT_ID=', 'PHASE5H_PROPFAULT_PROPERTY=']:
+              assert forbidden not in probe, forbidden
+          print('PHASE5H_STAGE2_DIAGNOSTIC_SHARED_MUTEX_SAFE_FAULT_CLASSIFIER_OK')
           PY
       - name: Retained batch and shadow planner regressions
         run: |
