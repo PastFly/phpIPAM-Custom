@@ -78,14 +78,14 @@ final class IntegrationVmwareFastDomain
             if (!is_array($record) || !is_string($record['id'] ?? null) ||
                 !preg_match('/^(vm|host)-[0-9]{1,20}$/D', $record['id']) ||
                 !in_array($record['kind'] ?? null, ['vm', 'host'], true) ||
-                !in_array($record['state'] ?? null, ['ok', 'partial', 'not_returned', 'stale_source', 'unsupported'], true)) {
+                !in_array($record['state'] ?? null, ['ok', 'partial', 'not_returned', 'stale_source', 'capability_pending', 'unsupported'], true)) {
                 throw new RuntimeException('fast_metric_record_invalid');
             }
             $id = $record['id'];
             $old = $state['objects'][$id] ?? ['id' => $id, 'kind' => $record['kind'], 'series' => []];
             if (($old['kind'] ?? null) !== $record['kind']) throw new RuntimeException('fast_metric_kind_changed');
             $attempt = self::boundedTime($record['attempted_at'] ?? $now, $now) ?? $now;
-            if (in_array($record['state'], ['not_returned', 'stale_source'], true)) {
+            if (in_array($record['state'], ['not_returned', 'stale_source', 'capability_pending'], true)) {
                 $old['object_state'] = 'stale';
                 $old['last_attempt_at'] = $attempt;
                 $old['last_attempt_result'] = $record['state'];
