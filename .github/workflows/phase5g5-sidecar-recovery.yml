@@ -3,7 +3,7 @@ on:
   push:
     branches: ['phase5g/**']
   pull_request:
-    paths: ['tools/*phase5g5*', 'tests/phase5g5-*', 'layers/phase5g5/**', '.github/workflows/phase5g5-sidecar-recovery.yml']
+    paths: ['tools/*phase5g5*', 'tools/live/phase5g5-*', 'tests/phase5g5-*', 'layers/phase5g5/**', '.github/workflows/phase5g5-sidecar-recovery.yml']
 permissions:
   contents: read
 jobs:
@@ -37,3 +37,29 @@ jobs:
           python3 -B tests/phase5g2-contracts.test.py
           php tests/phase5g3-telemetry.test.php
           php tests/phase5g4-readiness.test.php
+      - name: Guard stale-host live hotfix boundary
+        if: matrix.php == '8.4'
+        run: |
+          set -euo pipefail
+          PATCH=9ab66bf96ca1540cca03f64041d7abb1898ce246
+          git merge-base --is-ancestor "$PATCH" HEAD
+          bash -n tools/live/phase5g5-stale-host-membership-hotfix.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tools/live/phase5g5-stale-host-membership-hotfix.sh').read_text()
+          required=[
+              "BASE='86751be5cde6cdd5e350d9ea50d1feaa2d3ef3ab'",
+              "PATCH='9ab66bf96ca1540cca03f64041d7abb1898ce246'",
+              "TARGET='/opt/phpipam-custom/inventory-recovery5g5/layers/phase5g/functions/classes/class.IntegrationVmwareInventorySource.php'",
+              'PHASE5G5_STALE_HOST_PATCH_DEFERRED=5G5_BUSY',
+              'PHASE5G5_STALE_HOST_DATA_CHANGED=0',
+              'PHASE5G5_STALE_HOST_SYSTEMD_CHANGED=0',
+              'PHASE5G5_STALE_HOST_WEB_CHANGED=0',
+              'cmp -s "$OLD" "$NEW"',
+              'git hash-object "$TARGET"',
+          ]
+          for value in required: assert value in p, value
+          for forbidden in ['systemctl stop', 'systemctl disable', 'base64', '/var/www/html/']:
+              assert forbidden not in p, forbidden
+          print('PHASE5G5_STALE_HOST_LIVE_BOUNDARY_OK')
+          PY
