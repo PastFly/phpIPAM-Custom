@@ -11,8 +11,8 @@ const watchdog = setTimeout(() => { if (activeDom) activeDom.window.close(); con
     let hidden = false; Object.defineProperty(w.document, 'visibilityState', {get: () => hidden ? 'hidden' : 'visible'});
     let reloads=0, aborts=0; const sent=[], queued=[];
     $('#phase5e-refresh').on('click', () => reloads++);
-    const state = (id, extra={}) => ({ok:true, connector_id:id, has_inventory:true, state:'ready', published_at:1789084800,
-        stale:false, worker_silent:false, vcenter_requests:0, progress:{completed:6,total:6}, telemetry:{state:'idle'}, ...extra});
+    const state = (id, extra={}) => ({ok:true, connector_id:id, has_inventory:true, state:'ready', published_at:1789167600,
+        stale:false, worker_silent:false, vcenter_requests:0, progress:{completed:6,total:6}, telemetry:{state:'idle',last_success_at:1789160400}, ...extra});
     $.ajaxTransport('+*', options => ({send(headers, complete) {
         sent.push(options); const params=new URLSearchParams(options.data); const reply=queued.shift()||{};
         assert.equal(options.url,'app/integrations/vmware/mirror/read.php');assert.equal(params.get('view'),'status');
@@ -35,10 +35,13 @@ const watchdog = setTimeout(() => { if (activeDom) activeDom.window.close(); con
     assert.equal($('#phase5g3-status progress').prop('hidden'),true,'completed initial progress is hidden');
     assert.notEqual($('#phase5g3-status progress')[0].style.display,'block','inline display must not override hidden');
     assert.match($('#phase5g3-status .phase5g3-status-title').text(),/Инвентарь синхронизирован/);
+    assert.match($('#phase5g3-status .phase5g3-status-detail').text(),/Последняя публикация: 2026-09-12 02:00:00 UTC\+3/,'published time uses fixed UTC+3 and rolls date forward');
+    assert.match($('#phase5g3-status .phase5g3-status-metrics').text(),/2026-09-12 00:00:00 UTC\+3/,'metric time uses fixed UTC+3');
     $('#phase5g3-status .phase5g3-status-retry').trigger('click');await delay(30);assert.equal(reloads,1,'later ready polls cannot redraw selection');
-    queued.push({data:state('1',{last_error:'<img src=x onerror=bad()>',stale:true,worker_silent:true})});
+    queued.push({data:state('1',{last_error:'<img src=x onerror=bad()>',stale:true,worker_silent:true,retry_at:1789160400})});
     $('#phase5g3-status .phase5g3-status-retry').trigger('click');await delay(30);assert.equal($('#phase5g3-status img').length,0);
     assert.match($('#phase5g3-status .phase5g3-status-detail').text(),/ранее собранные/);assert.match($('#phase5g3-status .phase5g3-status-detail').text(),/Давно нет сигнала/);
+    assert.match($('#phase5g3-status .phase5g3-status-detail').text(),/Следующая попытка не раньше 2026-09-12 00:00:00 UTC\+3/,'retry time uses fixed UTC+3');
     assert.ok($('#phase5g3-status .phase5g3-status-info').hasClass('btn-warning'),'warning stays on compact indicator');
     $(w.document).trigger($.Event('keydown',{key:'Escape'}));assert.equal($('#phase5g3-status .phase5g3-status-popover').css('display'),'none');
     $('#phase5g3-status .phase5g3-status-info').trigger('click');assert.equal($('#phase5g3-status .phase5g3-status-popover').css('display'),'block');
@@ -52,5 +55,5 @@ const watchdog = setTimeout(() => { if (activeDom) activeDom.window.close(); con
     assert.ok($('#phase5g3-status .phase5g3-status-info').hasClass('btn-warning'));
     assert.equal(w.localStorage.length,0);assert.equal(w.sessionStorage.length,0);
     w.dispatchEvent(new w.Event('pagehide'));const end=sent.length;$('#phase5g3-status .phase5g3-status-retry').trigger('click');await delay(20);assert.equal(sent.length,end);
-    dom.window.close();console.log('PHASE5G3_COMPACT_STATUS_POPOVER_VISIBILITY_RACE_OK');
+    dom.window.close();console.log('PHASE5G3_COMPACT_STATUS_UTC3_POPOVER_VISIBILITY_RACE_OK');
 })().catch(error=>{console.error(error);process.exitCode=1;}).finally(()=>{clearTimeout(watchdog);if(activeDom)activeDom.window.close();});
