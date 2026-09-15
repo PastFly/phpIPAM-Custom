@@ -69,10 +69,7 @@ final class IntegrationVmwareFastDomain
         return $state;
     }
 
-    /**
-     * Merge normalized metric records. Missing entities never delete old values.
-     * New records must retain source measurement timestamps.
-     */
+    /** Merge normalized metric records; partial results may refresh only the series actually returned. */
     public static function mergeMetrics(?array $previous, array $records, int $now): array
     {
         if (!array_is_list($records) || $now < 1) throw new InvalidArgumentException('fast_metric_batch_invalid');
@@ -88,18 +85,21 @@ final class IntegrationVmwareFastDomain
             $old = $state['objects'][$id] ?? ['id' => $id, 'kind' => $record['kind'], 'series' => []];
             if (($old['kind'] ?? null) !== $record['kind']) throw new RuntimeException('fast_metric_kind_changed');
             $attempt = self::boundedTime($record['attempted_at'] ?? $now, $now) ?? $now;
-            if (in_array($record['state'], ['not_returned', 'partial'], true)) {
+            if ($record['state'] === 'not_returned') {
                 $old['object_state'] = 'stale';
                 $old['last_attempt_at'] = $attempt;
-                $old['last_attempt_result'] = $record['state'];
+                $old['last_attempt_result'] = 'not_returned';
+                foreach ($old['series'] as &$priorSeries) if (is_array($priorSeries)) $priorSeries['state'] = 'stale';
+                unset($priorSeries);
                 $state['objects'][$id] = $old;
                 continue;
             }
             $series = $record['series'] ?? null;
             if (!is_array($series)) throw new RuntimeException('fast_metric_series_invalid');
-            $old['object_state'] = $record['state'] === 'unsupported' ? 'unsupported' : 'fresh';
+            $old['object_state'] = $record['state'] === 'unsupported' ? 'unsupported' : ($record['state'] === 'partial' ? 'partial' : 'fresh');
             $old['last_attempt_at'] = $attempt;
             $old['last_attempt_result'] = $record['state'];
+            $updated = [];
             foreach ($series as $name => $points) {
                 if (!in_array($name, ['cpu_percent', 'memory_percent', 'disk_kib_per_second'], true) || !is_array($points) || count($points) > 60) {
                     throw new RuntimeException('fast_metric_series_invalid');
@@ -112,8 +112,15 @@ final class IntegrationVmwareFastDomain
                     }
                     $normalized[] = ['observed_at' => $point['observed_at'], 'value' => $point['value'] ?? null];
                 }
-                $old['series'][$name] = ['state' => $record['state'], 'points' => $normalized,
+                $old['series'][$name] = ['state' => $record['state'] === 'unsupported' ? 'unsupported' : 'fresh', 'points' => $normalized,
                     'collected_at' => $attempt, 'observed_at' => $normalized === [] ? null : max(array_column($normalized, 'observed_at'))];
+                $updated[$name] = true;
+            }
+            if ($record['state'] === 'partial') {
+                foreach ($old['series'] as $name => &$priorSeries) {
+                    if (!isset($updated[$name]) && is_array($priorSeries)) $priorSeries['state'] = 'stale';
+                }
+                unset($priorSeries);
             }
             $state['objects'][$id] = $old;
         }
