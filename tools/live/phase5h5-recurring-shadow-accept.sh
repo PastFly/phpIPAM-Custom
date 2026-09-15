@@ -52,7 +52,8 @@ chmod 0644 "$INSPECT"
 php -l "$INSPECT" >/dev/null
 
 check_blob() {
-    local rel="$1" expected="$2" path="$SHADOW/$rel"
+    local rel="$1" expected="$2"
+    local path="$SHADOW/$rel"
     [ -f "$path" ] && [ ! -L "$path" ] || { echo "STOP: invalid shadow file boundary: $rel"; exit 1; }
     read -r uid gid mode links < <(stat -c '%u %g %a %h' "$path")
     [ "$uid" = 0 ] && [ "$gid" = 0 ] && [ "$mode" = 644 ] && [ "$links" = 1 ] || { echo "STOP: shadow file metadata mismatch: $rel"; exit 1; }
