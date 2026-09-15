@@ -40,7 +40,9 @@ try:
     raw=(ROOT/'tools/install-phase5h4-shadow.py').read_text()
     ok('systemctl enable' not in raw and 'systemctl start' not in raw and '/var/www/html/' not in raw)
     runner=(ROOT/'tools/phase5h4-shadow-run.php').read_text()
-    ok('SHADOW_ROOT' in runner and 'website' not in runner.lower().split('PHASE5H_SHADOW_RESULT=')[0] or True)
+    for forbidden in ['file_put_contents(', 'unlink(', 'rename(', 'systemctl', 'shell_exec(', 'exec(']:
+        ok(forbidden not in runner)
+    ok("website_served_from_shadow" not in runner)  # Set only by the reviewed ShadowCycle result, not a serving path.
     print('PHASE5H4_SHADOW_INSTALL_ASSERTIONS='+str(checks))
     print('PHASE5H4_CREATE_ONLY_PACKAGE_OK')
 finally:
