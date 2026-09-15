@@ -39,13 +39,14 @@ jobs:
               "SOURCE='da2e4d10534044023dc3acd073fc37ead50741a8'",
               "INSPECT_BLOB='ce31b97df4422fde2cfd64e154ae61ab9d2da592'",
               "LOCK='/var/lib/phpipam-custom/vmware-inventory-recovery5g5/connector-1/worker.lock'",
-              'CYCLES=3','INTERVAL=60','flock -x -w 180 9',
+              'CYCLES=3','INTERVAL=60','LOCK_WAIT_LIMIT=180',
+              'while ! flock -x -n 9','LOCK_WAIT_SECONDS=',
               'phase5h4-shadow-run.php','PHASE5H5_RECURRING_ACCEPTANCE=',
               'target_60_300_acceptance','PHASE5H5_RECURRING_SHADOW_ACCEPT_OK=1',
               'PHASE5H5_RECURRING_WEBSITE_CHANGED=0','PHASE5H5_RECURRING_SYSTEMD_CHANGED=0'
           ]:
               assert required in live, required
-          for forbidden in ['systemctl stop','systemctl disable','systemctl enable','base64']:
+          for forbidden in ['systemctl stop','systemctl disable','systemctl enable','base64','flock -x -w 180 9']:
               assert forbidden not in live, forbidden
           for required in [
               'PHASE5H5_SHADOW_INSPECT=', 'shadow_read_only_inspection',
