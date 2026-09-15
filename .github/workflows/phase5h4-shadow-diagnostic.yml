@@ -1,0 +1,29 @@
+name: Phase 5H Shadow Diagnostic
+on:
+  push:
+    branches: ['phase5h/**']
+  pull_request:
+    paths:
+      - 'tools/phase5h4-shadow-diagnose.php'
+      - '.github/workflows/phase5h4-shadow-diagnostic.yml'
+permissions:
+  contents: read
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2','8.4']
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0, persist-credentials: false}
+      - uses: shivammathur/setup-php@v2
+        with: {php-version: '${{ matrix.php }}', extensions: 'dom,sodium,posix', coverage: none}
+      - name: Syntax and non-writing boundary
+        run: |
+          set -euo pipefail
+          php -l tools/phase5h4-shadow-diagnose.php
+          ! grep -Eq 'FastStore.*(publish|update)|file_put_contents\(|unlink\(|rename\(|systemctl|INSERT |UPDATE |DELETE ' tools/phase5h4-shadow-diagnose.php
+          grep -q "array_slice(\$plan\['plans'\], 0, 50)" tools/phase5h4-shadow-diagnose.php
+          grep -q "checked >= 3" tools/phase5h4-shadow-diagnose.php
