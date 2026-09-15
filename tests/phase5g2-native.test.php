@@ -63,10 +63,13 @@ try {
     test(!str_contains($body, '<script>') && str_contains($body, '&lt;script&gt;'), 'escape VM');
     test(str_contains($body, 'Debian Friendly') && str_contains($body, '8.00 GiB'), 'friendly OS and RAM in primary response');
     test(str_contains($body, '/native/address/17/') && str_contains($body, '&lt;TAG&gt;'), 'current IP link and escaped tags');
+    test(!str_contains($body, 'phase5g2-freshness') && !str_contains($body, 'Локальный инвентарь'), 'no duplicate freshness banner in VM card');
     $notes = $native->response('annotation', $inputs)['body'];
     test(str_contains($notes, '&lt;script&gt;Notes') && !str_contains($notes, 'не сохраняется'), 'escaped dated saved annotation');
-    test(str_contains($native->response('performance', $inputs)['body'], '<svg'), 'retained chart renderer accepts saved samples');
-    test(!str_contains($native->response('performance', $inputs)['body'], 'Real-time'), 'saved charts not called live');
+    $performanceBody = $native->response('performance', $inputs)['body'];
+    test(str_contains($performanceBody, '<svg'), 'retained chart renderer accepts saved samples');
+    test(!str_contains($performanceBody, 'Real-time'), 'saved charts not called live');
+    test(!str_contains($performanceBody, 'Локальный инвентарь'), 'no duplicate freshness banner in performance panel');
     foreach (['overview', 'vms', 'datastores'] as $view) {
         test($native->response('workspace', ['view' => $view])['body']['ok'], 'native workspace ' . $view);
     }
@@ -78,7 +81,9 @@ try {
     }
     $now += 86400;
     for ($i = 0; $i < 100; $i++) $body = $native->response('vm', $inputs + ['force_refresh' => '1'])['body'];
-    test(str_contains($body, 'устаревшими') && hash_file('sha256', $directory . '/current.enc') === $digest, '100 overnight forced reads still zero writes');
+    $status = $native->response('status', $inputs)['body'];
+    test(!empty($status['stale']) && !str_contains($body, 'Локальный инвентарь') &&
+        hash_file('sha256', $directory . '/current.enc') === $digest, '100 overnight forced reads keep stale state in status and still zero writes');
     $allowed = false;
     foreach (IntegrationVmwareInventoryNative::OPERATIONS as $op) {
         try { $native->response($op, $inputs); throw new LogicException('authorization bypass ' . $op); }
