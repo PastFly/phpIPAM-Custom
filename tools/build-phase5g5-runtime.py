@@ -35,13 +35,33 @@ def generate(package):
     text = once(text, '''            $out = $direct($method, $url, $headers, $body, true, min(8, $connect), min(20, $timeout));
             $this->observeDenial($out); return $out;''', '''            $out = $direct($method, $url, $headers, $body, true, min(8, $connect), min(20, $timeout));
             $this->observeDenial($out);
-            // A HostSystem MOR may disappear after the initial roster was discovered.
-            // Treat the structured VMware fault as stale membership, never as proof of deletion:
-            // the worker discards only the incomplete generation and the next discovery decides membership.
-            if ((int)($out['status'] ?? 0) >= 400 && preg_match('/<(?:[A-Za-z0-9_]+:)?ManagedObjectNotFound(?:Fault)?\\b|xsi:type=["\\x27](?:[A-Za-z0-9_]+:)?ManagedObjectNotFound(?:Fault)?["\\x27]/i', (string)($out['body'] ?? ''))) {
+            $this->observeMembershipDrift($out);
+            return $out;''')
+    text = once(text, '    private function run(callable $callback): array', '''    private function observeMembershipDrift(array $response): void
+    {
+        if ((int)($response['status'] ?? 0) < 400) return;
+        $body = (string)($response['body'] ?? '');
+        if ($body === '' || !class_exists('DOMDocument')) return;
+        $doc = new DOMDocument();
+        $previous = libxml_use_internal_errors(true);
+        try { $ok = $doc->loadXML($body, LIBXML_NONET | LIBXML_NOBLANKS); }
+        finally { libxml_clear_errors(); libxml_use_internal_errors($previous); }
+        if (!$ok || $doc->doctype !== null) return;
+        $xpath = new DOMXPath($doc);
+        $faults = $xpath->query('/*[local-name()="Envelope" and namespace-uri()="http://schemas.xmlsoap.org/soap/envelope/"]/*[local-name()="Body" and namespace-uri()="http://schemas.xmlsoap.org/soap/envelope/"]/*[local-name()="Fault" and namespace-uri()="http://schemas.xmlsoap.org/soap/envelope/"]');
+        if ($faults->length !== 1) return;
+        $fault = $faults->item(0);
+        foreach ($xpath->query('.//*', $fault) as $node) {
+            if (!($node instanceof DOMElement)) continue;
+            $type = preg_replace('/^.*:/', '', $node->getAttributeNS('http://www.w3.org/2001/XMLSchema-instance', 'type'));
+            if (in_array($node->localName, ['ManagedObjectNotFound', 'ManagedObjectNotFoundFault'], true) ||
+                in_array($type, ['ManagedObjectNotFound', 'ManagedObjectNotFoundFault'], true)) {
+                // This proves only that the initial roster is stale. It does not prove deletion.
                 throw new RuntimeException('mirror_membership_changed');
             }
-            return $out;''')
+        }
+    }
+    private function run(callable $callback): array''')
     text = once(text, '    public function discover(): array', '''    public function repairGuest(string $id): array
     {
         if (!preg_match('/^vm-[0-9]{1,20}$/D', $id)) throw new InvalidArgumentException('guest_id');
