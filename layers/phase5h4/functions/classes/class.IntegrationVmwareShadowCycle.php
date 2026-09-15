@@ -23,32 +23,36 @@ final class IntegrationVmwareShadowCycle
             $inventory = (new IntegrationVmwareBatchInventory($session, 50))->read($roster['entities']);
             $performance = new IntegrationVmwareBatchPerformance($session, 25);
 
-            // A stale MOR in the last-good 5G.5 roster is not deletion evidence. Keep its previous
-            // fast-domain values stale and skip capability/metric reads that would only repeat the
-            // same provider fault. The authoritative roster pass will resolve membership later.
-            $unobservedMetrics = [];
+            // Any metric entity that cannot be safely refreshed in this pass must not leave an old
+            // series labelled fresh. Preserve its last-good values, but publish a stale attempt state.
+            $staleMetrics = [];
             foreach ($inventory['objects'] as $id => $record) {
                 if (($record['state'] ?? null) !== 'unobserved' || !in_array($record['kind'] ?? null, ['vm','host'], true)) continue;
-                $unobservedMetrics[$id] = ['kind'=>$record['kind'],'id'=>$id,'state'=>'not_returned',
+                $staleMetrics[$id] = ['kind'=>$record['kind'],'id'=>$id,'state'=>'not_returned',
                     'attempted_at'=>$started,'series'=>[]];
             }
 
             $cache = $capabilities;
             $plans = array_values(array_filter($planning['plans'], static fn(array $plan): bool =>
-                !isset($unobservedMetrics[$plan['id'] ?? ''])));
+                !isset($staleMetrics[$plan['id'] ?? ''])));
             $unsupported = array_values(array_filter($planning['unsupported'], static fn(array $row): bool =>
-                !isset($unobservedMetrics[$row['id'] ?? ''])));
+                !isset($staleMetrics[$row['id'] ?? ''])));
             $revalidated = 0; $stillDue = [];
 
             foreach ($planning['capability_due'] as $entity) {
                 $id = $entity['id'];
-                if (isset($unobservedMetrics[$id])) { $stillDue[] = $entity; continue; }
-                if ($revalidated >= $capabilityBudget) { $stillDue[] = $entity; continue; }
+                if (isset($staleMetrics[$id])) { $stillDue[] = $entity; continue; }
+                if ($revalidated >= $capabilityBudget) {
+                    $staleMetrics[$id] = ['kind'=>$entity['kind'],'id'=>$id,'state'=>'capability_pending',
+                        'attempted_at'=>$started,'series'=>[]];
+                    $stillDue[] = $entity;
+                    continue;
+                }
                 ++$revalidated;
                 try { $provider = $performance->provider($entity['kind'], $id); }
                 catch (Throwable $e) {
                     if ($e->getMessage() !== 'batch_managed_object_not_found') throw $e;
-                    $unobservedMetrics[$id] = ['kind'=>$entity['kind'],'id'=>$id,'state'=>'not_returned',
+                    $staleMetrics[$id] = ['kind'=>$entity['kind'],'id'=>$id,'state'=>'not_returned',
                         'attempted_at'=>$started,'series'=>[]];
                     $stillDue[] = $entity;
                     continue;
@@ -64,7 +68,7 @@ final class IntegrationVmwareShadowCycle
                 try { $availability = $performance->availability($entity['kind'], $id, $interval); }
                 catch (Throwable $e) {
                     if ($e->getMessage() !== 'batch_managed_object_not_found') throw $e;
-                    $unobservedMetrics[$id] = ['kind'=>$entity['kind'],'id'=>$id,'state'=>'not_returned',
+                    $staleMetrics[$id] = ['kind'=>$entity['kind'],'id'=>$id,'state'=>'not_returned',
                         'attempted_at'=>$started,'series'=>[]];
                     $stillDue[] = $entity;
                     continue;
@@ -82,10 +86,10 @@ final class IntegrationVmwareShadowCycle
             }
 
             $unsupported = array_values(array_filter($unsupported, static fn(array $row): bool =>
-                !isset($unobservedMetrics[$row['id'] ?? ''])));
+                !isset($staleMetrics[$row['id'] ?? ''])));
             $metricBatch = $plans === [] ? ['schema'=>1,'objects'=>[]] : $performance->read($plans, 6);
             return ['inventory'=>$inventory,'metric_batch'=>$metricBatch,'plans'=>$plans,'unsupported'=>$unsupported,
-                'unobserved_metrics'=>array_values($unobservedMetrics),
+                'stale_metrics'=>array_values($staleMetrics),
                 'capabilities'=>$cache,'capability_revalidated'=>$revalidated,'capability_still_due'=>$stillDue];
         });
         // BatchSession::run has completed Logout and final binding guard before this point.
@@ -94,7 +98,7 @@ final class IntegrationVmwareShadowCycle
         $propertyResult = $fastStore->update('properties', static fn(?array $old): array =>
             IntegrationVmwareFastDomain::mergeProperties($old, $wireResult['inventory'], $publishNow));
         $metricRecords = IntegrationVmwareShadowPlanner::normalizeMetrics($wireResult['metric_batch'], $wireResult['plans'], $publishNow);
-        $metricRecords = array_merge($metricRecords, $wireResult['unobserved_metrics'],
+        $metricRecords = array_merge($metricRecords, $wireResult['stale_metrics'],
             IntegrationVmwareShadowPlanner::unsupportedRecords($wireResult['unsupported'], $publishNow));
         $metricResult = $fastStore->update('metrics', static fn(?array $old): array =>
             IntegrationVmwareFastDomain::mergeMetrics($old, $metricRecords, $publishNow));
