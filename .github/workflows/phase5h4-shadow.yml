@@ -11,6 +11,7 @@ on:
       - 'tools/phase5h4-shadow-run.php'
       - 'tools/install-phase5h4-shadow.py'
       - 'tools/live/phase5h-stale-mor-rebench.sh'
+      - 'tools/live/phase5h-selected-counter-rebench.sh'
       - 'tests/phase5h-*'
       - '.github/workflows/phase5h4-shadow.yml'
       - 'design/PHASE5H4_SHADOW_CYCLE.md'
@@ -33,21 +34,26 @@ jobs:
           php-version: ${{ matrix.php }}
           extensions: dom, sodium, posix
           coverage: none
-      - name: Shadow planning, stale MOR policy, encrypted publication and live launcher
+      - name: Shadow planning, stale MOR policy, selected counter policy and live launchers
         run: |
           set -euo pipefail
           php -l layers/phase5h4/functions/classes/class.IntegrationVmwareShadowPlanner.php
           php -l layers/phase5h4/functions/classes/class.IntegrationVmwareShadowCycle.php
           php -l tools/phase5h4-shadow-run.php
           bash -n tools/live/phase5h-stale-mor-rebench.sh
+          bash -n tools/live/phase5h-selected-counter-rebench.sh
           python3 - <<'PY'
           from pathlib import Path
           compile(Path('tools/install-phase5h4-shadow.py').read_text(), 'tools/install-phase5h4-shadow.py', 'exec')
-          live=Path('tools/live/phase5h-stale-mor-rebench.sh').read_text()
+          stale=Path('tools/live/phase5h-stale-mor-rebench.sh').read_text()
           for required in ['PHASE5H_STALE_MOR_PATCH_OK=1', 'flock -x -w 600 9', 'PHASE5H_STALE_MOR_REBENCH_SOURCE=', 'vmware-fast-shadow-stale-mor-']:
-              assert required in live, required
+              assert required in stale, required
+          selected=Path('tools/live/phase5h-selected-counter-rebench.sh').read_text()
+          for required in ['PHASE5H_SELECTED_COUNTER_PATCH_OK=1', 'flock -x -w 600 9', 'PHASE5H_SELECTED_COUNTER_REBENCH_SOURCE=', 'vmware-fast-shadow-selected-counter-', "NEW_PERF='b35127f8e28e503f558a08327b73cf9c6d41002a'"]:
+              assert required in selected, required
           for forbidden in ['systemctl stop', 'systemctl disable', 'base64']:
-              assert forbidden not in live, forbidden
+              assert forbidden not in stale, forbidden
+              assert forbidden not in selected, forbidden
           PY
           php tests/phase5h4-shadow-planner.test.php
           php tests/phase5h4-shadow-cycle.test.php
@@ -57,6 +63,7 @@ jobs:
           php tests/phase5h2-roster.test.php
           php tests/phase5h3-fast-store.test.php
           php -d memory_limit=256M tests/phase5h-batch.test.php
+          php tests/phase5h-counter-registry-duplicate.test.php
           php tests/phase5g-inventory.test.php
           php tests/phase5g3-telemetry.test.php
           python3 -B tests/phase5g2-contracts.test.py
