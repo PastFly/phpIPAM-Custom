@@ -89,11 +89,7 @@ final class IntegrationVmwareFastDomain
                 $old['object_state'] = 'stale';
                 $old['last_attempt_at'] = $attempt;
                 $old['last_attempt_result'] = $record['state'];
-                foreach ($old['series'] as &$priorSeries) if (is_array($priorSeries)) {
-                    $priorSeries['state'] = 'stale';
-                    $priorSeries['last_attempt_at'] = $attempt;
-                    $priorSeries['error'] = $record['state'];
-                }
+                foreach ($old['series'] as &$priorSeries) if (is_array($priorSeries)) $priorSeries['state'] = 'stale';
                 unset($priorSeries);
                 $state['objects'][$id] = $old;
                 continue;
@@ -117,17 +113,12 @@ final class IntegrationVmwareFastDomain
                     $normalized[] = ['observed_at' => $point['observed_at'], 'value' => $point['value'] ?? null];
                 }
                 $old['series'][$name] = ['state' => $record['state'] === 'unsupported' ? 'unsupported' : 'fresh', 'points' => $normalized,
-                    'collected_at' => $attempt, 'observed_at' => $normalized === [] ? null : max(array_column($normalized, 'observed_at')),
-                    'last_attempt_at' => $attempt, 'error' => null];
+                    'collected_at' => $attempt, 'observed_at' => $normalized === [] ? null : max(array_column($normalized, 'observed_at'))];
                 $updated[$name] = true;
             }
             if ($record['state'] === 'partial') {
                 foreach ($old['series'] as $name => &$priorSeries) {
-                    if (!isset($updated[$name]) && is_array($priorSeries)) {
-                        $priorSeries['state'] = 'stale';
-                        $priorSeries['last_attempt_at'] = $attempt;
-                        $priorSeries['error'] = 'partial';
-                    }
+                    if (!isset($updated[$name]) && is_array($priorSeries)) $priorSeries['state'] = 'stale';
                 }
                 unset($priorSeries);
             }
