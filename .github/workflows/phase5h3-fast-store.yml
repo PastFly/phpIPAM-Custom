@@ -1,0 +1,43 @@
+name: Phase 5H Encrypted Fast Store
+on:
+  push:
+    branches: ['phase5h/**']
+  pull_request:
+    paths:
+      - 'layers/phase5h2/**'
+      - 'layers/phase5h3/**'
+      - 'tests/phase5h2-*'
+      - 'tests/phase5h3-*'
+      - '.github/workflows/phase5h3-fast-store.yml'
+      - 'design/PHASE5H3_ENCRYPTED_FAST_STORE.md'
+permissions:
+  contents: read
+jobs:
+  fast-store:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2','8.4']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: dom, sodium, posix
+          coverage: none
+      - name: Encrypted domain isolation, cache policy and retained collection contracts
+        run: |
+          set -euo pipefail
+          php -l layers/phase5h3/functions/classes/class.IntegrationVmwareFastStore.php
+          php -l layers/phase5h3/functions/classes/class.IntegrationVmwareCapabilityCache.php
+          php tests/phase5h2-fast-domain.test.php
+          php tests/phase5h2-roster.test.php
+          php tests/phase5h3-fast-store.test.php
+          php -d memory_limit=256M tests/phase5h-batch.test.php
+          php tests/phase5g-inventory.test.php
+          php tests/phase5g3-telemetry.test.php
+          python3 -B tests/phase5g2-contracts.test.py
