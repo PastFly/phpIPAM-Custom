@@ -1,5 +1,5 @@
 <?php
-/** Exact duplicate PerfCounterInfo rows are tolerated; conflicting mappings remain fail-closed. */
+/** Exact/irrelevant duplicate PerfCounterInfo rows are tolerated; selected mappings remain fail-closed. */
 require_once __DIR__ . '/../layers/phase5/functions/classes/class.IntegrationVmwareVcenter.php';
 require_once __DIR__ . '/../layers/phase5f/functions/classes/class.IntegrationVmwareVcenterDirectTransport.php';
 require_once __DIR__ . '/../layers/phase5h/functions/classes/class.IntegrationVmwareBatchSession.php';
@@ -73,7 +73,7 @@ $mem = counter_xml(84, 'mem', 'usage', 'percent');
 $disk = counter_xml(99, 'disk', 'usage', 'kiloBytesPerSecond');
 $other = counter_xml(150, 'sys', 'uptime', 'second', 'latest');
 
-// The same row may be repeated by vCenter. It must collapse to one unambiguous definition.
+// The same selected or irrelevant row may be repeated by vCenter. Selected mappings stay unique.
 $calls = [];
 $defs = definitions_for($cpu . $cpu . $mem . $disk . $other . $other, $calls);
 ok(count($defs) === 3, 'only_selected_definitions');
@@ -82,12 +82,26 @@ ok(($defs['mem.usage.average']['id'] ?? null) === 84, 'mem_id');
 ok(($defs['disk.usage.average']['id'] ?? null) === 99, 'disk_id');
 ok($calls === ['RetrieveServiceContent','Login','RetrieveProperties','Logout'], 'single_registry_read');
 
-// Same ID describing another canonical counter remains ambiguous and is rejected.
-rejected($cpu . counter_xml(71, 'mem', 'usage', 'percent') . $disk, 'batch_counter_duplicate');
-// Same canonical name with a different ID remains ambiguous and is rejected.
+// Ambiguity wholly outside the three selected QueryPerf mappings must not block collection.
+$calls = [];
+$defs = definitions_for(
+    $cpu . $mem . $disk .
+    counter_xml(150, 'sys', 'uptime', 'second', 'latest') .
+    counter_xml(151, 'sys', 'uptime', 'second', 'latest') .
+    counter_xml(160, 'net', 'packetsRx', 'number', 'summation') .
+    counter_xml(160, 'net', 'packetsTx', 'number', 'summation'),
+    $calls
+);
+ok(count($defs) === 3, 'irrelevant_conflicts_ignored');
+ok(($defs['cpu.usage.average']['id'] ?? null) === 71, 'irrelevant_conflicts_cpu_stable');
+ok($calls === ['RetrieveServiceContent','Login','RetrieveProperties','Logout'], 'irrelevant_conflicts_single_read');
+
+// Same ID describing another canonical counter remains ambiguous when the ID belongs to a selected mapping.
+rejected($cpu . counter_xml(71, 'sys', 'other', 'percent') . $mem . $disk, 'batch_counter_duplicate');
+// Same selected canonical name with a different ID remains ambiguous and is rejected.
 rejected($cpu . counter_xml(72, 'cpu', 'usage', 'percent') . $mem . $disk, 'batch_counter_duplicate');
 // A selected counter with the wrong unit is still rejected before publication/query planning.
 rejected(counter_xml(71, 'cpu', 'usage', 'megaHertz') . $mem . $disk, 'batch_counter_unit_invalid');
 
 print 'PHASE5H_COUNTER_DUPLICATE_ASSERTIONS=' . $n . "\n";
-print "PHASE5H_IDENTICAL_COUNTER_DUPLICATES_OK\n";
+print "PHASE5H_SELECTED_COUNTER_MAPPING_OK\n";
