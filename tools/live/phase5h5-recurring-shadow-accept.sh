@@ -44,7 +44,9 @@ git cat-file -e "${SOURCE}^{commit}"
 git merge-base --is-ancestor "$SOURCE" FETCH_HEAD
 
 TMP="$(mktemp -d /var/tmp/phpipam-phase5h5-recurring.XXXXXXXX)"
-chmod 0700 "$TMP"
+# The inspector is deliberately executed as www-data. 0711 permits path traversal
+# without directory listing; umask 077 keeps run logs and any other temp files root-only.
+chmod 0711 "$TMP"
 INSPECT="$TMP/phase5h5-shadow-inspect.php"
 git show "${SOURCE}:${INSPECT_REL}" > "$INSPECT"
 chmod 0644 "$INSPECT"
