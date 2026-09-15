@@ -10,6 +10,7 @@ final class IntegrationVmwareRosterReconciler
             $state['last_attempt_at'] = $now;
             $state['last_attempt_complete'] = false;
             $state['pending'] = null;
+            $state['published_at'] = $now;
             return $state;
         }
         $normalized = self::normalize($candidate);
@@ -30,6 +31,7 @@ final class IntegrationVmwareRosterReconciler
         }
         $state['last_attempt_at'] = $now;
         $state['last_attempt_complete'] = true;
+        $state['published_at'] = $now;
         return $state;
     }
 
@@ -89,9 +91,10 @@ final class IntegrationVmwareRosterReconciler
 
     private static function state(?array $state): array
     {
-        if ($state === null) return ['schema' => 1, 'authoritative' => null, 'pending' => null,
-            'last_attempt_at' => null, 'last_attempt_complete' => false];
-        if (($state['schema'] ?? null) !== 1 || !array_key_exists('authoritative', $state) || !array_key_exists('pending', $state)) {
+        if ($state === null) return ['schema' => 1, 'domain' => 'roster', 'published_at' => null,
+            'authoritative' => null, 'pending' => null, 'last_attempt_at' => null, 'last_attempt_complete' => false];
+        if (($state['schema'] ?? null) !== 1 || ($state['domain'] ?? null) !== 'roster' ||
+            !array_key_exists('authoritative', $state) || !array_key_exists('pending', $state)) {
             throw new RuntimeException('roster_state_invalid');
         }
         if (is_array($state['authoritative'])) self::normalize($state['authoritative']['roster'] ?? []);
