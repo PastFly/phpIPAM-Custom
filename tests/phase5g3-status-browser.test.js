@@ -27,8 +27,14 @@ const watchdog = setTimeout(() => { if (activeDom) activeDom.window.close(); con
     assert.equal($('#phase5g3-status .phase5g3-status-popover').css('display'),'none','details hidden by default');
     assert.equal(reloads,0);
     $('#phase5g3-status .phase5g3-status-info').trigger('click');
+    const details = $('#phase5g3-status .phase5g3-status-popover')[0];
     assert.equal($('#phase5g3-status .phase5g3-status-popover').css('display'),'block');
     assert.equal($('#phase5g3-status .phase5g3-status-info').attr('aria-expanded'),'true');
+    assert.equal(details.style.position,'static','details participate in normal document flow');
+    assert.equal(details.style.flexBasis,'100%','details start on their own flex row');
+    assert.equal(details.style.width,'100%','details stay within workspace width');
+    assert.equal(details.style.maxWidth,'720px','details remain readable on wide screens');
+    assert.equal(details.style.zIndex,'','details are not an overlay layer');
     assert.match($('#phase5g3-status .phase5g3-status-detail').text(),/Обработано 3 из 10/);
     assert.match($('#phase5g3-status .phase5g3-status-detail').text(),/Открытие страницы не запускает сбор/);
     $('#phase5g3-status .phase5g3-status-retry').trigger('click');await delay(30);assert.equal(reloads,1,'initial publication reloads untouched local workspace once');
@@ -55,5 +61,5 @@ const watchdog = setTimeout(() => { if (activeDom) activeDom.window.close(); con
     assert.ok($('#phase5g3-status .phase5g3-status-info').hasClass('btn-warning'));
     assert.equal(w.localStorage.length,0);assert.equal(w.sessionStorage.length,0);
     w.dispatchEvent(new w.Event('pagehide'));const end=sent.length;$('#phase5g3-status .phase5g3-status-retry').trigger('click');await delay(20);assert.equal(sent.length,end);
-    dom.window.close();console.log('PHASE5G3_COMPACT_STATUS_UTC3_POPOVER_VISIBILITY_RACE_OK');
+    dom.window.close();console.log('PHASE5G3_COMPACT_STATUS_UTC3_INLINE_DETAILS_VISIBILITY_RACE_OK');
 })().catch(error=>{console.error(error);process.exitCode=1;}).finally(()=>{clearTimeout(watchdog);if(activeDom)activeDom.window.close();});
