@@ -3,7 +3,6 @@
 final class IntegrationVmwareBatchInventory
 {
     public const TYPES = ['vm' => 'VirtualMachine', 'host' => 'HostSystem', 'datastore' => 'Datastore'];
-    // Explicit leaf paths only: never fetch complete config/guest structures containing unrelated data.
     private const FIELDS = [
         'vm' => ['name' => 'text', 'runtime.powerState' => 'power', 'runtime.host' => 'host',
             'config.hardware.numCPU' => 'positive', 'config.hardware.memoryMB' => 'positive',
@@ -34,55 +33,80 @@ final class IntegrationVmwareBatchInventory
     public function read(array $entities): array
     {
         $roster = self::roster($entities); $records = []; $start = time();
-        $objectCoverage = true; $fieldCoverage = true;
+        $objectCoverage = true; $fieldCoverage = true; $recoveryReads = 0;
         foreach (array_chunk($roster, $this->batchSize, true) as $batch) {
-            $filter = '';
-            foreach (array_unique(array_values($batch)) as $kind) {
-                $filter .= '<propSet><type>' . self::TYPES[$kind] . '</type><all>false</all>';
-                foreach (self::FIELDS[$kind] as $path => $_) $filter .= '<pathSet>' . $path . '</pathSet>';
-                $filter .= '</propSet>';
-            }
-            foreach ($batch as $id => $kind) $filter .= '<objectSet><obj type="' . self::TYPES[$kind] . '">' . $id . '</obj><skip>false</skip></objectSet>';
-            $response = $this->session->read('RetrieveProperties', '<_this type="PropertyCollector">' .
-                IntegrationVmwareBatchSession::xml($this->session->manager('propertyCollector')) . '</_this><specSet>' . $filter . '</specSet>');
-            $seen = []; $received = time();
-            foreach (IntegrationVmwareBatchSession::children($response, 'returnval') as $row) {
-                $object = IntegrationVmwareBatchSession::one($row, 'obj'); $id = IntegrationVmwareBatchSession::text($object);
-                if (!isset($batch[$id]) || $object->getAttribute('type') !== self::TYPES[$batch[$id]] || isset($seen[$id])) {
-                    throw new RuntimeException('batch_unexpected_or_duplicate_object');
-                }
-                $seen[$id] = true; $kind = $batch[$id]; $values = []; $states = []; $observed = [];
-                foreach (IntegrationVmwareBatchSession::children($row, 'propSet') as $property) {
-                    $path = IntegrationVmwareBatchSession::text(IntegrationVmwareBatchSession::one($property, 'name'));
-                    if (!isset(self::FIELDS[$kind][$path]) || isset($observed[$path])) throw new RuntimeException('batch_property_scope');
-                    $observed[$path] = true;
-                    $node = IntegrationVmwareBatchSession::one($property, 'val');
-                    $value = self::value($node, self::FIELDS[$kind][$path]);
-                    $values[$path] = $value;
-                    $states[$path] = $value === null ? 'unavailable' : 'available';
-                }
-                foreach (IntegrationVmwareBatchSession::children($row, 'missingSet') as $missing) {
-                    $path = IntegrationVmwareBatchSession::text(IntegrationVmwareBatchSession::one($missing, 'path'));
-                    if (!isset(self::FIELDS[$kind][$path]) || isset($observed[$path])) throw new RuntimeException('batch_property_scope');
-                    IntegrationVmwareBatchSession::one($missing, 'fault'); // Access faults were rejected by the session.
-                    $observed[$path] = true; $values[$path] = null; $states[$path] = 'property_fault';
-                }
-                foreach (self::FIELDS[$kind] as $path => $_) {
-                    if (!isset($observed[$path])) { $values[$path] = null; $states[$path] = 'not_reported'; }
-                    if ($states[$path] !== 'available') $fieldCoverage = false;
-                }
-                $records[$id] = ['kind' => $kind, 'id' => $id, 'state' => 'returned', 'values' => $values,
-                    'property_states' => $states, 'collected_at' => $received, 'source_observed_at' => null];
-            }
-            foreach ($batch as $id => $kind) if (!isset($seen[$id])) {
-                $objectCoverage = false; $fieldCoverage = false;
-                $records[$id] = ['kind' => $kind, 'id' => $id, 'state' => 'unobserved', 'values' => [],
-                    'property_states' => [], 'collected_at' => null, 'source_observed_at' => null];
-            }
+            $this->readBatch($batch, $records, $objectCoverage, $fieldCoverage, $recoveryReads);
         }
         return ['schema' => 1, 'method' => 'RetrieveProperties', 'started_at' => $start, 'completed_at' => time(),
             'object_coverage_complete' => $objectCoverage, 'all_requested_fields_available' => $fieldCoverage,
             'authoritative_membership' => false, 'objects' => $records];
+    }
+    private function readBatch(array $batch, array &$records, bool &$objectCoverage, bool &$fieldCoverage, int &$recoveryReads): void
+    {
+        try { $response = $this->session->read('RetrieveProperties', $this->requestBody($batch)); }
+        catch (Throwable $e) {
+            if ($e->getMessage() !== 'batch_managed_object_not_found') throw $e;
+            $objectCoverage = false; $fieldCoverage = false;
+            if (count($batch) === 1) {
+                $id = array_key_first($batch); $kind = $batch[$id];
+                $records[$id] = ['kind' => $kind, 'id' => $id, 'state' => 'unobserved', 'values' => [],
+                    'property_states' => [], 'collected_at' => null, 'source_observed_at' => null];
+                return;
+            }
+            $size = intdiv(count($batch) + 1, 2);
+            $parts = array_chunk($batch, $size, true);
+            foreach ($parts as $part) {
+                if (++$recoveryReads > 32) throw new RuntimeException('batch_missing_split_limit');
+                $this->readBatch($part, $records, $objectCoverage, $fieldCoverage, $recoveryReads);
+            }
+            return;
+        }
+
+        $seen = []; $received = time();
+        foreach (IntegrationVmwareBatchSession::children($response, 'returnval') as $row) {
+            $object = IntegrationVmwareBatchSession::one($row, 'obj'); $id = IntegrationVmwareBatchSession::text($object);
+            if (!isset($batch[$id]) || $object->getAttribute('type') !== self::TYPES[$batch[$id]] || isset($seen[$id])) {
+                throw new RuntimeException('batch_unexpected_or_duplicate_object');
+            }
+            $seen[$id] = true; $kind = $batch[$id]; $values = []; $states = []; $observed = [];
+            foreach (IntegrationVmwareBatchSession::children($row, 'propSet') as $property) {
+                $path = IntegrationVmwareBatchSession::text(IntegrationVmwareBatchSession::one($property, 'name'));
+                if (!isset(self::FIELDS[$kind][$path]) || isset($observed[$path])) throw new RuntimeException('batch_property_scope');
+                $observed[$path] = true;
+                $node = IntegrationVmwareBatchSession::one($property, 'val');
+                $value = self::value($node, self::FIELDS[$kind][$path]);
+                $values[$path] = $value;
+                $states[$path] = $value === null ? 'unavailable' : 'available';
+            }
+            foreach (IntegrationVmwareBatchSession::children($row, 'missingSet') as $missing) {
+                $path = IntegrationVmwareBatchSession::text(IntegrationVmwareBatchSession::one($missing, 'path'));
+                if (!isset(self::FIELDS[$kind][$path]) || isset($observed[$path])) throw new RuntimeException('batch_property_scope');
+                IntegrationVmwareBatchSession::one($missing, 'fault');
+                $observed[$path] = true; $values[$path] = null; $states[$path] = 'property_fault';
+            }
+            foreach (self::FIELDS[$kind] as $path => $_) {
+                if (!isset($observed[$path])) { $values[$path] = null; $states[$path] = 'not_reported'; }
+                if ($states[$path] !== 'available') $fieldCoverage = false;
+            }
+            $records[$id] = ['kind' => $kind, 'id' => $id, 'state' => 'returned', 'values' => $values,
+                'property_states' => $states, 'collected_at' => $received, 'source_observed_at' => null];
+        }
+        foreach ($batch as $id => $kind) if (!isset($seen[$id])) {
+            $objectCoverage = false; $fieldCoverage = false;
+            $records[$id] = ['kind' => $kind, 'id' => $id, 'state' => 'unobserved', 'values' => [],
+                'property_states' => [], 'collected_at' => null, 'source_observed_at' => null];
+        }
+    }
+    private function requestBody(array $batch): string
+    {
+        $filter = '';
+        foreach (array_unique(array_values($batch)) as $kind) {
+            $filter .= '<propSet><type>' . self::TYPES[$kind] . '</type><all>false</all>';
+            foreach (self::FIELDS[$kind] as $path => $_) $filter .= '<pathSet>' . $path . '</pathSet>';
+            $filter .= '</propSet>';
+        }
+        foreach ($batch as $id => $kind) $filter .= '<objectSet><obj type="' . self::TYPES[$kind] . '">' . $id . '</obj><skip>false</skip></objectSet>';
+        return '<_this type="PropertyCollector">' . IntegrationVmwareBatchSession::xml($this->session->manager('propertyCollector')) . '</_this><specSet>' . $filter . '</specSet>';
     }
     private static function value(DOMElement $node, string $type): mixed
     {
