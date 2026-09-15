@@ -3,12 +3,12 @@ set -euo pipefail
 
 REPO='/tmp/phpipam-custom-phase0'
 PROTECTED='f7aedad68781bccfcac1985a1b240c3c515715ef'
-SOURCE='ff0742af15d5aab2bc8b8ad62f666357ddac4b81'
+SOURCE='8a5564424453dbff45f62dc9c025e2b5999afeed'
 SOURCE_BRANCH='phase5g/status-popover-utc3'
 REL='layers/phase5g3/app/integrations/vmware/phase5g3-status.js'
 TARGET='/var/www/html/app/integrations/vmware/phase5g3-status.js'
-OLD_BLOB='52b48d09aa3bd65cfc19cd3007068ca8f8219a94'
-NEW_BLOB='45c0c5004f9416e6e34016b0fa3effcaf3c058ff'
+OLD_BLOB='45c0c5004f9416e6e34016b0fa3effcaf3c058ff'
+NEW_BLOB='1435e6c09692c37a951376b43b39b528b4429f4a'
 TIMER='phpipam-vmware-recovery5g5@1.timer'
 
 TMP=''
@@ -85,6 +85,7 @@ fi
 systemctl show "$TIMER" --no-pager -p ActiveState -p SubState -p UnitFileState
 
 echo 'PHASE5G6_UTC3_INLINE_LAYOUT_OK=1'
+echo 'PHASE5G6_UTC3_INLINE_HISTORY_WORDING_OK=1'
 echo 'PHASE5G6_UTC3_INLINE_WORKER_CHANGED=0'
 echo 'PHASE5G6_UTC3_INLINE_DATA_CHANGED=0'
 echo 'PHASE5G6_UTC3_INLINE_SYSTEMD_CHANGED=0'
