@@ -25,7 +25,7 @@ jobs:
           php-version: ${{ matrix.php }}
           extensions: dom, sodium, posix, pcntl, curl, mbstring
           coverage: none
-      - name: Syntax and no-publication boundary
+      - name: Syntax, shared mutex and no-publication boundary
         run: |
           set -euo pipefail
           php -l tools/phase5h4-shadow-stage2-diagnose.php
@@ -34,9 +34,19 @@ jobs:
           text=Path('tools/phase5h4-shadow-stage2-diagnose.php').read_text()
           for forbidden in ["->update('properties'", "->update('metrics'", "->publish('capabilities'", 'systemctl', '/var/www/html/app/']:
               assert forbidden not in text, forbidden
-          for required in ['PHASE5H_STAGE2_STAGE=', 'counter_registry', 'capability_provider_', 'capability_availability_', 'metrics_batch_', "'shadow_written'=>false"]:
+          for required in [
+              'PHASE5H_STAGE2_STAGE=', 'counter_registry', 'capability_provider_',
+              'capability_availability_', 'metrics_batch_', "'shadow_written'=>false",
+              "const ACTIVE_WORKER_LOCK = '/var/lib/phpipam-custom/vmware-inventory-recovery5g5/connector-1/worker.lock';",
+              'IntegrationVmwareInventoryStore::noLinks(ACTIVE_WORKER_LOCK)',
+              'flock($productionLock, LOCK_EX | LOCK_NB)',
+              'PHASE5H_STAGE2_LOCK_ACQUIRED=1', 'PHASE5H_STAGE2_LOCK_WAIT_MS='
+          ]:
               assert required in text, required
-          print('PHASE5H_STAGE2_DIAGNOSTIC_NON_WRITING_CONTRACT_OK')
+          assert text.index('PHASE5H_STAGE2_LOCK_ACQUIRED=1') < text.index("$current = $store->read('current')")
+          assert text.index("$current = $store->read('current')") < text.index('new IntegrationVmwareBatchSession')
+          assert 'flock($productionLock, LOCK_UN)' in text
+          print('PHASE5H_STAGE2_DIAGNOSTIC_SHARED_MUTEX_NON_WRITING_CONTRACT_OK')
           PY
       - name: Retained batch and shadow planner regressions
         run: |
