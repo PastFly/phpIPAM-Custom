@@ -32,6 +32,16 @@ def generate(package):
     app[context] = release['layers/phase5g/' + context] = text.encode()
     source = 'layers/phase5g/functions/classes/class.IntegrationVmwareInventorySource.php'
     text = once(release[source].decode(), 'new IntegrationVmwareVcenterGuestNetwork($this->rest)', 'new IntegrationVmwareInventoryGuestNetwork($this->rest)')
+    text = once(text, '''            $out = $direct($method, $url, $headers, $body, true, min(8, $connect), min(20, $timeout));
+            $this->observeDenial($out); return $out;''', '''            $out = $direct($method, $url, $headers, $body, true, min(8, $connect), min(20, $timeout));
+            $this->observeDenial($out);
+            // A HostSystem MOR may disappear after the initial roster was discovered.
+            // Treat the structured VMware fault as stale membership, never as proof of deletion:
+            // the worker discards only the incomplete generation and the next discovery decides membership.
+            if ((int)($out['status'] ?? 0) >= 400 && preg_match('/<(?:[A-Za-z0-9_]+:)?ManagedObjectNotFound(?:Fault)?\\b|xsi:type=["\\x27](?:[A-Za-z0-9_]+:)?ManagedObjectNotFound(?:Fault)?["\\x27]/i', (string)($out['body'] ?? ''))) {
+                throw new RuntimeException('mirror_membership_changed');
+            }
+            return $out;''')
     text = once(text, '    public function discover(): array', '''    public function repairGuest(string $id): array
     {
         if (!preg_match('/^vm-[0-9]{1,20}$/D', $id)) throw new InvalidArgumentException('guest_id');
