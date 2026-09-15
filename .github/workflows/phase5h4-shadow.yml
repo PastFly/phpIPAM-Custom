@@ -13,6 +13,7 @@ on:
       - 'tools/live/phase5h-stale-mor-rebench.sh'
       - 'tools/live/phase5h-selected-counter-rebench.sh'
       - 'tools/live/phase5h5-freshness-capability-hotfix.sh'
+      - 'tools/live/phase5h5-steady-state-accept.sh'
       - 'tests/phase5h-*'
       - '.github/workflows/phase5h4-shadow.yml'
       - 'design/PHASE5H4_SHADOW_CYCLE.md'
@@ -45,6 +46,7 @@ jobs:
           bash -n tools/live/phase5h-stale-mor-rebench.sh
           bash -n tools/live/phase5h-selected-counter-rebench.sh
           bash -n tools/live/phase5h5-freshness-capability-hotfix.sh
+          bash -n tools/live/phase5h5-steady-state-accept.sh
           python3 - <<'PY'
           from pathlib import Path
           compile(Path('tools/install-phase5h4-shadow.py').read_text(), 'tools/install-phase5h4-shadow.py', 'exec')
@@ -64,10 +66,21 @@ jobs:
               'while ! flock -x -n 9','PHASE5H5_FRESHNESS_WEBSITE_CHANGED=0','PHASE5H5_FRESHNESS_SYSTEMD_CHANGED=0'
           ]:
               assert required in freshness, required
+          steady=Path('tools/live/phase5h5-steady-state-accept.sh').read_text()
+          for required in [
+              "FAST_BLOB='366ce1d6a702c91a3556d3a2a969ff9993aad1d4'",
+              "PLANNER_BLOB='898d9bf64cfe328dc2243fc938b1c709e234c486'",
+              'MAX_CYCLES=7','STEADY_REQUIRED=3','INTERVAL=60','LOCK_WAIT_LIMIT=180',
+              'PHASE5H5_STEADY_CONSECUTIVE_COUNT=', 'PHASE5H5_STEADY_ACCEPTANCE=',
+              'target_60_300_acceptance','PHASE5H5_STEADY_SHADOW_ACCEPT_OK=1',
+              'PHASE5H5_STEADY_WEBSITE_CHANGED=0','PHASE5H5_STEADY_SYSTEMD_CHANGED=0'
+          ]:
+              assert required in steady, required
           for forbidden in ['systemctl stop', 'systemctl disable', 'systemctl enable', 'base64']:
               assert forbidden not in stale, forbidden
               assert forbidden not in selected, forbidden
               assert forbidden not in freshness, forbidden
+              assert forbidden not in steady, forbidden
           PY
           php tests/phase5h4-shadow-planner.test.php
           php tests/phase5h4-shadow-cycle.test.php
