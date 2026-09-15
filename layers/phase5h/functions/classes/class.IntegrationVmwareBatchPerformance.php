@@ -26,7 +26,11 @@ final class IntegrationVmwareBatchPerformance
         $value = IntegrationVmwareBatchSession::one($property, 'val');
         $list = IntegrationVmwareBatchSession::children($value, 'PerfCounterInfo');
         if (count($list) < 1 || count($list) > 10000) throw new RuntimeException('batch_counter_registry_invalid');
-        $names = []; $ids = []; $defs = [];
+
+        // vCenter may contain ambiguous third-party/unrelated counter canonicals. QueryPerf only ever
+        // uses the three allowlisted mappings below, so fail closed on ambiguity that can affect those
+        // mappings or their numeric IDs while ignoring conflicts wholly outside our query scope.
+        $byCanonical = []; $byId = [];
         foreach ($list as $counter) {
             $id = self::integer(IntegrationVmwareBatchSession::one($counter, 'key'), 1, 2147483647);
             $group = self::nested($counter, 'groupInfo'); $name = self::nested($counter, 'nameInfo');
@@ -35,18 +39,29 @@ final class IntegrationVmwareBatchPerformance
             foreach ([$group, $name, $unit, $rollup] as $token) if (!preg_match('/^[A-Za-z][A-Za-z0-9_.-]{0,127}$/D', $token)) throw new RuntimeException('batch_counter_registry_invalid');
             $canonical = $group . '.' . $name . '.' . $rollup;
             if (isset(self::UNITS[$canonical]) && self::UNITS[$canonical] !== $unit) throw new RuntimeException('batch_counter_unit_invalid');
-            $definition = ['id' => $id, 'unit' => $unit];
-            // Some vCenter versions return the same PerfCounterInfo more than once. An operationally
-            // equivalent duplicate is harmless for this collector; conflicting ID/name/unit mappings
-            // remain fail-closed so QueryPerf can never be issued against an ambiguous registry.
-            if (isset($names[$canonical]) || isset($ids[$id])) {
-                if (($names[$canonical] ?? null) !== $definition || ($ids[$id] ?? null) !== ['canonical' => $canonical, 'unit' => $unit]) {
-                    throw new RuntimeException('batch_counter_duplicate');
-                }
-                continue;
+            $byCanonical[$canonical][$id . '|' . $unit] = true;
+            $byId[$id][$canonical . '|' . $unit] = true;
+        }
+
+        $defs = [];
+        foreach (self::UNITS as $canonical => $expectedUnit) {
+            $mappings = $byCanonical[$canonical] ?? [];
+            if ($mappings === []) continue;
+            // Exact repeated PerfCounterInfo rows collapse to one set key. Different ID/unit mappings
+            // for a selected canonical are ambiguous and remain fail-closed.
+            if (count($mappings) !== 1) throw new RuntimeException('batch_counter_duplicate');
+            $mapping = array_key_first($mappings);
+            if (!is_string($mapping) || !preg_match('/^([1-9][0-9]{0,9})\|([A-Za-z][A-Za-z0-9_.-]{0,127})$/D', $mapping, $match)) {
+                throw new RuntimeException('batch_counter_registry_invalid');
             }
-            $names[$canonical] = $definition; $ids[$id] = ['canonical' => $canonical, 'unit' => $unit];
-            if (isset(self::UNITS[$canonical])) $defs[$canonical] = $definition;
+            $id = filter_var($match[1], FILTER_VALIDATE_INT);
+            $unit = $match[2];
+            if ($id === false || $id < 1 || $id > 2147483647) throw new RuntimeException('batch_counter_registry_invalid');
+            if ($unit !== $expectedUnit) throw new RuntimeException('batch_counter_unit_invalid');
+            // A selected numeric ID must not describe any other canonical/unit, selected or not.
+            $reverse = $byId[$id] ?? [];
+            if (count($reverse) !== 1 || !isset($reverse[$canonical . '|' . $unit])) throw new RuntimeException('batch_counter_duplicate');
+            $defs[$canonical] = ['id' => $id, 'unit' => $unit];
         }
         return $this->definitions = $defs;
     }
