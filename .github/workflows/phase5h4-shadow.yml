@@ -7,6 +7,8 @@ on:
       - 'layers/phase5h2/**'
       - 'layers/phase5h3/**'
       - 'layers/phase5h4/**'
+      - 'tools/phase5h4-shadow-run.php'
+      - 'tools/install-phase5h4-shadow.py'
       - 'tests/phase5h4-*'
       - '.github/workflows/phase5h4-shadow.yml'
       - 'design/PHASE5H4_SHADOW_CYCLE.md'
@@ -34,8 +36,14 @@ jobs:
           set -euo pipefail
           php -l layers/phase5h4/functions/classes/class.IntegrationVmwareShadowPlanner.php
           php -l layers/phase5h4/functions/classes/class.IntegrationVmwareShadowCycle.php
+          php -l tools/phase5h4-shadow-run.php
+          python3 - <<'PY'
+          from pathlib import Path
+          compile(Path('tools/install-phase5h4-shadow.py').read_text(), 'tools/install-phase5h4-shadow.py', 'exec')
+          PY
           php tests/phase5h4-shadow-planner.test.php
           php tests/phase5h4-shadow-cycle.test.php
+          sudo python3 -B tests/phase5h4-shadow-installer.test.py
           php tests/phase5h2-fast-domain.test.php
           php tests/phase5h2-roster.test.php
           php tests/phase5h3-fast-store.test.php
