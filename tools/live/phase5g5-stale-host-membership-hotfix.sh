@@ -16,12 +16,7 @@ cleanup() {
     rc=$?
     trap - EXIT
     if [ -n "${TMP_TARGET:-}" ] && [ -e "$TMP_TARGET" ]; then rm -f -- "$TMP_TARGET"; fi
-    if [ -n "${WORK:-}" ] && [ -d "$WORK" ]; then
-        for tree in patch base; do
-            if [ -d "$WORK/$tree" ]; then git -C "$REPO" worktree remove --force "$WORK/$tree" >/dev/null 2>&1 || true; fi
-        done
-        rm -rf -- "$WORK"
-    fi
+    if [ -n "${WORK:-}" ] && [ -d "$WORK" ]; then rm -rf -- "$WORK"; fi
     printf '\nPHASE5G5_STALE_HOST_PATCH_BLOCK_EXIT=%s\n' "$rc"
     exit "$rc"
 }
@@ -69,8 +64,19 @@ fi
 
 WORK="$(mktemp -d /var/tmp/phpipam-phase5g5-stale-host.XXXXXXXX)"
 chmod 0700 "$WORK"
-git worktree add --detach "$WORK/base" "$BASE" >/dev/null
-git worktree add --detach "$WORK/patch" "$PATCH" >/dev/null
+
+# source_package() intentionally rejects non-clean source trees. Use two standalone
+# local clones rather than linked worktrees, so Git status is independent of the
+# protected checkout and worktree administration state. No network is used here.
+git clone --shared --no-checkout "$REPO" "$WORK/base" >/dev/null 2>&1
+git clone --shared --no-checkout "$REPO" "$WORK/patch" >/dev/null 2>&1
+git -C "$WORK/base" -c advice.detachedHead=false checkout --detach "$BASE" >/dev/null
+git -C "$WORK/patch" -c advice.detachedHead=false checkout --detach "$PATCH" >/dev/null
+test "$(git -C "$WORK/base" rev-parse HEAD)" = "$BASE"
+test "$(git -C "$WORK/patch" rev-parse HEAD)" = "$PATCH"
+test -z "$(git -C "$WORK/base" status --porcelain)"
+test -z "$(git -C "$WORK/patch" status --porcelain)"
+echo 'PHASE5G5_STALE_HOST_CLEAN_CLONES_OK=1'
 
 # Execute the real generated-runtime package tests from the exact patch commit before any live write.
 (
@@ -81,6 +87,7 @@ echo 'PHASE5G5_STALE_HOST_LOCAL_TESTS_OK=1'
 
 build_source() {
     local root="$1" output="$2"
+    test -z "$(git -C "$root" status --porcelain)"
     ROOT_FOR_BUILD="$root" OUTPUT_FOR_BUILD="$output" python3 - <<'PY'
 import importlib.util
 import os
