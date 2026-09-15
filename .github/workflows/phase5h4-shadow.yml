@@ -29,11 +29,13 @@ jobs:
           php-version: ${{ matrix.php }}
           extensions: dom, sodium, posix
           coverage: none
-      - name: Shadow planning, partial preservation and retained collectors
+      - name: Shadow planning, encrypted publication and retained collectors
         run: |
           set -euo pipefail
           php -l layers/phase5h4/functions/classes/class.IntegrationVmwareShadowPlanner.php
+          php -l layers/phase5h4/functions/classes/class.IntegrationVmwareShadowCycle.php
           php tests/phase5h4-shadow-planner.test.php
+          php tests/phase5h4-shadow-cycle.test.php
           php tests/phase5h2-fast-domain.test.php
           php tests/phase5h2-roster.test.php
           php tests/phase5h3-fast-store.test.php
