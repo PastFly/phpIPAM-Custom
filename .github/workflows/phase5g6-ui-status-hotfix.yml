@@ -1,0 +1,49 @@
+name: Phase 5G.6 UI Status Hotfix
+on:
+  push:
+    branches: ['phase5g/**']
+  pull_request:
+    paths:
+      - 'layers/phase5g2/functions/classes/class.IntegrationVmwareInventoryNative.php'
+      - 'layers/phase5g3/app/integrations/vmware/phase5g3-status.js'
+      - 'tools/phase5g6-ui-status-hotfix.py'
+      - 'tests/phase5g6-ui-status-hotfix.test.py'
+      - 'tests/phase5g2-native.test.php'
+      - 'tests/phase5g3-status-browser.test.js'
+      - '.github/workflows/phase5g6-ui-status-hotfix.yml'
+permissions:
+  contents: read
+jobs:
+  hotfix:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2','8.4']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: sodium, posix, dom
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax and transactional hotfix fixture
+        run: |
+          set -euo pipefail
+          php -l layers/phase5g2/functions/classes/class.IntegrationVmwareInventoryNative.php
+          node --check layers/phase5g3/app/integrations/vmware/phase5g3-status.js
+          python3 -m py_compile tools/phase5g6-ui-status-hotfix.py
+          sudo python3 -B tests/phase5g6-ui-status-hotfix.test.py
+      - name: Native local rendering and status browser regressions
+        run: |
+          set -euo pipefail
+          python3 -B tools/build-phase5g2-native.py "$RUNNER_TEMP/native-generated"
+          php tests/phase5g2-native.test.php "$RUNNER_TEMP/native-generated"
+          npm install --prefix "$RUNNER_TEMP/status-node" --ignore-scripts --no-audit --no-fund --no-package-lock jquery@3.7.1 jsdom@24.1.3
+          NODE_PATH="$RUNNER_TEMP/status-node/node_modules" node tests/phase5g3-status-browser.test.js
