@@ -5,7 +5,9 @@ on:
   pull_request:
     paths:
       - 'tools/phase5h5-shadow-inspect.php'
+      - 'tools/phase5h5-residual-diagnose.php'
       - 'tools/live/phase5h5-recurring-shadow-accept.sh'
+      - 'tools/live/phase5h5-residual-diagnose.sh'
       - '.github/workflows/phase5h5-recurring-shadow-acceptance.yml'
 permissions:
   contents: read
@@ -30,12 +32,16 @@ jobs:
         run: |
           set -euo pipefail
           php -l tools/phase5h5-shadow-inspect.php
+          php -l tools/phase5h5-residual-diagnose.php
           bash -n tools/live/phase5h5-recurring-shadow-accept.sh
+          bash -n tools/live/phase5h5-residual-diagnose.sh
           bash -u -c 'SHADOW=/tmp; f(){ local rel="$1" expected="$2"; local path="$SHADOW/$rel"; test "$path" = /tmp/example && test "$expected" = deadbeef; }; f example deadbeef'
           python3 - <<'PY'
           from pathlib import Path
           inspect=Path('tools/phase5h5-shadow-inspect.php').read_text()
+          residual=Path('tools/phase5h5-residual-diagnose.php').read_text()
           live=Path('tools/live/phase5h5-recurring-shadow-accept.sh').read_text()
+          residual_live=Path('tools/live/phase5h5-residual-diagnose.sh').read_text()
           for required in [
               "SOURCE='da2e4d10534044023dc3acd073fc37ead50741a8'",
               "INSPECT_BLOB='ce31b97df4422fde2cfd64e154ae61ab9d2da592'",
@@ -51,8 +57,7 @@ jobs:
               assert required in live, required
           for forbidden in [
               'systemctl stop','systemctl disable','systemctl enable','base64','flock -x -w 180 9',
-              'local rel="$1" expected="$2" path="$SHADOW/$rel"',
-              'chmod 0777 "$TMP"'
+              'local rel="$1" expected="$2" path="$SHADOW/$rel"','chmod 0777 "$TMP"'
           ]:
               assert forbidden not in live, forbidden
           for required in [
@@ -63,5 +68,22 @@ jobs:
               assert required in inspect, required
           for forbidden in ['->write(', '->publish(', '->update(', 'ShadowCycle::run', 'workerRuntime(', 'curl_init(', 'system(']:
               assert forbidden not in inspect, forbidden
+          for required in [
+              'PHASE5H5_RESIDUAL_RESULT=', 'metric_lag_bins_seconds', 'capability_probe_outcomes',
+              "'website_served_from_shadow'=>false", "'shadow_written'=>false"
+          ]:
+              assert required in residual, required
+          for forbidden in ['->write(', '->publish(', '->update(', 'ShadowCycle::run']:
+              assert forbidden not in residual, forbidden
+          for required in [
+              "SOURCE='d6dfa0dac9de3c5e05838b9c0bd7142e9f724a5a'",
+              "DIAG_BLOB='c72b330cec15fec542eb2997c706b645e0e61180'",
+              'PHASE5H5_RESIDUAL_READ_ONLY=1','PHASE5H5_RESIDUAL_SHADOW_WRITTEN=0',
+              'PHASE5H5_RESIDUAL_WEBSITE_CHANGED=0','PHASE5H5_RESIDUAL_SYSTEMD_CHANGED=0',
+              'while ! flock -x -n 9'
+          ]:
+              assert required in residual_live, required
+          for forbidden in ['systemctl stop','systemctl disable','systemctl enable','base64']:
+              assert forbidden not in residual_live, forbidden
           print('PHASE5H5_RECURRING_NON_SERVING_BOUNDARY_OK')
           PY
