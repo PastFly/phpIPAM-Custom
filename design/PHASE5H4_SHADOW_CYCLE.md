@@ -24,10 +24,20 @@ The cycle returns sanitized operational counters only: roster counts, property-o
 
 Controlled CI runs use a real encrypted FastStore and real DOM SOAP parsing. They verify that a complete small pass populates properties and metrics, and that binding denial prevents any publication into a fresh shadow store.
 
+## One-shot live benchmark package
+
+`tools/install-phase5h4-shadow.py` is create-only. Before provisioning anything it verifies the existing 5G.5 recovery receipt is still `active` and the normal 5G.5 timer is `active/waiting/enabled`. It then copies only the reviewed shadow runner/classes into `/opt/phpipam-custom/vmware-fast-shadow` and provisions `/var/lib/phpipam-custom/vmware-fast-shadow/{properties,metrics,capabilities,roster}` for UID/GID 33. It creates a separate receipt under `/var/backups/phpipam-custom`.
+
+The installer does not write `/var/www/html`, does not create/enable/start/stop systemd units, and does not mutate the connector, database, TLS trust, active 5G.5 release, active inventory or active telemetry. A second install is rejected rather than overwriting the first benchmark state.
+
+`tools/phase5h4-shadow-run.php` is a one-shot CLI executed as `www-data`. It reads the current authorized 5G.5 inventory and telemetry, opens one bounded batch session to vCenter, and writes only the separate fast-shadow encrypted domains. The result is a sanitized `PHASE5H_SHADOW_RESULT` containing wall time, request/response counts, peak memory and aggregate roster/plan/capability counts. It re-reads the active publication afterwards and reports whether that active generation remained unchanged. The website never reads the shadow root during this benchmark.
+
+The package deliberately has no recurring timer yet. First obtain one real pass. If one pass is safely within the target budget and load is acceptable, recurring shadow cadence can be tested separately before any native reader or production collector switch.
+
 ## Shadow safety boundary
 
-A live shadow deployment must use a separately provisioned encrypted fast root and separate service/timer names. It must never write the active 5G.5 inventory/telemetry directories, feed native website readers, alter the connector, or change the active timer during measurement. It must be stoppable/removable without rollback of the live website.
+A live shadow deployment must use a separately provisioned encrypted fast root and must never write the active 5G.5 inventory/telemetry directories, feed native website readers, alter the connector, or change the active timer during measurement. The create-only benchmark package follows this boundary and can remain on disk as measurement evidence without affecting the website.
 
-First live shadow measurement should report only sanitized aggregates: roster counts, planned/due/unsupported counts, SOAP request count, wall duration, peak memory, property publication age, metric observed-age distribution, errors by allowlisted category and whether the active 5G.5 publication/timer remained unchanged. No object names/IDs, credentials, payloads or session tokens in logs.
+First live shadow measurement should report only sanitized aggregates: roster counts, planned/due/unsupported counts, SOAP request count, wall duration, peak memory, response bytes and whether the active 5G.5 publication remained unchanged. No object names/IDs, credentials, payloads or session tokens belong in logs.
 
 The purpose is to establish whether the batched fast subset can actually complete within the requested 60–300 second window on the real vCenter before native readers are switched. Passing source tests is not freshness acceptance.
