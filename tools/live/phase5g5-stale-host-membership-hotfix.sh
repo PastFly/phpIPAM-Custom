@@ -88,7 +88,7 @@ echo 'PHASE5G5_STALE_HOST_LOCAL_TESTS_OK=1'
 build_source() {
     local root="$1" output="$2"
     test -z "$(git -C "$root" status --porcelain)"
-    ROOT_FOR_BUILD="$root" OUTPUT_FOR_BUILD="$output" python3 - <<'PY'
+    ROOT_FOR_BUILD="$root" OUTPUT_FOR_BUILD="$output" PYTHONDONTWRITEBYTECODE=1 python3 -B - <<'PY'
 import importlib.util
 import os
 from pathlib import Path
@@ -104,6 +104,7 @@ if not isinstance(data, bytes) or len(data) < 1024 or len(data) > 1048576:
     raise SystemExit('generated_source_invalid')
 out.write_bytes(data)
 PY
+    test -z "$(git -C "$root" status --porcelain)"
 }
 
 OLD="$WORK/old-source.php"
