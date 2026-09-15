@@ -68,7 +68,7 @@ try {
         $perf = new IntegrationVmwareBatchPerformance($s, 25);
         $stage = 'counter_registry'; $defs = $perf->definitions();
 
-        $cache = $capabilities; $plans = $plan['plans']; $unsupported = $plan['unsupported'];
+        $cache = $capabilities; $plans = $plan['plans']; $unsupportedCount = count($plan['unsupported']);
         $revalidated = 0; $stillDue = 0;
         foreach ($plan['capability_due'] as $entity) {
             if ($revalidated >= 12) { ++$stillDue; continue; }
@@ -78,7 +78,7 @@ try {
             if (($provider['current_supported'] ?? null) !== true) {
                 $cache = IntegrationVmwareCapabilityCache::put($cache, $entity['kind'], $entity['id'],
                     ['current_supported'=>false,'refresh_rate'=>null,'counters'=>[]], time(), 900);
-                ++$unsupported; continue;
+                ++$unsupportedCount; continue;
             }
             $interval = $provider['interval_id'] ?? null;
             if (!is_int($interval)) throw new RuntimeException('shadow_provider_interval_invalid');
@@ -92,7 +92,7 @@ try {
             $selected = [];
             foreach ($statuses as $counter=>$status) if ($status === 'available') $selected[] = $counter;
             if ($selected !== []) $plans[] = ['kind'=>$entity['kind'],'id'=>$entity['id'],'interval_id'=>$interval,'counters'=>$selected];
-            else ++$unsupported;
+            else ++$unsupportedCount;
         }
 
         $metricObjects = 0; $partial = 0; $notReturned = 0; $batches = array_chunk($plans, 25);
@@ -109,7 +109,7 @@ try {
         return ['property_objects'=>count($inventory['objects']), 'counter_definitions'=>count($defs),
             'metric_plans'=>count($plans), 'metric_objects'=>$metricObjects, 'metric_partial'=>$partial,
             'metric_not_returned'=>$notReturned, 'capability_revalidated'=>$revalidated,
-            'capability_still_due'=>$stillDue, 'unsupported'=>$unsupported];
+            'capability_still_due'=>$stillDue, 'unsupported'=>$unsupportedCount];
     });
     $stage = 'post_logout';
     $stats = $session->statistics();
