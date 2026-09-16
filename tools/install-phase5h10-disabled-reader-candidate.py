@@ -146,12 +146,14 @@ def require_parent(system: Path, absolute: Path) -> Path:
     return path
 
 
-def write_file(path: Path, raw: bytes, mode: int, uid: int, gid: int, apply_owner: bool) -> None:
-    """Publish through an exclusive hard link so a racing target is never overwritten."""
+def write_file(path: Path, raw: bytes, mode: int, uid: int, gid: int, apply_owner: bool) -> tuple[str,int,int]:
+    """Publish through an exclusive hard link and return the exact transaction inode identity."""
     no_links(path.parent)
     if path.exists() or path.is_symlink(): raise RuntimeError('phase5h10_target_exists')
     tmp = path.parent / ('.install-' + secrets.token_hex(12))
     linked = False
+    identity = None
+    expected = digest(raw)
     try:
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         try:
@@ -163,14 +165,20 @@ def write_file(path: Path, raw: bytes, mode: int, uid: int, gid: int, apply_owne
         regular(tmp, uid=uid if apply_owner else None, gid=gid if apply_owner else None, mode=mode)
         if path.exists() or path.is_symlink(): raise RuntimeError('phase5h10_target_exists')
         os.link(tmp, path, follow_symlinks=False); linked = True
+        published = path.lstat(); identity = (published.st_dev, published.st_ino)
         tmp.unlink()
-        regular(path, uid=uid if apply_owner else None, gid=gid if apply_owner else None, mode=mode)
-        if digest(path.read_bytes()) != digest(raw): raise RuntimeError('phase5h10_publish_hash')
+        st = regular(path, uid=uid if apply_owner else None, gid=gid if apply_owner else None, mode=mode)
+        if (st.st_dev, st.st_ino) != identity or digest(path.read_bytes()) != expected:
+            raise RuntimeError('phase5h10_publish_hash')
         fsync_dir(path.parent)
+        return expected, identity[0], identity[1]
     except BaseException:
-        if linked:
+        if linked and identity is not None:
             try:
-                if path.is_file() and not path.is_symlink() and digest(path.read_bytes()) == digest(raw): path.unlink()
+                st = path.lstat()
+                if stat.S_ISREG(st.st_mode) and not path.is_symlink() and \
+                    (st.st_dev, st.st_ino) == identity and digest(path.read_bytes()) == expected:
+                    path.unlink(); fsync_dir(path.parent)
             except Exception: pass
         try:
             if tmp.exists() and not tmp.is_symlink(): tmp.unlink()
@@ -187,30 +195,38 @@ def ensure_dir(path: Path, mode: int, uid: int, gid: int, apply_owner: bool, cre
     no_links(path.parent)
     try: path.mkdir(mode=mode)
     except FileExistsError as error: raise RuntimeError('phase5h10_target_exists') from error
+    created_dirs.append(path)
     if apply_owner: os.chown(path, uid, gid)
     os.chmod(path, mode)
     directory(path, uid=uid if apply_owner else None, gid=gid if apply_owner else None, mode=mode)
-    created_dirs.append(path)
     fsync_dir(path.parent)
 
 
 def write_receipt(path: Path, receipt: dict, apply_owner: bool) -> None:
     raw = (json.dumps(receipt, sort_keys=True, separators=(',', ':')) + '\n').encode()
     tmp = path.parent / ('.receipt-' + secrets.token_hex(8))
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     try:
-        with os.fdopen(fd, 'wb', closefd=False) as out:
-            out.write(raw); out.flush(); os.fsync(out.fileno())
-    finally: os.close(fd)
-    if apply_owner: os.chown(tmp, 0, 0)
-    os.chmod(tmp, 0o600); os.replace(tmp, path); fsync_dir(path.parent)
-
-
-def rollback(created_files: list[tuple[Path,str]], created_dirs: list[Path]) -> bool:
-    clean = True
-    for path, expected in reversed(created_files):
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         try:
-            if path.is_symlink() or not path.is_file() or digest(path.read_bytes()) != expected:
+            with os.fdopen(fd, 'wb', closefd=False) as out:
+                out.write(raw); out.flush(); os.fsync(out.fileno())
+        finally: os.close(fd)
+        if apply_owner: os.chown(tmp, 0, 0)
+        os.chmod(tmp, 0o600); os.replace(tmp, path); fsync_dir(path.parent)
+    finally:
+        try:
+            if tmp.exists() and not tmp.is_symlink(): tmp.unlink()
+        except Exception: pass
+
+
+def rollback(created_files: list[tuple[Path,str,int,int]], created_dirs: list[Path]) -> bool:
+    clean = True
+    for path, expected, expected_dev, expected_ino in reversed(created_files):
+        try:
+            if path.is_symlink() or not path.is_file():
+                clean = False; continue
+            st = path.lstat()
+            if (st.st_dev, st.st_ino) != (expected_dev, expected_ino) or digest(path.read_bytes()) != expected:
                 clean = False; continue
             parent = path.parent; path.unlink(); fsync_dir(parent)
         except FileNotFoundError: pass
@@ -257,16 +273,17 @@ def install(system: Path = Path('/'), verify_live: bool = True, apply_owner: boo
     }
     write_receipt(receipt_path, receipt, apply_owner)
 
-    created_files: list[tuple[Path,str]] = []
+    created_files: list[tuple[Path,str,int,int]] = []
     created_dirs: list[Path] = []
     writes = 0
     try:
         try: candidate.mkdir(mode=0o755)
         except FileExistsError as error: raise RuntimeError('phase5h10_candidate_already_exists') from error
+        created_dirs.append(candidate)
         if apply_owner: os.chown(candidate, 0, 0)
         os.chmod(candidate, 0o755)
         directory(candidate, uid=0 if apply_owner else None, gid=0 if apply_owner else None, mode=0o755)
-        created_dirs.append(candidate); fsync_dir(candidate.parent)
+        fsync_dir(candidate.parent)
         for rel in sorted(files):
             raw = files[rel]; path = candidate / rel
             parts = path.parent.relative_to(candidate).parts
@@ -277,8 +294,8 @@ def install(system: Path = Path('/'), verify_live: bool = True, apply_owner: boo
                 ensure_dir(cur, 0o750 if config_tree else 0o755, 0, 33 if config_tree else 0, apply_owner, created_dirs)
             is_config = rel == 'config/vmware-fast-reader.json'
             mode, uid, gid = (0o640,0,33) if is_config else (0o644,0,0)
-            write_file(path, raw, mode, uid, gid, apply_owner)
-            created_files.append((path, digest(raw))); writes += 1
+            expected, dev, ino = write_file(path, raw, mode, uid, gid, apply_owner)
+            created_files.append((path, expected, dev, ino)); writes += 1
             if fault_after is not None and writes >= fault_after: raise RuntimeError('phase5h10_injected_failure')
 
         for rel, raw in files.items():
