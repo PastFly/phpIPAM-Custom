@@ -1,0 +1,37 @@
+name: Phase 5H7 Local Readers
+on:
+  push:
+    branches: ['phase5h7/**']
+  pull_request:
+    paths:
+      - 'layers/phase5h7/**'
+      - 'tests/phase5h7-*'
+      - 'design/PHASE5H7_LOCAL_READERS.md'
+      - '.github/workflows/phase5h7-local-readers.yml'
+permissions:
+  contents: read
+jobs:
+  local-reader:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up PHP ${{ matrix.php }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - name: Validate local-only reader contracts
+        run: |
+          set -euo pipefail
+          php -l layers/phase5h7/functions/classes/class.IntegrationVmwareFastReader.php
+          php -l tests/phase5h7-fast-reader.test.php
+          python3 -m py_compile tests/phase5h7-local-reader-boundary.test.py
+          php tests/phase5h7-fast-reader.test.php
+          python3 -B tests/phase5h7-local-reader-boundary.test.py
