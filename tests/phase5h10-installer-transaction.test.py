@@ -2,6 +2,7 @@
 from pathlib import Path
 import importlib.util
 import json
+import os
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -96,14 +97,18 @@ try:
         ok(not (system/'opt/phpipam-custom/vmware-fast-reader-candidate').exists(), 'enabled bundle not staged')
         ok(backups(system)==[], 'enabled bundle no backup')
 
-    # Rollback must not delete a replacement file even when the attacker reuses identical bytes.
+    # Rollback must not delete a replacement file even when it has identical bytes.
+    # Create both inodes concurrently so the identity difference is deterministic.
     with tempfile.TemporaryDirectory() as td:
         root=Path(td); owned=root/'owned'; owned.mkdir()
-        target=owned/'payload.php'; raw=b'<?php // same bytes\n'; target.write_bytes(raw)
-        st=target.lstat(); record=(target, mod.digest(raw), st.st_dev, st.st_ino)
-        target.unlink(); target.write_bytes(raw)
+        target=owned/'payload.php'; replacement=owned/'replacement.php'; raw=b'<?php // same bytes\n'
+        target.write_bytes(raw); replacement.write_bytes(raw)
+        original=target.lstat(); other=replacement.lstat()
+        ok((other.st_dev,other.st_ino)!=(original.st_dev,original.st_ino), 'replacement inode differs')
+        record=(target, mod.digest(raw), original.st_dev, original.st_ino)
+        os.replace(replacement, target)
         replaced=target.lstat()
-        ok((replaced.st_dev,replaced.st_ino)!=(st.st_dev,st.st_ino), 'replacement inode differs')
+        ok((replaced.st_dev,replaced.st_ino)==(other.st_dev,other.st_ino), 'replacement identity preserved')
         clean=mod.rollback([record], [])
         ok(clean is False, 'replacement makes rollback incomplete')
         ok(target.is_file() and target.read_bytes()==raw, 'replacement survives rollback')
