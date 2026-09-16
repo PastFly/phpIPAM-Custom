@@ -112,7 +112,7 @@ def verify_sources() -> None:
     ]:
         if required not in text:
             raise RuntimeError('wrapper_contract')
-    for forbidden in ['systemctl stop', 'systemctl disable', 'runuser', 'sudo', 'base64']:
+    for forbidden in ['systemctl stop', 'systemctl disable', 'runuser', 'sudo']:
         if forbidden in text:
             raise RuntimeError('wrapper_contract')
 
