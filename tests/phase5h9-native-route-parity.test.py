@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 from pathlib import Path
-import subprocess
+import hashlib
 
 ROOT = Path(__file__).resolve().parents[1]
 PATH = Path('layers/phase5g2/app/integrations/vmware/mirror/native.php')
-BASE = 'b4b3aad50048ccd8ffadd24101b18d32d5d2ac59'
+BASE_BLOB = 'dfa35e5e215230feb2cef2d6078bd39dc5a2fe9f'
 current = (ROOT / PATH).read_text()
-base = subprocess.check_output(['git', '-C', str(ROOT), 'show', f'{BASE}:{PATH.as_posix()}']).decode()
 n = 0
 def ok(value, label):
     global n
     n += 1
     if not value: raise AssertionError(label)
+
+def git_blob_sha(text):
+    raw = text.encode('utf-8')
+    return hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
 
 def require_span(text):
     start = text.index("    foreach (['IntegrationVmwareSnapshotService'")
@@ -19,13 +22,17 @@ def require_span(text):
     return text[start:stop]
 
 current_require = require_span(current)
-base_require = require_span(base)
+base_require = (
+    "    foreach (['IntegrationVmwareSnapshotService', 'IntegrationVmwareInventoryStore', 'IntegrationVmwareInventoryContext',\n"
+    "        'IntegrationVmwareInventoryReader', 'IntegrationVmwareInventoryNative', 'IntegrationVmwareVcenterExplorer',\n"
+    "        'IntegrationPhpIpamAddressLinkResolver', 'IntegrationVmwareInventoryTelemetryStore'] as $class) require_once($application . '/functions/classes/class.' . $class . '.php');"
+)
 selection = (
     "    $fastConfig = IntegrationVmwareFastReaderConfigLoader::load();\n"
     "    $reader = (new IntegrationVmwareFastOverlayFactory($context, $fastConfig, (int)$id))->selector($reader);\n"
 )
 canonical = current.replace(current_require, base_require, 1).replace(selection, '', 1)
-ok(canonical == base, 'route delta exceeds class allowlist + two selection lines')
+ok(git_blob_sha(canonical) == BASE_BLOB, 'route delta exceeds exact H8 blob + reviewed H9 additions')
 
 for token in [
     "header('X-Phpipam-Inventory-Vcenter-Requests: 0')",
@@ -67,6 +74,7 @@ ok(current.count('IntegrationVmwareFastReaderConfigLoader::load()') == 1, 'one c
 ok(current.count('->selector($reader)') == 1, 'one reader selection')
 
 print(f'PHASE5H9_NATIVE_ROUTE_PARITY_ASSERTIONS={n}')
+print('PHASE5H9_NATIVE_ROUTE_EXACT_H8_BLOB_PARITY_OK')
 print('PHASE5H9_NATIVE_ROUTE_ONLY_REVIEWED_DELTA_OK')
 print('PHASE5H9_NATIVE_AUTH_CSRF_ERROR_PARITY_OK')
 print('PHASE5H9_NATIVE_NO_REQUEST_ENV_ENABLEMENT_OK')
