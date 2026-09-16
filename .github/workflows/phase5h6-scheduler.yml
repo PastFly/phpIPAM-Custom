@@ -1,0 +1,69 @@
+name: Phase 5H6 Autonomous Shadow Scheduler
+on:
+  push:
+    branches: ['phase5h6/**']
+  pull_request:
+    paths:
+      - 'tools/phase5h6-scheduled-cycle.sh'
+      - 'tools/phase5h6-shadow-observe.php'
+      - 'tools/install-phase5h6-scheduler.py'
+      - 'tools/live/phase5h6-*'
+      - 'systemd/phpipam-vmware-fast-shadow@.service'
+      - 'systemd/phpipam-vmware-fast-shadow@.timer'
+      - 'tests/phase5h6-scheduler.test.py'
+      - '.github/workflows/phase5h6-scheduler.yml'
+permissions:
+  contents: read
+jobs:
+  scheduler:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate non-serving autonomous scheduler boundaries
+        run: |
+          set -euo pipefail
+          bash -n tools/phase5h6-scheduled-cycle.sh
+          bash -n tools/live/phase5h6-scheduler-install.sh
+          bash -n tools/live/phase5h6-autonomous-observe.sh
+          bash -n tools/live/phase5h6-runtime-resilience-accept.sh
+          php -l tools/phase5h6-shadow-observe.php
+          python3 -m py_compile tools/install-phase5h6-scheduler.py tests/phase5h6-scheduler.test.py
+          python3 -B tests/phase5h6-scheduler.test.py
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          wrapper=Path('tools/phase5h6-scheduled-cycle.sh').read_text()
+          installer=Path('tools/install-phase5h6-scheduler.py').read_text()
+          install_live=Path('tools/live/phase5h6-scheduler-install.sh').read_text()
+          observe_live=Path('tools/live/phase5h6-autonomous-observe.sh').read_text()
+          resilience=Path('tools/live/phase5h6-runtime-resilience-accept.sh').read_text()
+          service=Path('systemd/phpipam-vmware-fast-shadow@.service').read_text()
+          timer=Path('systemd/phpipam-vmware-fast-shadow@.timer').read_text()
+          unsafe=re.compile(r'^\s*local\s+[^\n]*\b([A-Za-z_][A-Za-z0-9_]*)="[^\n]*"[^\n]*\$\1', re.M)
+          for name,text in [('wrapper',wrapper),('install_live',install_live),('observe_live',observe_live),('resilience',resilience)]:
+              assert unsafe.search(text) is None, f'unsafe_set_u_local:{name}'
+          for forbidden in ['base64','systemctl stop phpipam-vmware-recovery5g5','systemctl disable phpipam-vmware-recovery5g5']:
+              for text in [wrapper,installer,install_live,observe_live,resilience]:
+                  assert forbidden not in text, forbidden
+          assert 'User=www-data' in service and 'Group=www-data' in service
+          assert 'ProtectSystem=strict' in service
+          assert 'ReadWritePaths=/var/lib/phpipam-custom/vmware-fast-shadow' in service
+          assert 'ReadWritePaths=/var/lib/phpipam-custom/vmware-inventory-recovery5g5/connector-1/worker.lock' in service
+          assert 'OnUnitActiveSec=60s' in timer
+          assert 'Persistent=true' in timer
+          assert 'PHASE5H6_AUTONOMOUS_NO_RUNNER_INVOCATION=1' in observe_live
+          assert 'REQUIRED_NEW_PUBLICATIONS=4' in observe_live
+          for required in [
+              'PHASE5H6_RESILIENCE_TIMER_RESTART_OK=1',
+              'PHASE5H6_RESILIENCE_SHARED_LOCK_CONTENTION_OK=1',
+              'PHASE5H6_RESILIENCE_FORCED_FAILURE_OBSERVED=1',
+              'PHASE5H6_RESILIENCE_AUTONOMOUS_RECOVERY_OK=1',
+              'PHASE5H6_RESILIENCE_ACCEPT_OK=1',
+          ]:
+              assert required in resilience, required
+          assert 'systemctl kill --kill-who=main --signal=TERM "$SERVICE"' in resilience
+          assert 'systemctl restart "$SCHED_TIMER"' in resilience
+          PY

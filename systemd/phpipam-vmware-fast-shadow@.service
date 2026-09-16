@@ -1,0 +1,37 @@
+[Unit]
+Description=phpIPAM VMware Phase5H non-serving shadow refresh for connector %i
+Documentation=https://github.com/PastFly/phpIPAM-Custom
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+UMask=0077
+ExecStart=/opt/phpipam-custom/vmware-fast-shadow/tools/phase5h6-scheduled-cycle.sh %i
+TimeoutStartSec=180s
+SuccessExitStatus=75
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=phpipam-vmware-fast-shadow-%i
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+LockPersonality=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/phpipam-custom/vmware-fast-shadow
+ReadWritePaths=/var/lib/phpipam-custom/vmware-inventory-recovery5g5/connector-1/worker.lock
+ReadOnlyPaths=/var/www/html
+ReadOnlyPaths=/opt/phpipam-custom/inventory-recovery5g5
+ReadOnlyPaths=/etc/phpipam-custom
