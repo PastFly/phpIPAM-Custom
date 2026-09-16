@@ -103,12 +103,12 @@ final class IntegrationVmwareFastMetricCompat
         return true;
     }
 
-    /** Infer a renderer hint only from an exactly uniform series; otherwise preserve unknown interval as null. */
+    /** Infer a real-time renderer hint only from an exactly uniform 1..300 second series. */
     private static function stableInterval(array $points): ?int
     {
         if (count($points) < 2) return null;
         $interval = $points[1]['observed_at'] - $points[0]['observed_at'];
-        if ($interval < 1 || $interval > 86400) return null;
+        if ($interval < 1 || $interval > 300) return null;
         for ($i = 2, $n = count($points); $i < $n; $i++) {
             if ($points[$i]['observed_at'] - $points[$i - 1]['observed_at'] !== $interval) return null;
         }
