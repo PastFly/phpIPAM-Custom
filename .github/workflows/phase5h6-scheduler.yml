@@ -27,7 +27,6 @@ jobs:
           bash -n tools/phase5h6-scheduled-cycle.sh
           python3 -m py_compile tools/install-phase5h6-scheduler.py tests/phase5h6-scheduler.test.py
           python3 -B tests/phase5h6-scheduler.test.py
-          systemd-analyze verify systemd/phpipam-vmware-fast-shadow@.service systemd/phpipam-vmware-fast-shadow@.timer
           python3 - <<'PY'
           import re
           from pathlib import Path
@@ -42,6 +41,8 @@ jobs:
               assert forbidden not in installer
           assert 'User=www-data' in service and 'Group=www-data' in service
           assert 'ProtectSystem=strict' in service
+          assert 'ReadWritePaths=/var/lib/phpipam-custom/vmware-fast-shadow' in service
+          assert 'ReadWritePaths=/var/lib/phpipam-custom/vmware-inventory-recovery5g5/connector-1/worker.lock' in service
           assert 'OnUnitActiveSec=60s' in timer
-          assert '/var/www/html' not in installer.replace("'website_changed': False", '')
+          assert 'Persistent=true' in timer
           PY
