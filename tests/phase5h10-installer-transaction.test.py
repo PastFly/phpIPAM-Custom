@@ -95,11 +95,24 @@ try:
         fails(lambda: mod.install(system, verify_live=False, apply_owner=False), 'phase5h10_bundle_not_disabled')
         ok(not (system/'opt/phpipam-custom/vmware-fast-reader-candidate').exists(), 'enabled bundle not staged')
         ok(backups(system)==[], 'enabled bundle no backup')
+
+    # Rollback must not delete a replacement file even when the attacker reuses identical bytes.
+    with tempfile.TemporaryDirectory() as td:
+        root=Path(td); owned=root/'owned'; owned.mkdir()
+        target=owned/'payload.php'; raw=b'<?php // same bytes\n'; target.write_bytes(raw)
+        st=target.lstat(); record=(target, mod.digest(raw), st.st_dev, st.st_ino)
+        target.unlink(); target.write_bytes(raw)
+        replaced=target.lstat()
+        ok((replaced.st_dev,replaced.st_ino)!=(st.st_dev,st.st_ino), 'replacement inode differs')
+        clean=mod.rollback([record], [])
+        ok(clean is False, 'replacement makes rollback incomplete')
+        ok(target.is_file() and target.read_bytes()==raw, 'replacement survives rollback')
 finally:
     mod.load_builder = old_loader
 
 print(f'PHASE5H10_INSTALLER_TRANSACTION_ASSERTIONS={n}')
 print('PHASE5H10_CREATE_ONLY_TRANSACTION_OK')
 print('PHASE5H10_PARTIAL_FAILURE_AUTO_ROLLBACK_OK')
+print('PHASE5H10_REPLACEMENT_INODE_PRESERVED_OK')
 print('PHASE5H10_LIVE_CONFIG_WEBROOT_UNTOUCHED_OK')
 print('PHASE5H10_ENABLED_BUNDLE_REJECTED_OK')
