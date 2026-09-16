@@ -1,0 +1,43 @@
+name: Phase 5H10 Disabled Reader Installer
+on:
+  push:
+    branches: ['phase5h10/**']
+  pull_request:
+    paths:
+      - 'tools/build-phase5h10-disabled-reader-candidate.py'
+      - 'tools/install-phase5h10-disabled-reader-candidate.py'
+      - 'tests/phase5h10-*'
+      - 'tests/phase5h9-native-route-parity.test.py'
+      - 'tests/phase5h9-runtime-package.test.py'
+      - 'design/PHASE5H10_DISABLED_READER_INSTALLER.md'
+      - '.github/workflows/phase5h10-disabled-installer.yml'
+permissions:
+  contents: read
+jobs:
+  disabled-installer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compile candidate tooling and tests
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            tools/build-phase5h10-disabled-reader-candidate.py \
+            tools/install-phase5h10-disabled-reader-candidate.py \
+            tests/phase5h10-disabled-bundle.test.py \
+            tests/phase5h10-installer-transaction.test.py \
+            tests/phase5h10-installer-boundary.test.py \
+            tests/phase5h9-native-route-parity.test.py \
+            tests/phase5h9-runtime-package.test.py
+      - name: Validate create-only disabled bundle
+        run: python3 -B tests/phase5h10-disabled-bundle.test.py
+      - name: Validate transaction and rollback
+        run: python3 -B tests/phase5h10-installer-transaction.test.py
+      - name: Validate installer static boundaries
+        run: python3 -B tests/phase5h10-installer-boundary.test.py
+      - name: Revalidate accepted H9 route and package contracts
+        run: |
+          python3 -B tests/phase5h9-native-route-parity.test.py
+          python3 -B tests/phase5h9-runtime-package.test.py
