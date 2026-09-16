@@ -25,7 +25,7 @@ for token in [
     'private IntegrationVmwareInventoryReader $reader',
     'IntegrationVmwareFastReader', 'IntegrationVmwareFastOverlayReader', 'IntegrationVmwareFastMetricCompat',
     'IntegrationVmwareFastStore', 'IntegrationVmwareBatchSession', 'PropertyCollector', 'QueryPerf',
-    'curl_', 'SoapClient', 'username', 'password', 'endpoint', 'credential',
+    'curl_', 'SoapClient', 'username', 'password', 'endpoint', 'IntegrationSecretCipher',
     'file_put_contents', 'fopen(', 'unlink(', 'mkdir(', '->publish(', '->update(',
     'system(', 'exec(', 'shell_exec(', 'proc_open(',
 ]:
