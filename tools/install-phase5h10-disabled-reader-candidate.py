@@ -81,6 +81,12 @@ def directory(path: Path, *, uid=None, gid=None, mode=None) -> os.stat_result:
     return st
 
 
+def fsync_dir(path: Path) -> None:
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try: os.fsync(fd)
+    finally: os.close(fd)
+
+
 def load_builder():
     raw = BUILDER.read_bytes()
     if git_blob(raw) != BUILDER_BLOB: raise RuntimeError('phase5h10_builder_blob_drift')
@@ -101,8 +107,7 @@ def unit_state(unit: str) -> dict:
 
 def verify_live_boundary() -> dict:
     if os.geteuid() != 0: raise RuntimeError('root_required')
-    for cmd in ['systemctl', sys.executable]:
-        if cmd != sys.executable and shutil.which(cmd) is None: raise RuntimeError('phase5h10_capability_missing')
+    if shutil.which('systemctl') is None: raise RuntimeError('phase5h10_capability_missing')
 
     recovery = ACTIVE_RELEASE / ACTIVE_RECOVERY_REL
     regular(recovery, uid=0, gid=0, mode=0o644)
@@ -142,25 +147,51 @@ def require_parent(system: Path, absolute: Path) -> Path:
 
 
 def write_file(path: Path, raw: bytes, mode: int, uid: int, gid: int, apply_owner: bool) -> None:
+    """Publish through an exclusive hard link so a racing target is never overwritten."""
     no_links(path.parent)
     if path.exists() or path.is_symlink(): raise RuntimeError('phase5h10_target_exists')
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode)
+    tmp = path.parent / ('.install-' + secrets.token_hex(12))
+    linked = False
     try:
-        with os.fdopen(fd, 'wb', closefd=False) as out:
-            out.write(raw); out.flush(); os.fsync(out.fileno())
-    finally:
-        os.close(fd)
-    if apply_owner: os.chown(path, uid, gid)
-    os.chmod(path, mode)
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        try:
+            with os.fdopen(fd, 'wb', closefd=False) as out:
+                out.write(raw); out.flush(); os.fsync(out.fileno())
+        finally: os.close(fd)
+        if apply_owner: os.chown(tmp, uid, gid)
+        os.chmod(tmp, mode)
+        regular(tmp, uid=uid if apply_owner else None, gid=gid if apply_owner else None, mode=mode)
+        if path.exists() or path.is_symlink(): raise RuntimeError('phase5h10_target_exists')
+        os.link(tmp, path, follow_symlinks=False); linked = True
+        tmp.unlink()
+        regular(path, uid=uid if apply_owner else None, gid=gid if apply_owner else None, mode=mode)
+        if digest(path.read_bytes()) != digest(raw): raise RuntimeError('phase5h10_publish_hash')
+        fsync_dir(path.parent)
+    except BaseException:
+        if linked:
+            try:
+                if path.is_file() and not path.is_symlink() and digest(path.read_bytes()) == digest(raw): path.unlink()
+            except Exception: pass
+        try:
+            if tmp.exists() and not tmp.is_symlink(): tmp.unlink()
+        except Exception: pass
+        raise
 
 
 def ensure_dir(path: Path, mode: int, uid: int, gid: int, apply_owner: bool, created_dirs: list[Path]) -> None:
-    if path.exists():
-        directory(path); return
+    """Only reuse directories already created and tracked by this transaction."""
+    if path.exists() or path.is_symlink():
+        if path not in created_dirs: raise RuntimeError('phase5h10_target_exists')
+        directory(path, uid=uid if apply_owner else None, gid=gid if apply_owner else None, mode=mode)
+        return
     no_links(path.parent)
-    path.mkdir(mode=mode)
+    try: path.mkdir(mode=mode)
+    except FileExistsError as error: raise RuntimeError('phase5h10_target_exists') from error
     if apply_owner: os.chown(path, uid, gid)
-    os.chmod(path, mode); created_dirs.append(path)
+    os.chmod(path, mode)
+    directory(path, uid=uid if apply_owner else None, gid=gid if apply_owner else None, mode=mode)
+    created_dirs.append(path)
+    fsync_dir(path.parent)
 
 
 def write_receipt(path: Path, receipt: dict, apply_owner: bool) -> None:
@@ -172,7 +203,7 @@ def write_receipt(path: Path, receipt: dict, apply_owner: bool) -> None:
             out.write(raw); out.flush(); os.fsync(out.fileno())
     finally: os.close(fd)
     if apply_owner: os.chown(tmp, 0, 0)
-    os.chmod(tmp, 0o600); os.replace(tmp, path)
+    os.chmod(tmp, 0o600); os.replace(tmp, path); fsync_dir(path.parent)
 
 
 def rollback(created_files: list[tuple[Path,str]], created_dirs: list[Path]) -> bool:
@@ -181,11 +212,12 @@ def rollback(created_files: list[tuple[Path,str]], created_dirs: list[Path]) -> 
         try:
             if path.is_symlink() or not path.is_file() or digest(path.read_bytes()) != expected:
                 clean = False; continue
-            path.unlink()
+            parent = path.parent; path.unlink(); fsync_dir(parent)
         except FileNotFoundError: pass
         except Exception: clean = False
     for path in reversed(created_dirs):
-        try: path.rmdir()
+        try:
+            parent = path.parent; path.rmdir(); fsync_dir(parent)
         except FileNotFoundError: pass
         except OSError: clean = False
     return clean
@@ -196,7 +228,7 @@ def install(system: Path = Path('/'), verify_live: bool = True, apply_owner: boo
     if not system.is_absolute(): raise RuntimeError('phase5h10_test_root_invalid')
     if not apply_owner and system == Path('/'): raise RuntimeError('phase5h10_owner_bypass_forbidden')
 
-    opt_parent = require_parent(system, Path('/opt/phpipam-custom'))
+    require_parent(system, Path('/opt/phpipam-custom'))
     backup_parent = require_parent(system, BACKUPS)
     require_parent(system, Path('/etc/phpipam-custom'))
     candidate = mapped(system, CANDIDATE)
@@ -214,7 +246,7 @@ def install(system: Path = Path('/'), verify_live: bool = True, apply_owner: boo
     backup = backup_parent / ('vmware-fast-reader-candidate-' + stamp + '-' + secrets.token_hex(4))
     backup.mkdir(mode=0o700)
     if apply_owner: os.chown(backup, 0, 0)
-    os.chmod(backup, 0o700)
+    os.chmod(backup, 0o700); fsync_dir(backup.parent)
     receipt_path = backup / 'receipt.json'
     receipt = {
         'schema':1, 'stage':'preparing', 'created_at':int(time.time()), 'create_only':True,
@@ -229,9 +261,12 @@ def install(system: Path = Path('/'), verify_live: bool = True, apply_owner: boo
     created_dirs: list[Path] = []
     writes = 0
     try:
-        candidate.mkdir(mode=0o755)
+        try: candidate.mkdir(mode=0o755)
+        except FileExistsError as error: raise RuntimeError('phase5h10_candidate_already_exists') from error
         if apply_owner: os.chown(candidate, 0, 0)
-        os.chmod(candidate, 0o755); created_dirs.append(candidate)
+        os.chmod(candidate, 0o755)
+        directory(candidate, uid=0 if apply_owner else None, gid=0 if apply_owner else None, mode=0o755)
+        created_dirs.append(candidate); fsync_dir(candidate.parent)
         for rel in sorted(files):
             raw = files[rel]; path = candidate / rel
             parts = path.parent.relative_to(candidate).parts
