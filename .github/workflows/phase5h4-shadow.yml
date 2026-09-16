@@ -13,7 +13,9 @@ on:
       - 'tools/live/phase5h-stale-mor-rebench.sh'
       - 'tools/live/phase5h-selected-counter-rebench.sh'
       - 'tools/live/phase5h5-freshness-capability-hotfix.sh'
+      - 'tools/live/phase5h5-freshness-v3-hotfix.sh'
       - 'tools/live/phase5h5-steady-state-accept.sh'
+      - 'tools/live/phase5h5-v3-steady-accept.sh'
       - 'tests/phase5h-*'
       - '.github/workflows/phase5h4-shadow.yml'
       - 'design/PHASE5H4_SHADOW_CYCLE.md'
@@ -46,8 +48,11 @@ jobs:
           bash -n tools/live/phase5h-stale-mor-rebench.sh
           bash -n tools/live/phase5h-selected-counter-rebench.sh
           bash -n tools/live/phase5h5-freshness-capability-hotfix.sh
+          bash -n tools/live/phase5h5-freshness-v3-hotfix.sh
           bash -n tools/live/phase5h5-steady-state-accept.sh
+          bash -n tools/live/phase5h5-v3-steady-accept.sh
           python3 - <<'PY'
+          import re
           from pathlib import Path
           compile(Path('tools/install-phase5h4-shadow.py').read_text(), 'tools/install-phase5h4-shadow.py', 'exec')
           stale=Path('tools/live/phase5h-stale-mor-rebench.sh').read_text()
@@ -69,6 +74,17 @@ jobs:
               'while ! flock -x -n 9','PHASE5H5_FRESHNESS_V2_WEBSITE_CHANGED=0','PHASE5H5_FRESHNESS_V2_SYSTEMD_CHANGED=0'
           ]:
               assert required in freshness, required
+          v3=Path('tools/live/phase5h5-freshness-v3-hotfix.sh').read_text()
+          for required in [
+              "BEHAVIOR='553c51667b130b0b3def3f07e0567470cadfea96'",
+              "OLD_FAST='48279e71f7621e249435d47396c09e765e664340'",
+              "NEW_FAST='3d6b29d233bca8ccb1edc7a5bcc3fb2710c42ed6'",
+              "EXPECTED_PLANNER='898d9bf64cfe328dc2243fc938b1c709e234c486'",
+              "EXPECTED_CYCLE='9064e26f6d76f6e09ee7e615f2ae7e5c2506e129'",
+              'PHASE5H5_FRESHNESS_V3_LOCAL_TESTS_OK=1','PHASE5H5_FRESHNESS_V3_PATCH_OK=1',
+              'PHASE5H5_FRESHNESS_V3_WEBSITE_CHANGED=0','PHASE5H5_FRESHNESS_V3_SYSTEMD_CHANGED=0'
+          ]:
+              assert required in v3, required
           steady=Path('tools/live/phase5h5-steady-state-accept.sh').read_text()
           for required in [
               "FAST_BLOB='48279e71f7621e249435d47396c09e765e664340'",
@@ -81,11 +97,26 @@ jobs:
               'PHASE5H5_STEADY_WEBSITE_CHANGED=0','PHASE5H5_STEADY_SYSTEMD_CHANGED=0'
           ]:
               assert required in steady, required
+          v3steady=Path('tools/live/phase5h5-v3-steady-accept.sh').read_text()
+          for required in [
+              "OLD_FAST='48279e71f7621e249435d47396c09e765e664340'",
+              "NEW_FAST='3d6b29d233bca8ccb1edc7a5bcc3fb2710c42ed6'",
+              'PHASE5H5_V3_STEADY_WRAPPER_OK=1',
+              'PHASE5H5_V3_STEADY_EXPECTS_UNSUPPORTED_SERIES_DEMOTION=1'
+          ]:
+              assert required in v3steady, required
+          # With `set -u`, referencing a local declared earlier in the same `local` command is unsafe:
+          #   local rel="$1" path="$ROOT/$rel"
+          unsafe_local=re.compile(r'^\s*local\s+[^\n]*\b([A-Za-z_][A-Za-z0-9_]*)="[^\n]*"[^\n]*\$\1', re.M)
+          for name,text in [('freshness',freshness),('v3',v3),('steady',steady),('v3steady',v3steady)]:
+              assert unsafe_local.search(text) is None, f'unsafe_set_u_local:{name}'
           for forbidden in ['systemctl stop', 'systemctl disable', 'systemctl enable', 'base64']:
               assert forbidden not in stale, forbidden
               assert forbidden not in selected, forbidden
               assert forbidden not in freshness, forbidden
+              assert forbidden not in v3, forbidden
               assert forbidden not in steady, forbidden
+              assert forbidden not in v3steady, forbidden
           PY
           php tests/phase5h4-shadow-planner.test.php
           php tests/phase5h4-shadow-cycle.test.php
