@@ -35,9 +35,7 @@ try {
         'IntegrationPhpIpamAddressLinkResolver', 'IntegrationVmwareInventoryTelemetryStore',
         'IntegrationVmwareRosterReconciler', 'IntegrationVmwareFastStore', 'IntegrationVmwareFastReader',
         'IntegrationVmwareFastMetricCompat', 'IntegrationVmwareFastOverlayReader', 'IntegrationVmwareInventoryQuerySelector',
-        'IntegrationVmwareFastReaderConfig', 'IntegrationVmwareFastOverlayFactory', 'IntegrationVmwareFastReaderConfigLoader'] as $class) {
-        require_once($application . '/functions/classes/class.' . $class . '.php');
-    }
+        'IntegrationVmwareFastReaderConfig', 'IntegrationVmwareFastOverlayFactory', 'IntegrationVmwareFastReaderConfigLoader'] as $class) require_once($application . '/functions/classes/class.' . $class . '.php');
     $context = new IntegrationVmwareInventoryContext($Database, $application, (int)$id);
     if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
     define('PHPIPAM_VMWARE_MIRROR_GUARDED', true);
