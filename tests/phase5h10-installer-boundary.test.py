@@ -24,6 +24,7 @@ for token in [
     "WEBROOT = Path('/var/www/html')",
     "'RECOVERY_STAGE=active'",
     "'CHILD_AND_PARENT_RECEIPTS_VERIFIED=1'",
+    "regular(recovery, uid=0, gid=0, mode=0o444)",
     "regular(LOCK, uid=33, gid=33, mode=0o600, size_zero=True)",
     "directory(SHADOW_DATA, uid=33, gid=33, mode=0o700)",
     "manifest.get('config_enabled') is not False",
@@ -42,6 +43,10 @@ for token in [
     "(st.st_dev, st.st_ino) != (expected_dev, expected_ino)",
     "if len(sys.argv) != 1: raise RuntimeError('arguments_not_supported')",
 ]: ok(token in s, 'required:' + token)
+
+# The installed recovery helper is a release artifact. Phase5G Rollout.verify_release() enforces root:root 0444.
+ok(s.count("regular(recovery, uid=0, gid=0, mode=0o444)") == 2, 'recovery release mode pre/post exact')
+ok("regular(recovery, uid=0, gid=0, mode=0o644)" not in s, 'no mutable recovery mode assumption')
 
 # The installer may query unit state, but must not mutate service state.
 for forbidden in [
@@ -92,6 +97,7 @@ ok('rollback(created_files, created_dirs)' in s, 'tracked rollback')
 ok('shutil.rmtree' not in s, 'no broad recursive delete')
 
 print(f'PHASE5H10_INSTALLER_BOUNDARY_ASSERTIONS={n}')
+print('PHASE5H10_RECOVERY_RELEASE_MODE_0444_OK')
 print('PHASE5H10_NO_WEBROOT_SYSTEMD_DB_TLS_MUTATION_OK')
 print('PHASE5H10_ATOMIC_EXCLUSIVE_PUBLICATION_OK')
 print('PHASE5H10_INODE_BOUND_ROLLBACK_OK')
