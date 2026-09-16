@@ -121,6 +121,13 @@ final class IntegrationVmwareFastDomain
                     if (!isset($updated[$name]) && is_array($priorSeries)) $priorSeries['state'] = 'stale';
                 }
                 unset($priorSeries);
+            } elseif ($record['state'] === 'unsupported') {
+                // Unsupported is terminal evidence for this capability TTL. Preserve any last-good points,
+                // but never leave prior series marked fresh inside an unsupported object.
+                foreach ($old['series'] as $name => &$priorSeries) {
+                    if (!isset($updated[$name]) && is_array($priorSeries)) $priorSeries['state'] = 'unsupported';
+                }
+                unset($priorSeries);
             }
             $state['objects'][$id] = $old;
         }
