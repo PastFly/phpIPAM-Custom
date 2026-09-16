@@ -1,0 +1,47 @@
+name: Phase 5H6 Autonomous Shadow Scheduler
+on:
+  push:
+    branches: ['phase5h6/**']
+  pull_request:
+    paths:
+      - 'tools/phase5h6-scheduled-cycle.sh'
+      - 'tools/install-phase5h6-scheduler.py'
+      - 'tools/live/phase5h6-*'
+      - 'systemd/phpipam-vmware-fast-shadow@.service'
+      - 'systemd/phpipam-vmware-fast-shadow@.timer'
+      - 'tests/phase5h6-scheduler.test.py'
+      - '.github/workflows/phase5h6-scheduler.yml'
+permissions:
+  contents: read
+jobs:
+  scheduler:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate non-serving autonomous scheduler boundaries
+        run: |
+          set -euo pipefail
+          bash -n tools/phase5h6-scheduled-cycle.sh
+          python3 -m py_compile tools/install-phase5h6-scheduler.py tests/phase5h6-scheduler.test.py
+          python3 -B tests/phase5h6-scheduler.test.py
+          systemd-analyze verify systemd/phpipam-vmware-fast-shadow@.service systemd/phpipam-vmware-fast-shadow@.timer
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          wrapper=Path('tools/phase5h6-scheduled-cycle.sh').read_text()
+          installer=Path('tools/install-phase5h6-scheduler.py').read_text()
+          service=Path('systemd/phpipam-vmware-fast-shadow@.service').read_text()
+          timer=Path('systemd/phpipam-vmware-fast-shadow@.timer').read_text()
+          unsafe=re.compile(r'^\s*local\s+[^\n]*\b([A-Za-z_][A-Za-z0-9_]*)="[^\n]*"[^\n]*\$\1', re.M)
+          assert unsafe.search(wrapper) is None
+          for forbidden in ['base64','systemctl stop phpipam-vmware-recovery5g5','systemctl disable phpipam-vmware-recovery5g5']:
+              assert forbidden not in wrapper
+              assert forbidden not in installer
+          assert 'User=www-data' in service and 'Group=www-data' in service
+          assert 'ProtectSystem=strict' in service
+          assert 'OnUnitActiveSec=60s' in timer
+          assert '/var/www/html' not in installer.replace("'website_changed': False", '')
+          PY
