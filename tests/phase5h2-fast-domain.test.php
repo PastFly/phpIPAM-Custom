@@ -55,6 +55,15 @@ ok($metrics4['objects']['vm-1']['object_state'] === 'stale');
 ok($metrics4['objects']['vm-1']['last_attempt_result'] === 'capability_pending');
 ok($metrics4['objects']['vm-1']['series']['memory_percent']['state'] === 'stale');
 ok($metrics4['objects']['vm-1']['series']['memory_percent']['points'][0]['value'] === 71.0);
+$metrics5 = IntegrationVmwareFastDomain::mergeMetrics($metrics, [
+    ['kind'=>'vm','id'=>'vm-1','state'=>'unsupported','attempted_at'=>$now+60,'series'=>[]]
+], $now+60);
+ok($metrics5['objects']['vm-1']['object_state'] === 'unsupported');
+ok($metrics5['objects']['vm-1']['last_attempt_result'] === 'unsupported');
+ok($metrics5['objects']['vm-1']['series']['cpu_percent']['state'] === 'unsupported');
+ok($metrics5['objects']['vm-1']['series']['memory_percent']['state'] === 'unsupported');
+ok($metrics5['objects']['vm-1']['series']['cpu_percent']['points'][0]['value'] === 32.5);
+ok($metrics5['objects']['vm-1']['series']['memory_percent']['points'][0]['value'] === 71.0);
 ok(fails(fn()=>IntegrationVmwareFastDomain::mergeProperties(null, ['schema'=>1,'authoritative_membership'=>true,'objects'=>[]], $now)));
 ok(fails(fn()=>IntegrationVmwareFastDomain::mergeMetrics(null, [['kind'=>'vm','id'=>'vm-1','state'=>'ok','series'=>['cpu_percent'=>[['observed_at'=>$now+1000,'value'=>1]]]]], $now)));
-echo 'PHASE5H2_FAST_DOMAIN_ASSERTIONS=' . $checks . "\nPHASE5H2_PARTIAL_IS_NOT_DELETION_OK\nPHASE5H2_STALE_SOURCE_PRESERVES_LAST_GOOD_OK\nPHASE5H2_CAPABILITY_PENDING_PRESERVES_LAST_GOOD_OK\n";
+echo 'PHASE5H2_FAST_DOMAIN_ASSERTIONS=' . $checks . "\nPHASE5H2_PARTIAL_IS_NOT_DELETION_OK\nPHASE5H2_STALE_SOURCE_PRESERVES_LAST_GOOD_OK\nPHASE5H2_CAPABILITY_PENDING_PRESERVES_LAST_GOOD_OK\nPHASE5H2_UNSUPPORTED_DEMOTES_PRIOR_SERIES_OK\n";
