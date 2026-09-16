@@ -55,13 +55,17 @@ ok($absent['membership_state'] === 'absent_confirmed');
 ok($absent['properties'] === [] && $absent['metrics'] === []);
 ok($absent['property_object_state'] === 'unavailable' && $absent['metric_object_state'] === 'unavailable');
 
-// An unconfirmed roster fails closed even when retained fast values exist.
+// An unconfirmed or stale roster fails closed even when retained fast values exist.
 $unknownRoster = $roster; $unknownRoster['authoritative'] = null;
 $unknown = IntegrationVmwareFastReader::project($unknownRoster,$properties,$metrics,'vm','vm-1',$now);
 ok($unknown['membership_state'] === 'unknown');
 ok($unknown['properties'] === [] && $unknown['metrics'] === []);
 $noRoster = IntegrationVmwareFastReader::project(null,$properties,$metrics,'vm','vm-1',$now);
 ok($noRoster['membership_state'] === 'unknown' && $noRoster['properties'] === []);
+$staleRoster = $roster; $staleRoster['published_at'] = $now-301; $staleRoster['authoritative']['roster']['vm'] = [];
+$staleMembership = IntegrationVmwareFastReader::project($staleRoster,$properties,$metrics,'vm','vm-1',$now,300,300,300);
+ok($staleMembership['membership_state'] === 'unknown' && $staleMembership['properties'] === []);
+ok($staleMembership['roster_age_seconds'] === 301);
 
 $host = IntegrationVmwareFastReader::project($roster,$properties,$metrics,'host','host-1',$now);
 ok($host['property_object_state'] === 'stale' && $host['properties']['name']['value'] === 'esx-a');
