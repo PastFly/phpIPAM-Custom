@@ -29,6 +29,7 @@ jobs:
             tests/phase5h10-disabled-bundle.test.py \
             tests/phase5h10-installer-transaction.test.py \
             tests/phase5h10-installer-boundary.test.py \
+            tests/phase5h10-live-boundary-static.test.py \
             tests/phase5h9-native-route-parity.test.py \
             tests/phase5h9-runtime-package.test.py
       - name: Validate create-only disabled bundle
@@ -36,7 +37,9 @@ jobs:
       - name: Validate transaction and rollback
         run: python3 -B tests/phase5h10-installer-transaction.test.py
       - name: Validate installer static boundaries
-        run: python3 -B tests/phase5h10-installer-boundary.test.py
+        run: |
+          python3 -B tests/phase5h10-installer-boundary.test.py
+          python3 -B tests/phase5h10-live-boundary-static.test.py
       - name: Revalidate accepted H9 route and package contracts
         run: |
           python3 -B tests/phase5h9-native-route-parity.test.py
