@@ -26,6 +26,7 @@ SERVICE_SRC = ROOT / 'systemd/phpipam-vmware-fast-shadow@.service'
 TIMER_SRC = ROOT / 'systemd/phpipam-vmware-fast-shadow@.timer'
 SERVICE_DST = Path('/etc/systemd/system/phpipam-vmware-fast-shadow@.service')
 TIMER_DST = Path('/etc/systemd/system/phpipam-vmware-fast-shadow@.timer')
+SERVICE_INSTANCE = 'phpipam-vmware-fast-shadow@1.service'
 TIMER_INSTANCE = 'phpipam-vmware-fast-shadow@1.timer'
 SERVING_TIMER = 'phpipam-vmware-recovery5g5@1.timer'
 
@@ -72,6 +73,13 @@ def unit_state(unit: str) -> dict:
     return dict(line.split('=', 1) for line in result.stdout.splitlines() if '=' in line)
 
 
+def service_result() -> dict:
+    result = run(['systemctl', 'show', SERVICE_INSTANCE, '-p', 'Result', '-p', 'ExecMainStatus'], check=False)
+    if result.returncode != 0:
+        raise RuntimeError('systemd_query')
+    return dict(line.split('=', 1) for line in result.stdout.splitlines() if '=' in line)
+
+
 def verify_serving_boundary() -> None:
     state = unit_state(SERVING_TIMER)
     if state.get('ActiveState') != 'active' or state.get('UnitFileState') != 'enabled':
@@ -113,9 +121,10 @@ def create_file(source: Path, target: Path, mode: int) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode)
     try:
-        raw = source.read_bytes()
-        os.write(fd, raw)
-        os.fsync(fd)
+        with os.fdopen(fd, 'wb', closefd=False) as out:
+            out.write(source.read_bytes())
+            out.flush()
+            os.fsync(out.fileno())
     finally:
         os.close(fd)
     os.chown(target, 0, 0)
@@ -156,6 +165,7 @@ def install() -> int:
         'schema': 1,
         'created_at': int(time.time()),
         'create_only': True,
+        'service_instance': SERVICE_INSTANCE,
         'timer_instance': TIMER_INSTANCE,
         'serving_timer': SERVING_TIMER,
         'wrapper': str(WRAPPER),
@@ -170,7 +180,7 @@ def install() -> int:
     os.chmod(backup / 'receipt.json', 0o600)
 
     created = []
-    timer_started = False
+    enable_attempted = False
     try:
         create_file(ROOT / WRAPPER_REL, WRAPPER, 0o755); created.append(WRAPPER)
         create_file(SERVICE_SRC, SERVICE_DST, 0o644); created.append(SERVICE_DST)
@@ -185,8 +195,17 @@ def install() -> int:
 
         run(['systemd-analyze', 'verify', str(SERVICE_DST), str(TIMER_DST)], timeout=30)
         run(['systemctl', 'daemon-reload'], timeout=30)
+
+        # Exercise the real systemd sandbox once before making the schedule persistent.
+        first = run(['systemctl', 'start', SERVICE_INSTANCE], check=False, timeout=190)
+        if first.returncode != 0:
+            raise RuntimeError('scheduler_first_run_failed')
+        first_result = service_result()
+        if first_result.get('Result') != 'success' or first_result.get('ExecMainStatus') not in {'0', '75'}:
+            raise RuntimeError('scheduler_first_run_failed')
+
+        enable_attempted = True
         run(['systemctl', 'enable', '--now', TIMER_INSTANCE], timeout=30)
-        timer_started = True
 
         state = unit_state(TIMER_INSTANCE)
         if state.get('ActiveState') != 'active' or state.get('UnitFileState') != 'enabled':
@@ -194,6 +213,7 @@ def install() -> int:
         verify_serving_boundary()
 
         print('PHASE5H6_SCHEDULER_BACKUP=' + str(backup), flush=True)
+        print('PHASE5H6_SCHEDULER_FIRST_RUN_STATUS=' + first_result.get('ExecMainStatus', 'unknown'), flush=True)
         print('PHASE5H6_SCHEDULER_TIMER_ACTIVE=1', flush=True)
         print('PHASE5H6_SCHEDULER_TIMER_ENABLED=1', flush=True)
         print('PHASE5H6_SCHEDULER_SERVICE_USER=www-data', flush=True)
@@ -204,13 +224,15 @@ def install() -> int:
         print('PHASE5H6_SCHEDULER_INSTALL_OK=1', flush=True)
         return 0
     except BaseException:
-        if timer_started:
+        if enable_attempted or TIMER_DST in created:
             subprocess.run(['systemctl', 'disable', '--now', TIMER_INSTANCE], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         for target in reversed(created):
             expected = source_blobs.get(str(target))
             if expected:
-                try: remove_if_exact(target, expected)
-                except Exception: pass
+                try:
+                    remove_if_exact(target, expected)
+                except Exception:
+                    pass
         subprocess.run(['systemctl', 'daemon-reload'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         print('PHASE5H6_SCHEDULER_AUTO_ROLLBACK=1', flush=True)
         raise
