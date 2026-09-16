@@ -57,6 +57,16 @@ final class IntegrationVmwareInventoryContext
         if (@lstat($path) === false) return null; // Provisioning is never a web-read side effect.
         return new IntegrationVmwareInventoryTelemetryStore($path, $this->key, $this->binding);
     }
+    /**
+     * Construct the already-provisioned Phase5H fast-domain store without exposing the cache key.
+     * The exact current shadow root is intentionally fixed until a reviewed multi-connector layout exists.
+     */
+    public function fastStore(string $root): IntegrationVmwareFastStore
+    {
+        if ($root !== '/var/lib/phpipam-custom/vmware-fast-shadow') throw new RuntimeException('mirror_configuration_invalid');
+        if (!$this->current()) throw new RuntimeException('mirror_access_denied');
+        return new IntegrationVmwareFastStore($root, $this->key, $this->binding);
+    }
     public function workerRuntime(IntegrationSecretCipher $cipher): array
     {
         if (PHP_SAPI !== 'cli' || !$this->current()) throw new RuntimeException('mirror_access_denied');
