@@ -82,6 +82,8 @@ The installer snapshots SHA256 for these three live application read-path files 
 
 H10 intentionally does **not** hardcode a guessed live webroot SHA baseline because the production host has accumulated reviewed hotfixes. The staging acceptance is zero mutation: bytes before and after must be identical. A later cutover phase must obtain and review the exact live replacement baseline before any webroot change.
 
+Both live boundary functions are covered by a dedicated static contract. Their bodies may query recovery status, `systemctl show`, lock/timer metadata and webroot hashes, but may not call candidate write helpers, create/delete paths, mutate systemd, touch the database or invoke provider APIs.
+
 ## Transaction model
 
 The installer creates a root-owned private audit backup/receipt first, then creates only the isolated candidate tree.
@@ -109,7 +111,7 @@ Rollback deletes only a file that simultaneously matches:
 - exact tracked `st_ino`;
 - exact tracked SHA256.
 
-A replacement file is therefore foreign even if it has byte-identical content. It is preserved and rollback is marked incomplete rather than deleting an inode the transaction did not create.
+A replacement file is therefore foreign even if it has byte-identical content. It is preserved and rollback is marked incomplete rather than deleting an inode the transaction did not create. The replacement-inode test creates both original and replacement concurrently before moving the replacement onto the tracked path, so the identity difference is deterministic rather than filesystem-dependent.
 
 Directories are removed only from the transaction's tracked directory list and only when empty. There is no recursive delete. The audit backup/receipt is retained on successful preparation and on rollback.
 
@@ -131,11 +133,12 @@ The only `systemctl` use in the production preflight is read-only `systemctl sho
 
 ## Source tests
 
-H10 has three direct suites:
+H10 has four direct suites:
 
 - `phase5h10-disabled-bundle.test.py` — exact 12-file allowlist, exact pins, disabled config, recovery Context transform, no provider/webroot payload;
-- `phase5h10-installer-transaction.test.py` — create-only success, preflight rejection, injected partial-failure rollback, enabled-bundle rejection, audit receipt retention, and replacement-inode preservation;
-- `phase5h10-installer-boundary.test.py` — static no-webroot/systemd/DB/TLS/provider mutation boundary, exclusive publication, directory tracking, inode-bound rollback, no runtime override channel.
+- `phase5h10-installer-transaction.test.py` — create-only success, preflight rejection, injected partial-failure rollback, enabled-bundle rejection, audit receipt retention, and deterministic replacement-inode preservation;
+- `phase5h10-installer-boundary.test.py` — static no-webroot/systemd/DB/TLS/provider mutation boundary, exclusive publication, directory tracking, inode-bound rollback, no runtime override channel;
+- `phase5h10-live-boundary-static.test.py` — read-only production preflight/postcheck contract with no candidate/webroot/systemd/DB/provider mutation inside the live boundary functions.
 
 The dedicated workflow also reruns H9 native route parity and runtime-package tests so H10 cannot silently weaken the accepted H9 serving candidate contract.
 
