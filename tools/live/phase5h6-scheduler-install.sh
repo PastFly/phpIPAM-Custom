@@ -5,7 +5,7 @@ umask 077
 REPO='/tmp/phpipam-custom-phase0'
 PROTECTED='f7aedad68781bccfcac1985a1b240c3c515715ef'
 BRANCH='phase5h6/autonomous-shadow-scheduler'
-BEHAVIOR='c8b348f3424e24777a186e7ab04be4393a0baf62'
+BEHAVIOR='3859a9a145076bea298e8e307e44959f7393481d'
 TMP=''
 
 cleanup() {
