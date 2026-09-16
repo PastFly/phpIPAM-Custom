@@ -44,9 +44,15 @@ for token in [
     "if len(sys.argv) != 1: raise RuntimeError('arguments_not_supported')",
 ]: ok(token in s, 'required:' + token)
 
-# The installed recovery helper is a release artifact. Phase5G Rollout.verify_release() enforces root:root 0444.
+# The installed recovery helper is a release artifact. Bind H10 to the original Rollout.verify_release() invariant.
 ok(s.count("regular(recovery, uid=0, gid=0, mode=0o444)") == 2, 'recovery release mode pre/post exact')
 ok("regular(recovery, uid=0, gid=0, mode=0o644)" not in s, 'no mutable recovery mode assumption')
+rollout = (ROOT / 'tools/phase5g4-rollout.py').read_text()
+verify_release_start = rollout.index('    def verify_release(self):')
+verify_release_end = rollout.index('\n    def verify_resources(', verify_release_start)
+verify_release = rollout[verify_release_start:verify_release_end]
+ok("meta(p) != {'uid': 0, 'gid': 0, 'mode': 0o444}" in verify_release, 'rollout immutable release metadata')
+ok("atomic(p, value, {'uid': 0, 'gid': 0, 'mode': 0o444})" in rollout, 'rollout immutable release publication')
 
 # The installer may query unit state, but must not mutate service state.
 for forbidden in [
@@ -98,6 +104,7 @@ ok('shutil.rmtree' not in s, 'no broad recursive delete')
 
 print(f'PHASE5H10_INSTALLER_BOUNDARY_ASSERTIONS={n}')
 print('PHASE5H10_RECOVERY_RELEASE_MODE_0444_OK')
+print('PHASE5H10_RECOVERY_MODE_BOUND_TO_ROLLOUT_INVARIANT_OK')
 print('PHASE5H10_NO_WEBROOT_SYSTEMD_DB_TLS_MUTATION_OK')
 print('PHASE5H10_ATOMIC_EXCLUSIVE_PUBLICATION_OK')
 print('PHASE5H10_INODE_BOUND_ROLLBACK_OK')
