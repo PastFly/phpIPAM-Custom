@@ -63,7 +63,9 @@ php "$TMP/source/tests/phase5h2-fast-domain.test.php"
 echo 'PHASE5H5_FRESHNESS_V3_LOCAL_TESTS_OK=1'
 
 check_file() {
-    local rel="$1" expected="$2" path="$SHADOW/$rel"
+    local rel="$1" expected="$2"
+    local path="$SHADOW/$rel"
+    local current
     [ -f "$path" ] && [ ! -L "$path" ] || { echo "STOP: invalid shadow source boundary: $rel"; exit 1; }
     read -r uid gid mode links < <(stat -c '%u %g %a %h' "$path")
     [ "$uid" = 0 ] && [ "$gid" = 0 ] && [ "$mode" = 644 ] && [ "$links" = 1 ] || { echo "STOP: shadow source metadata mismatch: $rel"; exit 1; }
