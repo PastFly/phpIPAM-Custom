@@ -33,12 +33,19 @@ expected = (
 )
 ok(mod.RUNTIME_CLASSES == expected, 'exact runtime class allowlist')
 controller = 'app/integrations/vmware/mirror/native.php'
+context_target = 'functions/classes/class.IntegrationVmwareInventoryContext.php'
+native_target = 'functions/classes/class.IntegrationVmwareInventoryNative.php'
 native = (ROOT / 'layers/phase5g2/app/integrations/vmware/mirror/native.php').read_bytes()
-package = {'app': {controller: native, 'existing.txt': b'keep'}, 'release': {'old': b'keep'}, 'receipt': {'keep': True}}
+context = (ROOT / 'layers/phase5g/functions/classes/class.IntegrationVmwareInventoryContext.php').read_bytes()
+native_adapter = (ROOT / 'layers/phase5g2/functions/classes/class.IntegrationVmwareInventoryNative.php').read_bytes()
+base_app = {controller: native, context_target: context, native_target: native_adapter}
+package = {'app': dict(base_app, **{'existing.txt': b'keep'}), 'release': {'old': b'keep'}, 'receipt': {'keep': True}}
 out = mod.generate(package)
 ok(out['receipt'] == {'keep': True}, 'package metadata preserved')
 ok(out['app']['existing.txt'] == b'keep' and out['release']['old'] == b'keep', 'existing payload preserved')
 ok(out['app'][controller] == native, 'native controller preserved')
+ok(out['app'][context_target] == context, 'H8 context preserved')
+ok(out['app'][native_target] == native_adapter, 'H8 native adapter preserved')
 
 for rel in expected:
     value = (ROOT / rel).read_bytes()
@@ -52,16 +59,19 @@ for forbidden in ['IntegrationVmwareBatchSession','IntegrationVmwareVcenterDirec
 
 first = expected[0]
 first_target = 'functions/classes/' + Path(first).name
-collision = {'app': {controller: native, first_target: b'wrong'}, 'release': {}}
-fails(lambda: mod.generate(collision), 'phase5h9_runtime_target_collision:')
-fails(lambda: mod.generate({'app': {}, 'release': {}}), 'phase5h9_native_controller_missing')
+collision_app = dict(base_app); collision_app[first_target] = b'wrong'
+fails(lambda: mod.generate({'app': collision_app, 'release': {}}), 'phase5h9_runtime_target_collision:')
+fails(lambda: mod.generate({'app': {controller: native, native_target: native_adapter}, 'release': {}}), 'phase5h9_h8_context_boundary_missing')
+fails(lambda: mod.generate({'app': {controller: native, context_target: context}, 'release': {}}), 'phase5h9_h8_native_boundary_missing')
+fails(lambda: mod.generate({'app': {context_target: context, native_target: native_adapter}, 'release': {}}), 'phase5h9_native_controller_missing')
 
-unwired = native.replace(b'IntegrationVmwareFastReaderConfigLoader::load()', b'IntegrationVmwareFastReaderConfigLoader_DISABLED')
-fails(lambda: mod.generate({'app': {controller: unwired}, 'release': {}}), 'phase5h9_native_controller_not_wired')
-request_wired = native.replace(b'IntegrationVmwareFastReaderConfigLoader::load()', b"getenv('FAST')")
-fails(lambda: mod.generate({'app': {controller: request_wired}, 'release': {}}), 'phase5h9_native_controller_not_wired')
+unwired_app = dict(base_app); unwired_app[controller] = native.replace(b'IntegrationVmwareFastReaderConfigLoader::load()', b'IntegrationVmwareFastReaderConfigLoader_DISABLED')
+fails(lambda: mod.generate({'app': unwired_app, 'release': {}}), 'phase5h9_native_controller_not_wired')
+request_app = dict(base_app); request_app[controller] = native.replace(b'IntegrationVmwareFastReaderConfigLoader::load()', b"getenv('FAST')")
+fails(lambda: mod.generate({'app': request_app, 'release': {}}), 'phase5h9_native_controller_not_wired')
 
 print(f'PHASE5H9_RUNTIME_PACKAGE_ASSERTIONS={n}')
 print('PHASE5H9_RUNTIME_EXACT_CLASS_ALLOWLIST_OK')
+print('PHASE5H9_RUNTIME_H8_BOUNDARIES_REQUIRED_OK')
 print('PHASE5H9_RUNTIME_OLD_PACKAGE_PRESERVED_OK')
 print('PHASE5H9_RUNTIME_NO_PROVIDER_CREDENTIAL_CLASSES_OK')
