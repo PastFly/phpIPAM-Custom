@@ -87,6 +87,13 @@ final class IntegrationVmwareFastOverlayReader
             ];
             $applied[] = 'config.annotation';
         }
+
+        // Renderer-compatible metric sections are projected only from complete fresh evidence.
+        // Stale/partial/unsupported fast metric evidence therefore leaves the Phase5G section untouched.
+        foreach (IntegrationVmwareFastMetricCompat::sections($fast, 'vm', $id) as $section => $projected) {
+            $data['sections'][$section] = $projected;
+            $applied[] = 'metrics.' . $section;
+        }
         unset($vm, $guest, $data);
 
         $entry['phase5h_overlay'] = self::overlayMeta($applied === [] ? 'no_fresh_fields' : 'applied', $membership, $applied, $fast);
