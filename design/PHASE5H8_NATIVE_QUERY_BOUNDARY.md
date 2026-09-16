@@ -113,7 +113,12 @@ The H8 config/factory layer may name the reviewed H7 reader/overlay classes but 
 
 It verifies exact root, direct key/binding handoff to the store constructor, authorization recheck, changed credential binding denial, disabled connector denial, and no construction on rejected paths/bindings.
 
-`tests/phase5h8-fast-overlay-factory.test.php` covers canonical disabled behavior, connector mismatch isolation, lazy construction, exact root, configured age propagation, authorization callback wiring and strict config validation. Current source contains 31 functional assertions. `tests/phase5h8-fast-overlay-factory-boundary.test.py` adds 77 static assertions covering lazy ordering, exact config schema/ranges, no loader/provider/write dependencies and the still-unwired source route.
+`tests/phase5h8-fast-overlay-factory.test.php` covers canonical disabled behavior, connector mismatch isolation, lazy construction, exact root, configured age propagation, authorization callback wiring and strict config validation. The current exact source was locally executed with PHP 8.4 and passed:
+
+- `PHASE5H8_FAST_OVERLAY_FACTORY_ASSERTIONS=31`;
+- PHP lint green for config, selector, factory and the functional test.
+
+`tests/phase5h8-fast-overlay-factory-boundary.test.py` contains 88 assertions total. The config/factory core (83 assertions) was locally executed against the current exact source; five additional assertions pin the still-unwired `native.php` route and are verified by repository source readback/CI when a runner is available.
 
 GitHub Actions continues to show the known repository infrastructure condition where jobs finish with `steps=null`/`logs_url=null`; such runs are not counted as executed source tests.
 
