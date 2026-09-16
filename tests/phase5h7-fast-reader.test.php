@@ -79,6 +79,10 @@ $badMetric = $metrics; $badMetric['objects']['vm-1']['series']['cpu_percent']['p
 ok(fails(fn()=>IntegrationVmwareFastReader::project($roster,$properties,$badMetric,'vm','vm-1',$now)));
 $badUnavailable = $properties; $badUnavailable['objects']['vm-1']['fields']['guest.ipAddress']['value'] = '192.0.2.1';
 ok(fails(fn()=>IntegrationVmwareFastReader::project($roster,$badUnavailable,$metrics,'vm','vm-1',$now)));
+$missingRecordId = $properties; unset($missingRecordId['objects']['vm-1']['id']);
+ok(fails(fn()=>IntegrationVmwareFastReader::project($roster,$missingRecordId,$metrics,'vm','vm-1',$now)));
+$numericStringMetric = $metrics; $numericStringMetric['objects']['vm-1']['series']['cpu_percent']['points'][0]['value'] = '31.5';
+ok(fails(fn()=>IntegrationVmwareFastReader::project($roster,$properties,$numericStringMetric,'vm','vm-1',$now)));
 
 echo 'PHASE5H7_FAST_READER_ASSERTIONS=' . $checks . "\n";
 echo "PHASE5H7_LOCAL_ONLY_READER_OK\n";
