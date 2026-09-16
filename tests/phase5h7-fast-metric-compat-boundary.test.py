@@ -17,11 +17,12 @@ for token in [
     "'sample_count' => count($samples)",
     "'verify_tls' => true",
     "'insufficient_samples'",
-    "gmdate('Y-m-d\\TH:i:s\\Z'",
     'private static function stableInterval',
+    "$interval > 300",
     "($fast['membership_state'] ?? null) !== 'present'",
 ]:
     ok(token in s, 'required:' + token)
+ok("gmdate('Y-m-d" in s and 'TH:i:s' in s and "Z'" in s, 'utc_timestamp_projection')
 
 for token in [
     'IntegrationVmwareVcenter', 'IntegrationVmwareFastStore', 'PropertyCollector', 'QueryPerf',
