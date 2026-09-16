@@ -2,14 +2,15 @@
 /** Adapt local normalized records to retained native contracts. No transport or credential factory. */
 final class IntegrationVmwareInventoryNative
 {
-    private IntegrationVmwareInventoryReader $reader;
+    private $reader;
     private $links;
     public const OPERATIONS = ['workspace', 'host_folders', 'object_folders', 'search', 'status',
         'vm', 'host', 'annotation', 'host_network', 'network_path', 'guest_facts', 'performance', 'storage_performance'];
     public const JSON_OPERATIONS = ['workspace', 'host_folders', 'object_folders', 'search', 'status', 'guest_facts'];
 
-    public function __construct(IntegrationVmwareInventoryReader $reader, $addressLinks = null)
+    public function __construct($reader, $addressLinks = null)
     {
+        if (!is_object($reader) || !is_callable([$reader, 'query'])) throw new InvalidArgumentException('invalid_inventory_query_reader');
         $this->reader = $reader; $this->links = $addressLinks;
     }
     public static function text(array $input, string $key, string $default = ''): string
