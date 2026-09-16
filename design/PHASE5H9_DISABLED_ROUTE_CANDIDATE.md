@@ -22,7 +22,7 @@ The reused `readPrivate()` implementation rejects symlinks in the path chain, re
 
 ## Route delta / parity boundary
 
-The H9 controller is based on exact H8 head `b4b3aad50048ccd8ffadd24101b18d32d5d2ac59`.
+The H9 controller is based on exact H8 head `b4b3aad50048ccd8ffadd24101b18d32d5d2ac59`; the exact H8 controller Git blob is `dfa35e5e215230feb2cef2d6078bd39dc5a2fe9f`.
 
 The only intended behavioral additions are:
 
@@ -31,7 +31,7 @@ The only intended behavioral additions are:
 
 Admin authorization, POST-only policy, CSRF validation, request parsing, optional link resolution, native rendering, final connector-binding check, headers and HTTP error mapping remain inherited from the exact H8 controller.
 
-`tests/phase5h9-native-route-parity.test.py` reconstructs the H8 controller by removing only the new class allowlist and two selection lines, then requires byte equality with `git show b4b3aad...:native.php`.
+`tests/phase5h9-native-route-parity.test.py` removes only the reviewed H9 class-allowlist expansion and the two selection lines from the current controller, computes the canonical Git blob SHA and requires exact equality with H8 blob `dfa35e5e...`. This makes parity history-independent and valid in shallow/isolated checkouts while still proving byte equality with the exact reviewed H8 route.
 
 ## Disabled semantics
 
@@ -58,6 +58,8 @@ The historical `phase5g4-rollout.py` remains unchanged because it contains its o
 - H8 `IntegrationVmwareInventoryQuerySelector`, `IntegrationVmwareFastReaderConfig`, `IntegrationVmwareFastOverlayFactory`;
 - H9 `IntegrationVmwareFastReaderConfigLoader`.
 
+Before adding those classes, the wrapper requires the incoming package to contain both reviewed H8 prerequisites: `IntegrationVmwareInventoryContext::fastStore()` and the generic `IntegrationVmwareInventoryNative` query-object constructor boundary. Applying H9 to an older Phase5G package therefore fails closed instead of creating a latent `enabled=true` runtime fatal.
+
 It neither adds provider/transport/session/credential-decryption classes nor mutates system state. Existing package payload/metadata is preserved, collisions fail closed, and the native controller must contain the reviewed selection markers.
 
 ## Source acceptance contract
@@ -70,10 +72,11 @@ H9 tests cover:
 - secure-reader/path failures are not downgraded to missing;
 - missing/disabled/mismatched route selection performs zero fast-store constructions;
 - explicit matching enablement remains lazy and memoized;
-- route delta is restricted to the reviewed H9 additions while H8 auth/CSRF/error behavior remains byte-equivalent;
-- runtime package extension uses the exact nine-class allowlist and rejects collisions/unwired controllers.
+- route delta is restricted to the reviewed H9 additions while H8 auth/CSRF/error behavior remains exact-blob equivalent;
+- runtime package extension uses the exact nine-class allowlist and rejects collisions/unwired controllers;
+- runtime package extension rejects an input package missing either required H8 Context or Native query boundary.
 
-Locally executed before PR creation: PHP 8.4 lint for loader/config/selector/factory integration plus direct disabled/mismatch/enabled selection checks were green. GitHub Actions remains a separate evidence source and is not considered executed unless jobs contain actual steps/logs.
+Executed evidence includes PHP 8.4 lint for the loader, config-loader missing/valid/invalid/secure-reader-failure smoke checks, 49 static loader boundary assertions, loader→factory→selector disabled/mismatch/enabled smoke checks, runtime-wrapper compile/allowlist/precondition smoke, and an independent exact H8 controller blob-parity reproduction. GitHub Actions remains a separate evidence source and is not considered executed unless jobs contain actual steps/logs.
 
 ## Production boundary
 
