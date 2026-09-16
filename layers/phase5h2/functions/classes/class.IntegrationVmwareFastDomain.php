@@ -116,7 +116,9 @@ final class IntegrationVmwareFastDomain
                     'collected_at' => $attempt, 'observed_at' => $normalized === [] ? null : max(array_column($normalized, 'observed_at'))];
                 $updated[$name] = true;
             }
-            if ($record['state'] === 'partial') {
+            if (in_array($record['state'], ['ok', 'partial'], true)) {
+                // A successful current plan is positive evidence only for the series it actually returned.
+                // Preserve last-good points from counters no longer present in the plan, but never leave them fresh.
                 foreach ($old['series'] as $name => &$priorSeries) {
                     if (!isset($updated[$name]) && is_array($priorSeries)) $priorSeries['state'] = 'stale';
                 }
