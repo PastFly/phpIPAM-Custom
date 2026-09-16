@@ -1,0 +1,53 @@
+name: Phase 5H8 Native Query Boundary
+on:
+  push:
+    branches: ['phase5h8/**']
+  pull_request:
+    paths:
+      - 'layers/phase5g/functions/classes/class.IntegrationVmwareInventoryContext.php'
+      - 'layers/phase5g2/functions/classes/class.IntegrationVmwareInventoryNative.php'
+      - 'layers/phase5h8/**'
+      - 'tools/build-phase5g5-runtime.py'
+      - 'tests/phase5h8-*'
+      - 'design/PHASE5H8_NATIVE_QUERY_BOUNDARY.md'
+      - '.github/workflows/phase5h8-native-query.yml'
+permissions:
+  contents: read
+jobs:
+  native-query:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up PHP ${{ matrix.php }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - name: Validate native query, selector, context and fast-factory contracts
+        run: |
+          set -euo pipefail
+          php -l layers/phase5g/functions/classes/class.IntegrationVmwareInventoryContext.php
+          php -l layers/phase5g2/functions/classes/class.IntegrationVmwareInventoryNative.php
+          php -l layers/phase5h8/functions/classes/class.IntegrationVmwareInventoryQuerySelector.php
+          php -l layers/phase5h8/functions/classes/class.IntegrationVmwareFastReaderConfig.php
+          php -l layers/phase5h8/functions/classes/class.IntegrationVmwareFastOverlayFactory.php
+          php -l tests/phase5h8-native-query-boundary.test.php
+          php -l tests/phase5h8-query-selector.test.php
+          php -l tests/phase5h8-fast-context.test.php
+          php -l tests/phase5h8-fast-overlay-factory.test.php
+          python3 -m py_compile tests/phase5h8-native-query-boundary.test.py tests/phase5h8-query-selector-boundary.test.py tests/phase5h8-fast-context-boundary.test.py tests/phase5h8-fast-overlay-factory-boundary.test.py
+          php tests/phase5h8-native-query-boundary.test.php
+          php tests/phase5h8-query-selector.test.php
+          php tests/phase5h8-fast-context.test.php
+          php tests/phase5h8-fast-overlay-factory.test.php
+          python3 -B tests/phase5h8-native-query-boundary.test.py
+          python3 -B tests/phase5h8-query-selector-boundary.test.py
+          python3 -B tests/phase5h8-fast-context-boundary.test.py
+          python3 -B tests/phase5h8-fast-overlay-factory-boundary.test.py
