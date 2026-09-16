@@ -2,9 +2,9 @@
 
 ## Status
 
-Source-only development stage after merged Phase5H.6 PR61. Production website/native readers still serve Phase5G.5. This stage does not authorize or perform a live reader cutover.
+Source-only Phase5H.7 compatibility layer after merged Phase5H.6 PR61. Production website/native readers still serve Phase5G.5. This stage does not authorize or perform a live reader cutover.
 
-Draft PR #62 is intentionally non-serving. No Phase5H.7 class is loaded by a production HTTP route yet.
+PR #62 is ready for review and remains intentionally non-serving. No Phase5H.7 class is loaded by a production HTTP route.
 
 ## Objective
 
@@ -98,9 +98,9 @@ Stale fast evidence never overwrites the Phase5G last-good value/graph. Unknown 
 
 The wrapper preserves the rich Phase5G context, guest/network/tag fields and zero-vCenter-request/read-only metadata.
 
-## Current source acceptance
+## Executed local source acceptance
 
-Latest source-level regression contract after metric compatibility:
+The current PR #62 source has been locally executed after the metric-overlay changes:
 
 - `PHASE5H7_FAST_READER_ASSERTIONS=30`
 - `PHASE5H7_LOCAL_READER_BOUNDARY_ASSERTIONS=28`
@@ -108,7 +108,7 @@ Latest source-level regression contract after metric compatibility:
 - `PHASE5H7_FAST_METRIC_COMPAT_BOUNDARY_ASSERTIONS=41`
 - `PHASE5H7_FAST_OVERLAY_ASSERTIONS=28`
 - `PHASE5H7_FAST_OVERLAY_BOUNDARY_ASSERTIONS=30`
-- PHP lint coverage is present for all three classes and their PHP contract tests;
+- PHP lint is green for all three classes and their PHP contract tests;
 - exact Phase5G rollback parity when the overlay is disabled;
 - stale-roster absence falls back instead of hiding a possibly reappeared object;
 - confirmed fresh absence hides retained history;
@@ -124,6 +124,6 @@ GitHub Actions continues to show the repository runner/infrastructure condition 
 
 ## Next source step
 
-Keep PR #62 as the self-contained source-only compatibility layer. The next change should be a separate, minimal native-reader integration slice that resolves the current concrete `IntegrationVmwareInventoryNative(IntegrationVmwareInventoryReader ...)` constructor boundary without enabling production serving by default. That slice must preserve an explicit Phase5G-only rollback path and receive route/renderer parity tests before any live installation is considered.
+PR #62 is the self-contained source-only reader/metric compatibility layer and is ready for review. Phase5H.8 continues separately in stacked Draft PR #63 on branch `phase5h8/native-reader-integration`; it only generalizes the native adapter's query-object constructor boundary and still does not wire a production route.
 
-Any live installation or serving-path switch remains a separate production-impacting action and requires explicit Owner approval plus rollback.
+Any merge of PR #62 into `master`, live installation, or serving-path switch remains separately Owner-approval-gated. Phase5G.5 remains the production serving/rollback source.
