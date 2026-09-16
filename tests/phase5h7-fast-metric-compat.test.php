@@ -43,13 +43,19 @@ mc(!isset(IntegrationVmwareFastMetricCompat::sections($unsupported, 'vm', 'vm-1'
 $misaligned = $fast; $misaligned['metrics']['memory_percent']['points'][1]['observed_at']++;
 mc(!isset(IntegrationVmwareFastMetricCompat::sections($misaligned, 'vm', 'vm-1')['performance']), 'misaligned pair rejected');
 
-// Provider interval is only inferred when all adjacent timestamps agree exactly.
+// Provider interval is only inferred when all adjacent timestamps agree exactly and remain in real-time bounds.
 $irregular = $fast;
 $irregular['metrics']['cpu_percent']['points'][2]['observed_at'] -= 5;
 $irregular['metrics']['memory_percent']['points'][2]['observed_at'] -= 5;
 $sections = IntegrationVmwareFastMetricCompat::sections($irregular, 'vm', 'vm-1');
 mc($sections['performance']['data']['provider']['refresh_rate'] === null, 'irregular interval unknown');
 mc($sections['performance']['data']['samples'][0]['interval_seconds'] === null, 'irregular sample interval unknown');
+$slow = $fast;
+$slow['metrics']['cpu_percent']['points'] = $points([10.0,20.0], $now-400, 400);
+$slow['metrics']['memory_percent']['points'] = $points([30.0,40.0], $now-400, 400);
+$sections = IntegrationVmwareFastMetricCompat::sections($slow, 'vm', 'vm-1');
+mc($sections['performance']['data']['provider']['refresh_rate'] === null, 'non realtime interval not inferred');
+mc($sections['performance']['data']['samples'][0]['interval_seconds'] === null, 'non realtime sample interval unknown');
 
 // Storage nulls are omitted just like the retained collector; never turn missing throughput into zero.
 $nullDisk = $fast; $nullDisk['metrics']['disk_kib_per_second']['points'] = $points([null,1024.0,null]);
