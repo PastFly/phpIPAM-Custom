@@ -30,19 +30,24 @@ jobs:
         with:
           php-version: ${{ matrix.php }}
           coverage: none
-      - name: Validate native query, selector and context bridge contracts
+      - name: Validate native query, selector, context and fast-factory contracts
         run: |
           set -euo pipefail
           php -l layers/phase5g/functions/classes/class.IntegrationVmwareInventoryContext.php
           php -l layers/phase5g2/functions/classes/class.IntegrationVmwareInventoryNative.php
           php -l layers/phase5h8/functions/classes/class.IntegrationVmwareInventoryQuerySelector.php
+          php -l layers/phase5h8/functions/classes/class.IntegrationVmwareFastReaderConfig.php
+          php -l layers/phase5h8/functions/classes/class.IntegrationVmwareFastOverlayFactory.php
           php -l tests/phase5h8-native-query-boundary.test.php
           php -l tests/phase5h8-query-selector.test.php
           php -l tests/phase5h8-fast-context.test.php
-          python3 -m py_compile tests/phase5h8-native-query-boundary.test.py tests/phase5h8-query-selector-boundary.test.py tests/phase5h8-fast-context-boundary.test.py
+          php -l tests/phase5h8-fast-overlay-factory.test.php
+          python3 -m py_compile tests/phase5h8-native-query-boundary.test.py tests/phase5h8-query-selector-boundary.test.py tests/phase5h8-fast-context-boundary.test.py tests/phase5h8-fast-overlay-factory-boundary.test.py
           php tests/phase5h8-native-query-boundary.test.php
           php tests/phase5h8-query-selector.test.php
           php tests/phase5h8-fast-context.test.php
+          php tests/phase5h8-fast-overlay-factory.test.php
           python3 -B tests/phase5h8-native-query-boundary.test.py
           python3 -B tests/phase5h8-query-selector-boundary.test.py
           python3 -B tests/phase5h8-fast-context-boundary.test.py
+          python3 -B tests/phase5h8-fast-overlay-factory-boundary.test.py
