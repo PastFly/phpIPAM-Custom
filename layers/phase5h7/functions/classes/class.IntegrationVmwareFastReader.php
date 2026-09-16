@@ -98,7 +98,7 @@ final class IntegrationVmwareFastReader
             $result['property_object_state'] = 'missing';
             return;
         }
-        if (!is_array($record) || ($record['id'] ?? $id) !== $id || ($record['kind'] ?? null) !== $kind ||
+        if (!is_array($record) || ($record['id'] ?? null) !== $id || ($record['kind'] ?? null) !== $kind ||
             !in_array($record['object_state'] ?? null, ['fresh', 'stale'], true) || !is_array($record['fields'] ?? null)) {
             throw new RuntimeException('fast_reader_property_record_invalid');
         }
@@ -163,7 +163,7 @@ final class IntegrationVmwareFastReader
             $points = [];
             foreach ($series['points'] as $point) {
                 if (!is_array($point) || !is_int($point['observed_at'] ?? null) || $point['observed_at'] < 1 ||
-                    $point['observed_at'] > $now + 60 || (!is_null($point['value'] ?? null) && !is_numeric($point['value']))) {
+                    $point['observed_at'] > $now + 60 || (!is_null($point['value'] ?? null) && !is_int($point['value']) && !is_float($point['value']))) {
                     throw new RuntimeException('fast_reader_metric_point_invalid');
                 }
                 $points[] = ['observed_at' => $point['observed_at'], 'value' => $point['value'] ?? null];
