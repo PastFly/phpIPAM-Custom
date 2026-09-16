@@ -20,12 +20,14 @@ post = s[start2:end2]
 for text, label in [(pre,'pre'),(post,'post')]:
     for token in [
         "ACTIVE_RELEASE / ACTIVE_RECOVERY_REL",
+        "regular(recovery, uid=0, gid=0, mode=0o444)",
         "'RECOVERY_STAGE=active'",
         "'CHILD_AND_PARENT_RECEIPTS_VERIFIED=1'",
         "SERVING_TIMER", "SHADOW_TIMER",
         "regular(LOCK, uid=33, gid=33, mode=0o600, size_zero=True)",
         "WEBROOT / rel",
     ]: ok(token in text, label + ':' + token)
+    ok("regular(recovery, uid=0, gid=0, mode=0o644)" not in text, label + ':no mutable recovery mode')
     for forbidden in [
         "systemctl', 'enable", "systemctl','enable", "systemctl', 'disable", "systemctl','disable",
         "systemctl', 'start", "systemctl','start", "systemctl', 'stop", "systemctl','stop",
@@ -39,5 +41,6 @@ ok("if LIVE_CONFIG.exists() or LIVE_CONFIG.is_symlink()" in post, 'post live con
 ok("if not candidate_real.is_dir()" in post, 'post candidate present')
 
 print(f'PHASE5H10_LIVE_BOUNDARY_STATIC_ASSERTIONS={n}')
+print('PHASE5H10_RECOVERY_RELEASE_MODE_0444_PREPOST_OK')
 print('PHASE5H10_LIVE_PREFLIGHT_READ_ONLY_OK')
 print('PHASE5H10_LIVE_POSTCHECK_READ_ONLY_OK')
