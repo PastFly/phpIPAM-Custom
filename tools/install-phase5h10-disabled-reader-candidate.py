@@ -110,7 +110,8 @@ def verify_live_boundary() -> dict:
     if shutil.which('systemctl') is None: raise RuntimeError('phase5h10_capability_missing')
 
     recovery = ACTIVE_RELEASE / ACTIVE_RECOVERY_REL
-    regular(recovery, uid=0, gid=0, mode=0o644)
+    # Recovery artifacts are immutable release files. Phase5G.4/5.5 Rollout.verify_release() requires root:root 0444.
+    regular(recovery, uid=0, gid=0, mode=0o444)
     if git_blob(recovery.read_bytes()) != ACTIVE_RECOVERY_BLOB:
         raise RuntimeError('phase5h10_active_recovery_script_drift')
     status = run([sys.executable, '-B', recovery, 'status', ACTIVE_BACKUP])
@@ -338,7 +339,8 @@ def verify_live_boundary_after(candidate_real: Path) -> dict:
     # Candidate must exist now, so re-check every other production boundary explicitly.
     if not candidate_real.is_dir(): raise RuntimeError('phase5h10_candidate_missing')
     recovery = ACTIVE_RELEASE / ACTIVE_RECOVERY_REL
-    regular(recovery, uid=0, gid=0, mode=0o644)
+    # Recovery artifacts are immutable release files. Phase5G.4/5.5 Rollout.verify_release() requires root:root 0444.
+    regular(recovery, uid=0, gid=0, mode=0o444)
     if git_blob(recovery.read_bytes()) != ACTIVE_RECOVERY_BLOB: raise RuntimeError('phase5h10_active_recovery_script_drift')
     status = run([sys.executable, '-B', recovery, 'status', ACTIVE_BACKUP])
     if status.returncode != 0 or 'RECOVERY_STAGE=active' not in status.stdout or 'CHILD_AND_PARENT_RECEIPTS_VERIFIED=1' not in status.stdout:
