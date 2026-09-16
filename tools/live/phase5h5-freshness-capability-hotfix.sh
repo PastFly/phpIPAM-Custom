@@ -76,7 +76,8 @@ php "$TMP/source/tests/phase5h4-shadow-cycle.test.php"
 echo 'PHASE5H5_FRESHNESS_V2_LOCAL_TESTS_OK=1'
 
 check_file() {
-    local rel="$1" path="$SHADOW/$rel"
+    local rel="$1"
+    local path="$SHADOW/$rel"
     [ -f "$path" ] && [ ! -L "$path" ] || { echo "STOP: invalid shadow source boundary: $rel"; exit 1; }
     read -r uid gid mode links < <(stat -c '%u %g %a %h' "$path")
     [ "$uid" = 0 ] && [ "$gid" = 0 ] && [ "$mode" = 644 ] && [ "$links" = 1 ] || { echo "STOP: shadow source metadata mismatch: $rel"; exit 1; }
