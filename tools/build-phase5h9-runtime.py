@@ -20,6 +20,16 @@ def generate(package):
     """Pure package overlay; no filesystem mutation outside reading exact repository source."""
     app = dict(package['app'])
     release = dict(package['release'])
+
+    context = app.get('functions/classes/class.IntegrationVmwareInventoryContext.php')
+    if not isinstance(context, (bytes, bytearray)) or \
+        b'public function fastStore(string $root): IntegrationVmwareFastStore' not in context:
+        raise RuntimeError('phase5h9_h8_context_boundary_missing')
+    native_adapter = app.get('functions/classes/class.IntegrationVmwareInventoryNative.php')
+    if not isinstance(native_adapter, (bytes, bytearray)) or \
+        b"!is_object($reader) || !is_callable([$reader, 'query'])" not in native_adapter:
+        raise RuntimeError('phase5h9_h8_native_boundary_missing')
+
     for rel in RUNTIME_CLASSES:
         path = ROOT / rel
         if not path.is_file() or path.is_symlink():
