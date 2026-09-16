@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - 'tools/phase5h6-scheduled-cycle.sh'
+      - 'tools/phase5h6-shadow-observe.php'
       - 'tools/install-phase5h6-scheduler.py'
       - 'tools/live/phase5h6-*'
       - 'systemd/phpipam-vmware-fast-shadow@.service'
@@ -25,6 +26,9 @@ jobs:
         run: |
           set -euo pipefail
           bash -n tools/phase5h6-scheduled-cycle.sh
+          bash -n tools/live/phase5h6-scheduler-install.sh
+          bash -n tools/live/phase5h6-autonomous-observe.sh
+          php -l tools/phase5h6-shadow-observe.php
           python3 -m py_compile tools/install-phase5h6-scheduler.py tests/phase5h6-scheduler.test.py
           python3 -B tests/phase5h6-scheduler.test.py
           python3 - <<'PY'
@@ -32,17 +36,22 @@ jobs:
           from pathlib import Path
           wrapper=Path('tools/phase5h6-scheduled-cycle.sh').read_text()
           installer=Path('tools/install-phase5h6-scheduler.py').read_text()
+          install_live=Path('tools/live/phase5h6-scheduler-install.sh').read_text()
+          observe_live=Path('tools/live/phase5h6-autonomous-observe.sh').read_text()
           service=Path('systemd/phpipam-vmware-fast-shadow@.service').read_text()
           timer=Path('systemd/phpipam-vmware-fast-shadow@.timer').read_text()
           unsafe=re.compile(r'^\s*local\s+[^\n]*\b([A-Za-z_][A-Za-z0-9_]*)="[^\n]*"[^\n]*\$\1', re.M)
-          assert unsafe.search(wrapper) is None
+          for name,text in [('wrapper',wrapper),('install_live',install_live),('observe_live',observe_live)]:
+              assert unsafe.search(text) is None, f'unsafe_set_u_local:{name}'
           for forbidden in ['base64','systemctl stop phpipam-vmware-recovery5g5','systemctl disable phpipam-vmware-recovery5g5']:
-              assert forbidden not in wrapper
-              assert forbidden not in installer
+              for text in [wrapper,installer,install_live,observe_live]:
+                  assert forbidden not in text, forbidden
           assert 'User=www-data' in service and 'Group=www-data' in service
           assert 'ProtectSystem=strict' in service
           assert 'ReadWritePaths=/var/lib/phpipam-custom/vmware-fast-shadow' in service
           assert 'ReadWritePaths=/var/lib/phpipam-custom/vmware-inventory-recovery5g5/connector-1/worker.lock' in service
           assert 'OnUnitActiveSec=60s' in timer
           assert 'Persistent=true' in timer
+          assert 'PHASE5H6_AUTONOMOUS_NO_RUNNER_INVOCATION=1' in observe_live
+          assert 'REQUIRED_NEW_PUBLICATIONS=4' in observe_live
           PY
