@@ -4,8 +4,10 @@ on:
     branches: ['phase5h8/**']
   pull_request:
     paths:
+      - 'layers/phase5g/functions/classes/class.IntegrationVmwareInventoryContext.php'
       - 'layers/phase5g2/functions/classes/class.IntegrationVmwareInventoryNative.php'
       - 'layers/phase5h8/**'
+      - 'tools/build-phase5g5-runtime.py'
       - 'tests/phase5h8-*'
       - 'design/PHASE5H8_NATIVE_QUERY_BOUNDARY.md'
       - '.github/workflows/phase5h8-native-query.yml'
@@ -28,15 +30,19 @@ jobs:
         with:
           php-version: ${{ matrix.php }}
           coverage: none
-      - name: Validate native query-object and selector contracts
+      - name: Validate native query, selector and context bridge contracts
         run: |
           set -euo pipefail
+          php -l layers/phase5g/functions/classes/class.IntegrationVmwareInventoryContext.php
           php -l layers/phase5g2/functions/classes/class.IntegrationVmwareInventoryNative.php
           php -l layers/phase5h8/functions/classes/class.IntegrationVmwareInventoryQuerySelector.php
           php -l tests/phase5h8-native-query-boundary.test.php
           php -l tests/phase5h8-query-selector.test.php
-          python3 -m py_compile tests/phase5h8-native-query-boundary.test.py tests/phase5h8-query-selector-boundary.test.py
+          php -l tests/phase5h8-fast-context.test.php
+          python3 -m py_compile tests/phase5h8-native-query-boundary.test.py tests/phase5h8-query-selector-boundary.test.py tests/phase5h8-fast-context-boundary.test.py
           php tests/phase5h8-native-query-boundary.test.php
           php tests/phase5h8-query-selector.test.php
+          php tests/phase5h8-fast-context.test.php
           python3 -B tests/phase5h8-native-query-boundary.test.py
           python3 -B tests/phase5h8-query-selector-boundary.test.py
+          python3 -B tests/phase5h8-fast-context-boundary.test.py
