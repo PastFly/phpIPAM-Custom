@@ -11,10 +11,12 @@ final class IntegrationVmwareFastReader
     public function __construct(
         private IntegrationVmwareFastStore $store,
         private int $maxPropertyAge = 300,
-        private int $maxMetricAge = 300
+        private int $maxMetricAge = 300,
+        private int $maxRosterAge = 300
     ) {
         self::validateAgeLimit($maxPropertyAge);
         self::validateAgeLimit($maxMetricAge);
+        self::validateAgeLimit($maxRosterAge);
     }
 
     public function object(string $kind, string $id, ?int $now = null): array
@@ -28,7 +30,8 @@ final class IntegrationVmwareFastReader
             $id,
             $now,
             $this->maxPropertyAge,
-            $this->maxMetricAge
+            $this->maxMetricAge,
+            $this->maxRosterAge
         );
     }
 
@@ -43,12 +46,14 @@ final class IntegrationVmwareFastReader
         string $id,
         int $now,
         int $maxPropertyAge = 300,
-        int $maxMetricAge = 300
+        int $maxMetricAge = 300,
+        int $maxRosterAge = 300
     ): array {
         self::validateIdentity($kind, $id);
         if ($now < 1) throw new InvalidArgumentException('fast_reader_time_invalid');
         self::validateAgeLimit($maxPropertyAge);
         self::validateAgeLimit($maxMetricAge);
+        self::validateAgeLimit($maxRosterAge);
 
         $result = [
             'schema' => 1,
@@ -73,10 +78,11 @@ final class IntegrationVmwareFastReader
         // Without a reconciled roster, retained fast-domain values must not establish membership.
         if ($roster === null) return $result;
         self::validateRoster($roster, $now);
-        $membership = IntegrationVmwareRosterReconciler::membership($roster, $kind, $id);
-        $result['membership_state'] = $membership;
         $result['roster_published_at'] = $roster['published_at'] ?? null;
         $result['roster_age_seconds'] = self::age($result['roster_published_at'], $now);
+        $membership = $result['roster_age_seconds'] !== null && $result['roster_age_seconds'] <= $maxRosterAge
+            ? IntegrationVmwareRosterReconciler::membership($roster, $kind, $id) : 'unknown';
+        $result['membership_state'] = $membership;
         if (is_array($roster['authoritative'] ?? null)) {
             $result['membership_confirmed_at'] = $roster['authoritative']['confirmed_at'];
         }
