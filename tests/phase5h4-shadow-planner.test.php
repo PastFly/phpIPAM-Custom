@@ -18,6 +18,14 @@ $caps=IntegrationVmwareCapabilityCache::put(null,'host','host-1',['current_suppo
 $p=IntegrationVmwareShadowPlanner::metricPlans($r['entities'],$read,$caps,$now);
 s4($p['plans']===[['kind'=>'vm','id'=>'vm-1','interval_id'=>20,'counters'=>['cpu.usage.average','mem.usage.average']]]);
 s4($p['unsupported']===[['kind'=>'host','id'=>'host-1','reason'=>'provider_not_realtime']]);s4($p['capability_due']===[]);
+
+// A complete, unexpired negative aggregate-capability result is resolved until TTL expiry.
+$negative=IntegrationVmwareCapabilityCache::put(null,'vm','vm-2',['current_supported'=>true,'refresh_rate'=>20,'counters'=>[
+ 'cpu.usage.average'=>'aggregate_unavailable','mem.usage.average'=>'aggregate_unavailable','disk.usage.average'=>'aggregate_unavailable']],$now,900);
+$pn=IntegrationVmwareShadowPlanner::metricPlans([['kind'=>'vm','id'=>'vm-2']],fn($id)=>[],$negative,$now);
+s4($pn['plans']===[]);s4($pn['capability_due']===[]);
+s4($pn['unsupported']===[['kind'=>'vm','id'=>'vm-2','reason'=>'aggregate_metrics_unavailable']]);
+
 $batch=['schema'=>1,'objects'=>['vm-1'=>['kind'=>'vm','id'=>'vm-1','state'=>'partial','missing_counters'=>['cpu.usage.average'],
  'samples'=>[['observed_at'=>$now-20,'values'=>['cpu.usage.average'=>null,'mem.usage.average'=>66.5]]],'collected_at'=>$now]]];
 $n=IntegrationVmwareShadowPlanner::normalizeMetrics($batch,$p['plans'],$now);
@@ -27,6 +35,21 @@ $previous=IntegrationVmwareFastDomain::mergeMetrics(null,[['kind'=>'vm','id'=>'v
 $merged=IntegrationVmwareFastDomain::mergeMetrics($previous,$n,$now);
 s4($merged['objects']['vm-1']['object_state']==='partial');s4($merged['objects']['vm-1']['series']['cpu_percent']['state']==='stale');
 s4($merged['objects']['vm-1']['series']['cpu_percent']['points'][0]['value']===40);s4($merged['objects']['vm-1']['series']['memory_percent']['state']==='fresh');s4($merged['objects']['vm-1']['series']['memory_percent']['points'][0]['value']===66.5);
+
+// With a 20-second provider interval the freshness window is 60 seconds. Exactly 60 is valid;
+// anything older is stale-source evidence and must not replace last-good metric values.
+$onePlan=[['kind'=>'vm','id'=>'vm-9','interval_id'=>20,'counters'=>['cpu.usage.average','mem.usage.average']]];
+$freshBatch=['schema'=>1,'objects'=>['vm-9'=>['kind'=>'vm','id'=>'vm-9','state'=>'returned','missing_counters'=>[],
+ 'samples'=>[['observed_at'=>$now-60,'values'=>['cpu.usage.average'=>25.0,'mem.usage.average'=>50.0]]],'collected_at'=>$now]]];
+$fresh=IntegrationVmwareShadowPlanner::normalizeMetrics($freshBatch,$onePlan,$now);
+s4($fresh[0]['state']==='ok');s4(count($fresh[0]['series'])===2);
+$staleBatch=$freshBatch;$staleBatch['objects']['vm-9']['samples'][0]['observed_at']=$now-61;
+$stale=IntegrationVmwareShadowPlanner::normalizeMetrics($staleBatch,$onePlan,$now);
+s4($stale[0]['state']==='stale_source');s4($stale[0]['series']===[]);
+$emptyBatch=['schema'=>1,'objects'=>['vm-9'=>['kind'=>'vm','id'=>'vm-9','state'=>'empty','missing_counters'=>[], 'samples'=>[],'collected_at'=>$now]]];
+$empty=IntegrationVmwareShadowPlanner::normalizeMetrics($emptyBatch,$onePlan,$now);
+s4($empty[0]['state']==='stale_source');
+
 $u=IntegrationVmwareShadowPlanner::unsupportedRecords($p['unsupported'],$now);s4($u[0]['state']==='unsupported');
 s4(s4bad(fn()=>IntegrationVmwareShadowPlanner::roster(['blocked'=>true])));
-echo 'PHASE5H4_SHADOW_ASSERTIONS='.$c."\nPHASE5H4_PARTIAL_METRIC_PRESERVATION_OK\n";
+echo 'PHASE5H4_SHADOW_ASSERTIONS='.$c."\nPHASE5H4_PARTIAL_METRIC_PRESERVATION_OK\nPHASE5H4_STALE_SOURCE_AND_NEGATIVE_CAPABILITY_OK\n";

@@ -78,17 +78,17 @@ final class IntegrationVmwareFastDomain
             if (!is_array($record) || !is_string($record['id'] ?? null) ||
                 !preg_match('/^(vm|host)-[0-9]{1,20}$/D', $record['id']) ||
                 !in_array($record['kind'] ?? null, ['vm', 'host'], true) ||
-                !in_array($record['state'] ?? null, ['ok', 'partial', 'not_returned', 'unsupported'], true)) {
+                !in_array($record['state'] ?? null, ['ok', 'partial', 'not_returned', 'stale_source', 'capability_pending', 'unsupported'], true)) {
                 throw new RuntimeException('fast_metric_record_invalid');
             }
             $id = $record['id'];
             $old = $state['objects'][$id] ?? ['id' => $id, 'kind' => $record['kind'], 'series' => []];
             if (($old['kind'] ?? null) !== $record['kind']) throw new RuntimeException('fast_metric_kind_changed');
             $attempt = self::boundedTime($record['attempted_at'] ?? $now, $now) ?? $now;
-            if ($record['state'] === 'not_returned') {
+            if (in_array($record['state'], ['not_returned', 'stale_source', 'capability_pending'], true)) {
                 $old['object_state'] = 'stale';
                 $old['last_attempt_at'] = $attempt;
-                $old['last_attempt_result'] = 'not_returned';
+                $old['last_attempt_result'] = $record['state'];
                 foreach ($old['series'] as &$priorSeries) if (is_array($priorSeries)) $priorSeries['state'] = 'stale';
                 unset($priorSeries);
                 $state['objects'][$id] = $old;
@@ -116,9 +116,18 @@ final class IntegrationVmwareFastDomain
                     'collected_at' => $attempt, 'observed_at' => $normalized === [] ? null : max(array_column($normalized, 'observed_at'))];
                 $updated[$name] = true;
             }
-            if ($record['state'] === 'partial') {
+            if (in_array($record['state'], ['ok', 'partial'], true)) {
+                // A successful current plan is positive evidence only for the series it actually returned.
+                // Preserve last-good points from counters no longer present in the plan, but never leave them fresh.
                 foreach ($old['series'] as $name => &$priorSeries) {
                     if (!isset($updated[$name]) && is_array($priorSeries)) $priorSeries['state'] = 'stale';
+                }
+                unset($priorSeries);
+            } elseif ($record['state'] === 'unsupported') {
+                // Unsupported is terminal evidence for this capability TTL. Preserve any last-good points,
+                // but never leave prior series marked fresh inside an unsupported object.
+                foreach ($old['series'] as $name => &$priorSeries) {
+                    if (!isset($updated[$name]) && is_array($priorSeries)) $priorSeries['state'] = 'unsupported';
                 }
                 unset($priorSeries);
             }

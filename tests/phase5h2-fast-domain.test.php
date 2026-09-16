@@ -36,11 +36,51 @@ $metrics = IntegrationVmwareFastDomain::mergeMetrics(null, [
 ok($metrics['objects']['vm-1']['series']['cpu_percent']['observed_at'] === $now-20);
 ok(IntegrationVmwareFastDomain::age($now-20, $now, $now) === 20);
 ok($metrics['objects']['host-1']['object_state'] === 'unsupported');
+
+$metricsWithDisk = $metrics;
+$metricsWithDisk['objects']['vm-1']['series']['disk_kib_per_second'] = [
+    'state'=>'fresh','points'=>[['observed_at'=>$now-500,'value'=>12.0]],'collected_at'=>$now-500,'observed_at'=>$now-500
+];
+$metricsPlanShrink = IntegrationVmwareFastDomain::mergeMetrics($metricsWithDisk, [[
+    'kind'=>'vm','id'=>'vm-1','state'=>'ok','attempted_at'=>$now+10,'series'=>[
+        'cpu_percent'=>[['observed_at'=>$now,'value'=>33.0]],
+        'memory_percent'=>[['observed_at'=>$now,'value'=>72.0]],
+    ]
+]], $now+10);
+ok($metricsPlanShrink['objects']['vm-1']['object_state'] === 'fresh');
+ok($metricsPlanShrink['objects']['vm-1']['series']['cpu_percent']['state'] === 'fresh');
+ok($metricsPlanShrink['objects']['vm-1']['series']['memory_percent']['state'] === 'fresh');
+ok($metricsPlanShrink['objects']['vm-1']['series']['disk_kib_per_second']['state'] === 'stale');
+ok($metricsPlanShrink['objects']['vm-1']['series']['disk_kib_per_second']['points'][0]['value'] === 12.0);
+
 $metrics2 = IntegrationVmwareFastDomain::mergeMetrics($metrics, [
     ['kind'=>'vm','id'=>'vm-1','state'=>'not_returned','attempted_at'=>$now+30,'series'=>[]]
 ], $now+30);
 ok($metrics2['objects']['vm-1']['object_state'] === 'stale');
 ok($metrics2['objects']['vm-1']['series']['cpu_percent']['points'][0]['value'] === 32.5);
+$metrics3 = IntegrationVmwareFastDomain::mergeMetrics($metrics, [
+    ['kind'=>'vm','id'=>'vm-1','state'=>'stale_source','attempted_at'=>$now+40,'series'=>[]]
+], $now+40);
+ok($metrics3['objects']['vm-1']['object_state'] === 'stale');
+ok($metrics3['objects']['vm-1']['last_attempt_result'] === 'stale_source');
+ok($metrics3['objects']['vm-1']['series']['cpu_percent']['state'] === 'stale');
+ok($metrics3['objects']['vm-1']['series']['cpu_percent']['points'][0]['value'] === 32.5);
+$metrics4 = IntegrationVmwareFastDomain::mergeMetrics($metrics, [
+    ['kind'=>'vm','id'=>'vm-1','state'=>'capability_pending','attempted_at'=>$now+50,'series'=>[]]
+], $now+50);
+ok($metrics4['objects']['vm-1']['object_state'] === 'stale');
+ok($metrics4['objects']['vm-1']['last_attempt_result'] === 'capability_pending');
+ok($metrics4['objects']['vm-1']['series']['memory_percent']['state'] === 'stale');
+ok($metrics4['objects']['vm-1']['series']['memory_percent']['points'][0]['value'] === 71.0);
+$metrics5 = IntegrationVmwareFastDomain::mergeMetrics($metrics, [
+    ['kind'=>'vm','id'=>'vm-1','state'=>'unsupported','attempted_at'=>$now+60,'series'=>[]]
+], $now+60);
+ok($metrics5['objects']['vm-1']['object_state'] === 'unsupported');
+ok($metrics5['objects']['vm-1']['last_attempt_result'] === 'unsupported');
+ok($metrics5['objects']['vm-1']['series']['cpu_percent']['state'] === 'unsupported');
+ok($metrics5['objects']['vm-1']['series']['memory_percent']['state'] === 'unsupported');
+ok($metrics5['objects']['vm-1']['series']['cpu_percent']['points'][0]['value'] === 32.5);
+ok($metrics5['objects']['vm-1']['series']['memory_percent']['points'][0]['value'] === 71.0);
 ok(fails(fn()=>IntegrationVmwareFastDomain::mergeProperties(null, ['schema'=>1,'authoritative_membership'=>true,'objects'=>[]], $now)));
 ok(fails(fn()=>IntegrationVmwareFastDomain::mergeMetrics(null, [['kind'=>'vm','id'=>'vm-1','state'=>'ok','series'=>['cpu_percent'=>[['observed_at'=>$now+1000,'value'=>1]]]]], $now)));
-echo 'PHASE5H2_FAST_DOMAIN_ASSERTIONS=' . $checks . "\nPHASE5H2_PARTIAL_IS_NOT_DELETION_OK\n";
+echo 'PHASE5H2_FAST_DOMAIN_ASSERTIONS=' . $checks . "\nPHASE5H2_PARTIAL_IS_NOT_DELETION_OK\nPHASE5H2_STALE_SOURCE_PRESERVES_LAST_GOOD_OK\nPHASE5H2_CAPABILITY_PENDING_PRESERVES_LAST_GOOD_OK\nPHASE5H2_UNSUPPORTED_DEMOTES_PRIOR_SERIES_OK\nPHASE5H2_CURRENT_PLAN_STALES_OMITTED_SERIES_OK\n";
