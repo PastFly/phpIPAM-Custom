@@ -16,8 +16,8 @@ for token in [
     "!is_object($reader) || !is_callable([$reader, 'query'])",
     "throw new InvalidArgumentException('invalid_inventory_query_reader')",
     '$entry = $this->reader->query($view, $id);',
-    "'vcenter_requests' => 0",
-    "'inventory_files_written' => false",
+    "$meta['vcenter_requests'] = 0",
+    "$meta['inventory_files_written'] = false",
 ]:
     ok(token in s, 'required:' + token)
 
