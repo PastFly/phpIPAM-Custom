@@ -36,7 +36,13 @@ git -C "$TMP/source" checkout -q --detach "$BEHAVIOR"
 [ -z "$(git -C "$TMP/source" status --porcelain)" ] || { echo 'STOP: temporary source checkout dirty'; exit 1; }
 
 bash -n "$TMP/source/tools/phase5h6-scheduled-cycle.sh"
-python3 -m py_compile "$TMP/source/tools/install-phase5h6-scheduler.py" "$TMP/source/tests/phase5h6-scheduler.test.py"
+SOURCE_ROOT="$TMP/source" PYTHONDONTWRITEBYTECODE=1 python3 -B - <<'PY'
+import os
+from pathlib import Path
+root=Path(os.environ['SOURCE_ROOT'])
+for rel in ['tools/install-phase5h6-scheduler.py','tests/phase5h6-scheduler.test.py']:
+    compile((root/rel).read_text(), rel, 'exec')
+PY
 python3 -B "$TMP/source/tests/phase5h6-scheduler.test.py"
 [ -z "$(git -C "$TMP/source" status --porcelain)" ] || { echo 'STOP: preflight dirtied source checkout'; exit 1; }
 echo 'PHASE5H6_SCHEDULER_LIVE_PREFLIGHT_OK=1'
