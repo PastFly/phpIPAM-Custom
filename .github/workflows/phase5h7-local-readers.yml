@@ -31,7 +31,11 @@ jobs:
         run: |
           set -euo pipefail
           php -l layers/phase5h7/functions/classes/class.IntegrationVmwareFastReader.php
+          php -l layers/phase5h7/functions/classes/class.IntegrationVmwareFastOverlayReader.php
           php -l tests/phase5h7-fast-reader.test.php
-          python3 -m py_compile tests/phase5h7-local-reader-boundary.test.py
+          php -l tests/phase5h7-fast-overlay-reader.test.php
+          python3 -m py_compile tests/phase5h7-local-reader-boundary.test.py tests/phase5h7-fast-overlay-boundary.test.py
           php tests/phase5h7-fast-reader.test.php
+          php tests/phase5h7-fast-overlay-reader.test.php
           python3 -B tests/phase5h7-local-reader-boundary.test.py
+          python3 -B tests/phase5h7-fast-overlay-boundary.test.py
