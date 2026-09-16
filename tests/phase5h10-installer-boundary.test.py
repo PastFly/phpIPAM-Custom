@@ -36,8 +36,10 @@ for token in [
     "if not apply_owner and system == Path('/'): raise RuntimeError('phase5h10_owner_bypass_forbidden')",
     "if path not in created_dirs: raise RuntimeError('phase5h10_target_exists')",
     "os.link(tmp, path, follow_symlinks=False)",
-    "if digest(path.read_bytes()) != digest(raw): raise RuntimeError('phase5h10_publish_hash')",
-    "if path.is_symlink() or not path.is_file() or digest(path.read_bytes()) != expected",
+    "identity = (published.st_dev, published.st_ino)",
+    "(st.st_dev, st.st_ino) == identity",
+    "created_files: list[tuple[Path,str,int,int]]",
+    "(st.st_dev, st.st_ino) != (expected_dev, expected_ino)",
     "if len(sys.argv) != 1: raise RuntimeError('arguments_not_supported')",
 ]: ok(token in s, 'required:' + token)
 
@@ -51,22 +53,47 @@ for forbidden in [
 ]: ok(forbidden not in s, 'forbidden:' + forbidden)
 
 # Live config is a pre/post guard only. The only config write is beneath the isolated candidate tree.
-ok(s.count("LIVE_CONFIG") >= 4, 'live config guarded')
+ok(s.count('LIVE_CONFIG') >= 4, 'live config guarded')
 ok("candidate/'config/vmware-fast-reader.json'" in s, 'staged config verified')
-ok("write_file(live_config" not in s and "write_receipt(live_config" not in s, 'no live config write')
-ok("WEBROOT / rel" in s and "write_file(WEBROOT" not in s and "write_file(mapped(system, WEBROOT" not in s, 'webroot read only')
+ok('write_file(live_config' not in s and 'write_receipt(live_config' not in s, 'no live config write')
+ok('WEBROOT / rel' in s and 'write_file(WEBROOT' not in s and 'write_file(mapped(system, WEBROOT' not in s, 'webroot read only')
 
 # Test hooks exist only as Python-call parameters, never as command-line options or environment switches.
 ok('fault_after' in s, 'fault injection internal')
 ok('argparse' not in s and 'getenv(' not in s and 'os.environ' not in s, 'no runtime override channel')
 
-# Rollback deliberately retains the audit receipt/backup but only deletes exact transaction-owned payload.
+# Transaction directories must be tracked before owner/mode mutation so metadata failures remain rollbackable.
+ensure_start = s.index('def ensure_dir(')
+ensure_end = s.index('\ndef write_receipt(', ensure_start)
+ensure = s[ensure_start:ensure_end]
+ok(ensure.index('created_dirs.append(path)') < ensure.index('if apply_owner: os.chown(path, uid, gid)'), 'nested dir tracked before chown')
+install_start = s.index('def install(')
+install_end = s.index('\ndef verify_live_boundary_after(', install_start)
+install = s[install_start:install_end]
+ok(install.index('created_dirs.append(candidate)') < install.index('if apply_owner: os.chown(candidate, 0, 0)'), 'candidate tracked before chown')
+
+# File ownership is exact inode/device/hash, not merely path+content.
+write_start = s.index('def write_file(')
+write_end = s.index('\ndef ensure_dir(', write_start)
+write = s[write_start:write_end]
+ok("-> tuple[str,int,int]" in write, 'publisher returns inode identity')
+ok('published = path.lstat()' in write and 'identity = (published.st_dev, published.st_ino)' in write, 'publisher captures inode')
+ok('return expected, identity[0], identity[1]' in write, 'publisher returns exact identity')
+rollback_start = s.index('def rollback(')
+rollback_end = s.index('\ndef install(', rollback_start)
+rollback = s[rollback_start:rollback_end]
+ok('expected_dev, expected_ino' in rollback, 'rollback receives inode identity')
+ok('(st.st_dev, st.st_ino) != (expected_dev, expected_ino)' in rollback, 'rollback rejects replacement inode')
+ok('digest(path.read_bytes()) != expected' in rollback, 'rollback rejects content drift')
+
+# Rollback retains audit receipt/backup and only deletes tracked exact transaction-owned payload.
 ok("receipt['stage'] = 'rolled_back' if clean else 'rollback_incomplete'" in s, 'rollback receipt')
-ok("rollback(created_files, created_dirs)" in s, 'tracked rollback')
-ok("shutil.rmtree" not in s, 'no broad recursive delete')
+ok('rollback(created_files, created_dirs)' in s, 'tracked rollback')
+ok('shutil.rmtree' not in s, 'no broad recursive delete')
 
 print(f'PHASE5H10_INSTALLER_BOUNDARY_ASSERTIONS={n}')
 print('PHASE5H10_NO_WEBROOT_SYSTEMD_DB_TLS_MUTATION_OK')
 print('PHASE5H10_ATOMIC_EXCLUSIVE_PUBLICATION_OK')
+print('PHASE5H10_INODE_BOUND_ROLLBACK_OK')
 print('PHASE5H10_TRACKED_ROLLBACK_ONLY_OK')
 print('PHASE5H10_LIVE_CONFIG_GUARD_ONLY_OK')
