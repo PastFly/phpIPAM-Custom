@@ -1,0 +1,21 @@
+name: DNS5 machine HTTP boundary
+on:
+  pull_request:
+    paths:
+      - 'layers/dns5/**'
+      - 'tests/dns5/**'
+      - '.github/workflows/dns5-machine-http.yml'
+permissions:
+  contents: read
+jobs:
+  php-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: DNS5 controller/context/route contracts
+        run: |
+          find layers/dns5 tests/dns5 -name '*.php' -print0 | xargs -0 -n1 php -l
+          php tests/dns5/context-reader.test.php
+          php tests/dns5/http-controller.test.php
+          python3 tests/dns5/http-source.test.py
