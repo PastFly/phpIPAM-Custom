@@ -41,9 +41,9 @@ The domain credential exists as a PSCredential supplied to New-CimSession. Previ
 
 ## Verification
 
-The source contract was created first and observed red because the collector file was absent. A later focused regression was observed red for an output-path variable mismatch, then fixed. A multi-zone serialization regression was also observed red before the ConvertTo-Json fix.
+The source contract was created first and observed red because the collector file was absent. A later focused regression was observed red for an output-path variable mismatch, then fixed. A multi-zone serialization regression was also observed red before the ConvertTo-Json fix. A no-clobber output regression was then observed red before existing-output refusal was added.
 
-Current exact source blob `fc28d1af47063a4c90fc9b97b428b5360c3c8bab` passed 45 source-boundary assertions in the development session.
+Current exact source blob `f4dd27fa05308ca4a0596d5f96d1e56d12060d3f` passed 46 source-boundary assertions in the development session.
 
 `tests/dns2/preview-windows.test.ps1` is an offline Windows PowerShell 5.1 fixture test. It replaces the DnsServer/CIM read commands with local functions and checks Kerberos/timeout propagation, discovery, A/AAAA/CNAME/PTR normalization, static timestamps, multi-zone JSON and session cleanup. Its presence is NOT Windows execution evidence.
 
