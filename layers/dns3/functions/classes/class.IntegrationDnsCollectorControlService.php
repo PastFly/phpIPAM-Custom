@@ -239,6 +239,7 @@ final class IntegrationDnsCollectorControlService
                 'lease_id'=>null,
                 'lease_expires_at'=>null,
                 'attempt_count'=>0,
+                'credential_delivered_at'=>null,
                 'result_code'=>null,
                 'result_payload'=>null,
                 'finished_at'=>null,

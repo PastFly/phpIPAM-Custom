@@ -20,7 +20,7 @@ final class IntegrationDnsCollectorControlPhpIpamRepository implements Integrati
     private const JOB_COLUMNS=[
         'id','collector_id','connection_id','assignment_revision','job_type','state',
         'configuration_revision','binding_epoch','credential_version',
-        'lease_id','lease_expires_at','attempt_count','result_code','result_payload','finished_at',
+        'lease_id','lease_expires_at','attempt_count','credential_delivered_at','result_code','result_payload','finished_at',
         'created_at','expires_at','updated_at','updated_by'
     ];
 
@@ -109,7 +109,7 @@ final class IntegrationDnsCollectorControlPhpIpamRepository implements Integrati
         foreach ([
             'revision','control_epoch','created_at','created_by','updated_at','updated_by',
             'assigned_at','assigned_by','assignment_revision','configuration_revision','binding_epoch',
-            'lease_expires_at','attempt_count','finished_at','created_at','expires_at'
+            'lease_expires_at','attempt_count','credential_delivered_at','finished_at','created_at','expires_at'
         ] as $field) {
             if (array_key_exists($field,$r) && $r[$field]!==null) $r[$field]=(int)$r[$field];
         }
