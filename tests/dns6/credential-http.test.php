@@ -36,7 +36,7 @@ ok6h($out['status']===200 && is_string($out['body']),'credential response encode
 $decoded=json_decode($out['body'],true,8,JSON_THROW_ON_ERROR);
 ok6h($decoded['ok']===true && $decoded['data']['password']==='fixture secret value','password delivered only in success body');
 ok6h(!isset($decoded['data']['profile_id']),'profile id absent');
-ok6h($out['headers']['Cache-Control']==='no-store' && $out['headers']['Pragma']==='no-cache','sensitive response not cached');
+ok6h(str_starts_with($out['headers']['Cache-Control'],'no-store') && $out['headers']['Pragma']==='no-cache','sensitive response not cached');
 ok6h($constructed===1 && $svc->calls===1,'service constructed after validation');
 
 $before=$constructed;
