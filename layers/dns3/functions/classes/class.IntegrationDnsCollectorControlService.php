@@ -85,7 +85,7 @@ final class IntegrationDnsCollectorControlService
     private static function publicJob(array $row): array
     {
         return array_intersect_key($row,array_flip([
-            'id','collector_id','connection_id','job_type','state','configuration_revision',
+            'id','collector_id','connection_id','assignment_revision','job_type','state','configuration_revision',
             'binding_epoch','credential_version','created_at','expires_at','updated_at','updated_by'
         ]));
     }
@@ -230,11 +230,18 @@ final class IntegrationDnsCollectorControlService
                 'id'=>$id,
                 'collector_id'=>$assignment['collector_id'],
                 'connection_id'=>$connectionId,
+                'assignment_revision'=>$assignment['revision'],
                 'job_type'=>$jobType,
                 'state'=>'pending',
                 'configuration_revision'=>$context['revision'],
                 'binding_epoch'=>$context['binding_epoch'],
                 'credential_version'=>$credentialVersion,
+                'lease_id'=>null,
+                'lease_expires_at'=>null,
+                'attempt_count'=>0,
+                'result_code'=>null,
+                'result_payload'=>null,
+                'finished_at'=>null,
                 'created_at'=>$now,
                 'expires_at'=>$now+300,
                 'updated_at'=>$now,

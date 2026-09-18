@@ -29,5 +29,6 @@ final class Dns3MemoryRepository implements IntegrationDnsCollectorControlReposi
     public function removeAssignment(string $connectionId): void { $this->guard(true); unset($this->assignments[$connectionId]); }
     public function jobs(): array { $this->guard(); return array_values($this->jobs); }
     public function putJob(array $row): void { $this->guard(true); $this->jobs[$row['id']]=$row; }
+    public function removeJob(string $id): void { $this->guard(true); unset($this->jobs[$id]); }
     public function audit(array $event): void { $this->guard(true); $this->events[]=$event; }
 }

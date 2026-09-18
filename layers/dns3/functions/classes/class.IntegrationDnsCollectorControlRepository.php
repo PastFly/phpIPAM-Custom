@@ -14,5 +14,6 @@ interface IntegrationDnsCollectorControlRepository
     public function removeAssignment(string $connectionId): void;
     public function jobs(): array;
     public function putJob(array $row): void;
+    public function removeJob(string $id): void;
     public function audit(array $event): void;
 }
