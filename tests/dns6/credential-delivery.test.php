@@ -5,6 +5,7 @@ $root=dirname(__DIR__,2);
 require $root.'/layers/dns1/functions/classes/class.IntegrationDnsCipher.php';
 require $root.'/layers/dns3/functions/classes/class.IntegrationDnsCollectorControlRepository.php';
 require $root.'/layers/dns3/functions/classes/class.IntegrationDnsCollectorControlService.php';
+require $root.'/layers/dns4/functions/classes/class.IntegrationDnsCollectorMachineRepository.php';
 require $root.'/layers/dns4/functions/classes/class.IntegrationDnsCollectorMachineService.php';
 require $root.'/layers/dns6/functions/classes/class.IntegrationDnsCredentialDeliveryService.php';
 require $root.'/tests/dns4/machine-memory-repository.php';
