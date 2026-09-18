@@ -1,0 +1,30 @@
+name: DNS2 Windows DNS Preview
+on:
+  pull_request:
+    paths:
+      - 'collectors/windows/dns/**'
+      - 'tests/dns2/**'
+      - '.github/workflows/dns2-preview.yml'
+permissions:
+  contents: read
+jobs:
+  source-boundary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Preview source contract
+        run: python3 tests/dns2/preview-source.test.py
+  windows-powershell-51:
+    runs-on: windows-2022
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Confirm Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          if ($PSVersionTable.PSVersion.Major -ne 5) { throw "Windows PowerShell 5.1 required" }
+          $PSVersionTable.PSVersion.ToString()
+      - name: Execute offline Preview fixture
+        shell: powershell
+        run: .\tests\dns2\preview-windows.test.ps1
