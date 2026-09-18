@@ -130,7 +130,7 @@ function Write-DnsPreviewFile {
     }
 
     $json = $Value | ConvertTo-Json -Depth 8 -Compress
-    Set-Content -LiteralPath $OutputPath -Value $json -Encoding UTF8
+    Set-Content -LiteralPath $LiteralPath -Value $json -Encoding UTF8
 }
 
 Import-Module DnsServer -ErrorAction Stop
