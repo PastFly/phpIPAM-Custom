@@ -129,7 +129,7 @@ function Write-DnsPreviewFile {
         throw 'dns_preview_output_parent_missing'
     }
 
-    $json = $Value | ConvertTo-Json -Depth 8 -Compress
+    $json = ConvertTo-Json -InputObject $Value -Depth 8 -Compress
     Set-Content -LiteralPath $LiteralPath -Value $json -Encoding UTF8
 }
 
