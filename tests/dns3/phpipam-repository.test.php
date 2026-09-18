@@ -51,8 +51,10 @@ $collector=[
 $assignment=['connection_id'=>str_repeat('c',32),'collector_id'=>$collector['id'],'revision'=>1,'assigned_at'=>10,'assigned_by'=>17];
 $job=[
     'id'=>str_repeat('d',32),'collector_id'=>$collector['id'],'connection_id'=>$assignment['connection_id'],
-    'job_type'=>'list_zones','state'=>'pending','configuration_revision'=>5,'binding_epoch'=>7,
-    'credential_version'=>3,'created_at'=>10,'expires_at'=>310,'updated_at'=>10,'updated_by'=>17
+    'assignment_revision'=>1,'job_type'=>'list_zones','state'=>'pending','configuration_revision'=>5,'binding_epoch'=>7,
+    'credential_version'=>3,'lease_id'=>null,'lease_expires_at'=>null,'attempt_count'=>0,
+    'result_code'=>null,'result_payload'=>null,'finished_at'=>null,
+    'created_at'=>10,'expires_at'=>310,'updated_at'=>10,'updated_by'=>17
 ];
 
 $db=new Dns3PhpIpamDbFixture();

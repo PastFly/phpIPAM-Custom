@@ -1,0 +1,27 @@
+name: DNS4 machine poll and result
+on:
+  pull_request:
+    paths:
+      - 'layers/dns3/**'
+      - 'layers/dns4/**'
+      - 'database/dns4/**'
+      - 'tests/dns3/**'
+      - 'tests/dns4/**'
+      - '.github/workflows/dns4-machine.yml'
+permissions:
+  contents: read
+jobs:
+  php-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: PHP and source contracts
+        run: |
+          find layers/dns3 layers/dns4 tests/dns3 tests/dns4 -name '*.php' -print0 | xargs -0 -n1 php -l
+          php tests/dns3/control.test.php
+          php tests/dns3/phpipam-repository.test.php
+          python3 tests/dns3/boundary.test.py
+          python3 tests/dns3/persistence-boundary.test.py
+          php tests/dns4/machine.test.php
+          python3 tests/dns4/boundary.test.py

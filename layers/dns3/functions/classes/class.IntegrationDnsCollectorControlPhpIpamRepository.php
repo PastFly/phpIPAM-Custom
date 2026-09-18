@@ -18,8 +18,9 @@ final class IntegrationDnsCollectorControlPhpIpamRepository implements Integrati
         'connection_id','collector_id','revision','assigned_at','assigned_by'
     ];
     private const JOB_COLUMNS=[
-        'id','collector_id','connection_id','job_type','state',
+        'id','collector_id','connection_id','assignment_revision','job_type','state',
         'configuration_revision','binding_epoch','credential_version',
+        'lease_id','lease_expires_at','attempt_count','result_code','result_payload','finished_at',
         'created_at','expires_at','updated_at','updated_by'
     ];
 
@@ -107,8 +108,8 @@ final class IntegrationDnsCollectorControlPhpIpamRepository implements Integrati
         $r=self::rowArray($row);
         foreach ([
             'revision','control_epoch','created_at','created_by','updated_at','updated_by',
-            'assigned_at','assigned_by','configuration_revision','binding_epoch',
-            'created_at','expires_at'
+            'assigned_at','assigned_by','assignment_revision','configuration_revision','binding_epoch',
+            'lease_expires_at','attempt_count','finished_at','created_at','expires_at'
         ] as $field) {
             if (array_key_exists($field,$r) && $r[$field]!==null) $r[$field]=(int)$r[$field];
         }
@@ -191,6 +192,14 @@ final class IntegrationDnsCollectorControlPhpIpamRepository implements Integrati
     public function putJob(array $row): void
     {
         $this->put('custom_dns_control_jobs',self::JOB_COLUMNS,$row);
+    }
+
+    public function removeJob(string $id): void
+    {
+        $this->guard();
+        if ($this->db->runQuery('DELETE FROM custom_dns_control_jobs WHERE id = ?',[$id])!==true) {
+            throw new DomainException('control_unavailable');
+        }
     }
 
     public function audit(array $event): void
