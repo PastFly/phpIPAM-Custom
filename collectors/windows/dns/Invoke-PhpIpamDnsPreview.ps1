@@ -121,8 +121,8 @@ function Write-DnsPreviewFile {
     if (-not [System.IO.Path]::IsPathRooted($LiteralPath)) {
         throw 'dns_preview_output_path_must_be_absolute'
     }
-    if (Test-Path -LiteralPath $LiteralPath -PathType Container) {
-        throw 'dns_preview_output_path_is_directory'
+    if ($null -ne (Get-Item -LiteralPath $LiteralPath -Force -ErrorAction SilentlyContinue)) {
+        throw 'dns_preview_output_exists'
     }
     $parent = Split-Path -Parent $LiteralPath
     if ([string]::IsNullOrWhiteSpace($parent) -or -not (Test-Path -LiteralPath $parent -PathType Container)) {
