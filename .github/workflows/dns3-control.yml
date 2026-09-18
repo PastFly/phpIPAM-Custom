@@ -1,0 +1,43 @@
+name: DNS3 collector control
+on:
+  pull_request:
+    paths:
+      - 'layers/dns3/**'
+      - 'database/dns1/**'
+      - 'database/dns3/**'
+      - 'tests/dns3/**'
+      - '.github/workflows/dns3-control.yml'
+permissions:
+  contents: read
+jobs:
+  contracts-and-mariadb:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: fixture-only-not-a-production-secret
+          MARIADB_DATABASE: phpipam_dns3_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Install test-only PHP MySQL driver
+        run: sudo apt-get update && sudo apt-get install -y php-cli php-mysql
+      - name: PHP and source contracts
+        run: |
+          find layers/dns3 tests/dns3 -name '*.php' -print0 | xargs -0 -n1 php -l
+          php tests/dns3/control.test.php
+          php tests/dns3/phpipam-repository.test.php
+          python3 tests/dns3/boundary.test.py
+          python3 tests/dns3/persistence-boundary.test.py
+      - name: Real MariaDB rollback, mutex and retention
+        env:
+          DNS3_TEST_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=phpipam_dns3_test;charset=utf8mb4'
+          DNS3_TEST_USER: root
+          DNS3_TEST_PASSWORD: fixture-only-not-a-production-secret
+        run: php tests/dns3/mysql.test.php
