@@ -16,7 +16,7 @@ src=PS.read_text(encoding="utf-8-sig")
 compact=re.sub(r'(?m)^\s*#.*$','',src)
 
 for required in [
-    "[CmdletBinding()]","[PSCredential]","Get-DnsServerZone",
+    "[CmdletBinding()]","System.Management.Automation.PSCredential","Get-DnsServerZone",
     "Get-DnsServerResourceRecord","New-CimSession","-Authentication Kerberos",
     "Remove-CimSession","Import-Module DnsServer","-RRType",
     "A","AAAA","CNAME","PTR","OutputPath","ConvertTo-Json"
