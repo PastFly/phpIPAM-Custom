@@ -40,6 +40,7 @@ check("param(" in compact and "Server" in compact and "Credential" in compact,"s
 check("ValidatePattern" in compact,"server input constrained as FQDN")
 check("Set-Content -LiteralPath $LiteralPath" in compact,"validated helper path is the written path")
 check("Resolve-DnsName" not in compact,"no external name resolution")
+check("ConvertTo-Json -InputObject $Value" in compact,"multi-zone output stays one JSON document")
 check("complete" in compact and "supported_types" in compact,"normalized preview metadata present")
 print(f"DNS2_PREVIEW_SOURCE_ASSERTIONS={n}")
 print("DNS2_PREVIEW_SOURCE_TESTS_OK=1")
