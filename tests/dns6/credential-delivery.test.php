@@ -77,6 +77,8 @@ $json=json_encode($repo->jobs[$job['id']],JSON_THROW_ON_ERROR);
 ok6(!str_contains($json,$password) && !str_contains($json,$envelope) && !str_contains($json,$profileId),'job stores no credential material/selectors');
 reject6(fn()=> $delivery->deliver($token,$job['id'],$lease['lease_id']),'credential_already_delivered');
 ok6($decryptCalls===1,'repeat cannot decrypt again');
+$completed=$machine->submitResult($token,$job['id'],$lease['lease_id'],['ok'=>true,'error_code'=>null]);
+ok6($completed['state']==='succeeded','credential fetch does not complete job; explicit result does');
 
 $clock+=1;
 $job2=$admin->queueJob($connectionId,'list_zones',17);
