@@ -65,6 +65,7 @@ if ($pdo->query('SELECT DATABASE()')->fetchColumn()!=='phpipam_dns3_test' || $pd
 $pdo->exec(file_get_contents($root.'/database/dns1/001-configuration.sql'));
 $pdo->exec(file_get_contents($root.'/database/dns3/001-collector-control.sql'));
 $pdo->exec(file_get_contents($root.'/database/dns4/001-machine-job-lifecycle.sql'));
+$pdo->exec(file_get_contents($root.'/database/dns6/001-credential-delivery-marker.sql'));
 
 $profileId=str_repeat('a',32);
 $connectionId=str_repeat('b',32);
