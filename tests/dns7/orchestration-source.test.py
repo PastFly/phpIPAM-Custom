@@ -72,6 +72,7 @@ check("https" in compact and "Uri" in compact, "HTTPS base URI validated")
 check("credential_mode" in compact and "collector_identity" in compact and "profile" in compact,
       "both credential modes handled")
 check("job_id" in compact and "lease_id" in compact, "lease-bound credential request")
+check("Test-Dns7PositiveInteger" in compact, "polled revisions and lease expiry are validated as positive integers")
 check("error_code" in compact and "zones" in compact, "allowlisted result shape")
 check("ConvertFrom-Json" in compact, "Preview zone JSON parsed locally")
 check("$env:TEMP" in compact, "temporary local output is explicit")
