@@ -118,8 +118,7 @@ final class IntegrationDnsCredentialHttpController
         if($c==='['){self::scanArray($json,$i,$depth+1);return;}
         if($c==='"'){self::scanString($json,$i);return;}
         $start=$i; $len=strlen($json);
-        while($i<$len&&!str_contains(" 	
-,]}",$json[$i])) ++$i;
+        while($i<$len&&!str_contains(" \\t\\r\\n,]}",$json[$i])) ++$i;
         if($i===$start) throw new DomainException('json_invalid');
     }
 
