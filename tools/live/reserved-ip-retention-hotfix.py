@@ -158,6 +158,14 @@ def main():
     print(inspect.rstrip())
     print("RESERVED_RETENTION_DB_INSPECT_END")
 
+    reserved_rows = run_db("SELECT id,type,updateTag FROM ipTags WHERE LOWER(type)='reserved';")
+    reserved = [line.split("\\t") for line in reserved_rows.splitlines() if line.strip()]
+    if len(reserved) != 1 or len(reserved[0]) != 3 or reserved[0][1].lower() != "reserved":
+        raise RuntimeError("reserved_tag_precondition_failed")
+    original_reserved_update_tag = reserved[0][2]
+    if original_reserved_update_tag not in ("0", "1"):
+        raise RuntimeError("reserved_tag_updateTag_invalid")
+
     for path, (old, new, _st) in changes.items():
         print(f"RESERVED_RETENTION_FILE={path}")
         print(f"RESERVED_RETENTION_BEFORE_SHA256={sha256(old)}")
@@ -197,40 +205,59 @@ def main():
     os.chmod(receipt_path, 0o600)
 
     replaced = []
+    db_changed = False
     try:
         for path, (_old, new, st) in changes.items():
             atomic_write(path, new, st)
             replaced.append(path)
 
-        db_out = run_db(DB_APPLY_SQL)
-        print("RESERVED_RETENTION_DB_APPLY_BEGIN")
-        print(db_out.rstrip())
-        print("RESERVED_RETENTION_DB_APPLY_END")
-
-        verify = run_db("SELECT id,type,updateTag FROM ipTags WHERE LOWER(type)='reserved';")
-        rows = [line.split("\t") for line in verify.splitlines() if line.strip()]
-        if len(rows) != 1 or rows[0][1].lower() != "reserved" or rows[0][2] != "0":
-            raise RuntimeError("reserved_tag_postcondition_failed")
-
+        # Verify file postconditions before committing the database defense-in-depth change.
         for path, (_old, new, _st) in changes.items():
             current, _ = read_regular(path)
             if sha256(current) != sha256(new):
                 raise RuntimeError("file_postcondition_failed:" + str(path))
 
+        db_out = run_db(DB_APPLY_SQL)
+        print("RESERVED_RETENTION_DB_APPLY_BEGIN")
+        print(db_out.rstrip())
+        print("RESERVED_RETENTION_DB_APPLY_END")
+        db_changed = True
+
+        verify = run_db("SELECT id,type,updateTag FROM ipTags WHERE LOWER(type)='reserved';")
+        rows = [line.split("\\t") for line in verify.splitlines() if line.strip()]
+        if len(rows) != 1 or rows[0][1].lower() != "reserved" or rows[0][2] != "0":
+            raise RuntimeError("reserved_tag_postcondition_failed")
+
         receipt["stage"] = "applied"
-        receipt["db_reserved_updateTag"] = 0
-        receipt_path.write_text(json.dumps(receipt, sort_keys=True, indent=2) + "\n")
+        receipt["db_reserved_updateTag_before"] = int(original_reserved_update_tag)
+        receipt["db_reserved_updateTag_after"] = 0
+        receipt_path.write_text(json.dumps(receipt, sort_keys=True, indent=2) + "\\n")
         os.chmod(receipt_path, 0o600)
         print("RESERVED_RETENTION_BACKUP=" + str(backup))
         print("RESERVED_RETENTION_APPLY_OK=1")
     except Exception:
+        db_restore_error = None
+        if db_changed:
+            try:
+                run_db(
+                    "UPDATE ipTags SET updateTag=" + original_reserved_update_tag +
+                    " WHERE LOWER(type)='reserved';"
+                )
+            except Exception as restore_error:
+                db_restore_error = str(restore_error)
+
         for path in reversed(replaced):
             old, _new, st = changes[path]
             atomic_write(path, old, st)
-        receipt["stage"] = "file_rollback_after_failure"
-        receipt["database_rollback_marker"] = DB_ROLLBACK_MARKER
-        receipt_path.write_text(json.dumps(receipt, sort_keys=True, indent=2) + "\n")
+
+        receipt["stage"] = "rollback_after_failure"
+        receipt["db_restore_attempted"] = db_changed
+        receipt["db_restore_error"] = db_restore_error
+        receipt_path.write_text(json.dumps(receipt, sort_keys=True, indent=2) + "\\n")
         os.chmod(receipt_path, 0o600)
+
+        if db_restore_error is not None:
+            raise RuntimeError("rollback_incomplete:" + db_restore_error)
         raise
 
 
