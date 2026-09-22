@@ -1,0 +1,21 @@
+name: Reserved IP retention hotfix
+on:
+  pull_request:
+    paths:
+      - 'tools/live/reserved-ip-retention-hotfix.py'
+      - 'tests/reserved-ip-retention*.test.py'
+      - '.github/workflows/reserved-ip-retention.yml'
+permissions:
+  contents: read
+jobs:
+  source-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Static contract
+        run: python3 tests/reserved-ip-retention.test.py
+      - name: Transform contract
+        run: python3 tests/reserved-ip-retention-transform.test.py
+      - name: Python syntax
+        run: python3 -m py_compile tools/live/reserved-ip-retention-hotfix.py
