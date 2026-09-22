@@ -159,7 +159,7 @@ def main():
     print("RESERVED_RETENTION_DB_INSPECT_END")
 
     reserved_rows = run_db("SELECT id,type,updateTag FROM ipTags WHERE LOWER(type)='reserved';")
-    reserved = [line.split("\\t") for line in reserved_rows.splitlines() if line.strip()]
+    reserved = [line.split("\t") for line in reserved_rows.splitlines() if line.strip()]
     if len(reserved) != 1 or len(reserved[0]) != 3 or reserved[0][1].lower() != "reserved":
         raise RuntimeError("reserved_tag_precondition_failed")
     original_reserved_update_tag = reserved[0][2]
@@ -224,14 +224,14 @@ def main():
         db_changed = True
 
         verify = run_db("SELECT id,type,updateTag FROM ipTags WHERE LOWER(type)='reserved';")
-        rows = [line.split("\\t") for line in verify.splitlines() if line.strip()]
+        rows = [line.split("\t") for line in verify.splitlines() if line.strip()]
         if len(rows) != 1 or rows[0][1].lower() != "reserved" or rows[0][2] != "0":
             raise RuntimeError("reserved_tag_postcondition_failed")
 
         receipt["stage"] = "applied"
         receipt["db_reserved_updateTag_before"] = int(original_reserved_update_tag)
         receipt["db_reserved_updateTag_after"] = 0
-        receipt_path.write_text(json.dumps(receipt, sort_keys=True, indent=2) + "\\n")
+        receipt_path.write_text(json.dumps(receipt, sort_keys=True, indent=2) + "\n")
         os.chmod(receipt_path, 0o600)
         print("RESERVED_RETENTION_BACKUP=" + str(backup))
         print("RESERVED_RETENTION_APPLY_OK=1")
@@ -253,7 +253,7 @@ def main():
         receipt["stage"] = "rollback_after_failure"
         receipt["db_restore_attempted"] = db_changed
         receipt["db_restore_error"] = db_restore_error
-        receipt_path.write_text(json.dumps(receipt, sort_keys=True, indent=2) + "\\n")
+        receipt_path.write_text(json.dumps(receipt, sort_keys=True, indent=2) + "\n")
         os.chmod(receipt_path, 0o600)
 
         if db_restore_error is not None:
