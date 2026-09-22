@@ -167,7 +167,7 @@ final class IntegrationDnsCredentialHttpController
                 return $decoded;
             }
             if(!$escaped&&$ord<0x20) throw new DomainException('json_invalid');
-            if(!$escaped&&$json[$i]==='\') $escaped=true; else $escaped=false;
+            if(!$escaped&&$json[$i]==='\\') $escaped=true; else $escaped=false;
             ++$i;
         }
         throw new DomainException('json_invalid');
