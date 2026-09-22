@@ -5,7 +5,7 @@ param(
     [ValidatePattern('^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$')]
     [string]$Server,
 
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory=$false)]
     [System.Management.Automation.PSCredential]$Credential,
 
     [Parameter(Mandatory=$false)]
@@ -137,7 +137,14 @@ Import-Module DnsServer -ErrorAction Stop
 
 $session = $null
 try {
-    $session = New-CimSession -ComputerName $Server -Credential $Credential -Authentication Kerberos -OperationTimeoutSec $OperationTimeoutSeconds -ErrorAction Stop
+    $sessionArgs = @{
+        ComputerName = $Server
+        Authentication = 'Kerberos'
+        OperationTimeoutSec = $OperationTimeoutSeconds
+        ErrorAction = 'Stop'
+    }
+    if ($null -ne $Credential) { $sessionArgs.Credential = $Credential }
+    $session = New-CimSession @sessionArgs
 
     $available = @(Get-DnsServerZone -CimSession $session -ErrorAction Stop)
     $zoneIndex = @{}
