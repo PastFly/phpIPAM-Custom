@@ -38,6 +38,9 @@ for required in [
     "new_expires = now + 300",
     "token.php",
     "DNS8_E2E_WINDOWS_COMMAND=",
+    "DNS8_E2E_WINDOWS_INSTRUCTION=RUN_ENCODED_COMMAND_NOT_PARSER_GATE",
+    "DNS8_E2E_WINDOWS_ENCODED_COMMAND=powershell.exe -NoProfile -EncodedCommand ",
+    "utf-16le",
     "DNS8_E2E_TOKEN_PRINTED=0",
 ]:
     ok(required in prepare,"prepare boundary: "+required)
@@ -78,6 +81,7 @@ for required in [
     "DNS8_E2E_CREDENTIAL_AUDIT_COUNT=",
     "DNS8_E2E_ACCEPT=",
     "audit_count == 1",
+    "raise SystemExit(2)",
 ]:
     ok(required in accept,"acceptance boundary: "+required)
 
