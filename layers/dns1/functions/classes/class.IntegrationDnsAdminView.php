@@ -142,8 +142,9 @@ final class IntegrationDnsAdminView
             ($canControl?'':' disabled').'>Проверить доступ</button>';
         $html.=' <button type="button" class="btn btn-default btn-sm" data-dns-operation="queue_list_zones"'.
             ($canControl?'':' disabled').'>Получить зоны</button>';
+        $toggleAllowed=$enabled||$canControl;
         $html.=' <button type="button" class="btn btn-primary btn-sm" data-dns-operation="set_collection_enabled" data-dns-enabled="'.
-            ($enabled?'0':'1').'"'.($canControl?'':' disabled').'>'.
+            ($enabled?'0':'1').'"'.($toggleAllowed?'':' disabled').'>'.
             ($enabled?'Отключить сбор':'Включить сбор').'</button>';
 
         return $html.'</form>';
