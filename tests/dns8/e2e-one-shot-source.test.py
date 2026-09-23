@@ -51,13 +51,16 @@ ok("ScheduledTask" not in prepare,"prepare has no ScheduledTask primitive")
 ok("dnsserver" not in prepare.lower(),"prepare has no DNS provider mutation")
 
 for required in [
-    "DownloadFile($workerUri,$worker)",
-    "DownloadFile($previewUri,$preview)",
+    "DownloadData($workerUri)",
+    "DownloadData($previewUri)",
     "DownloadString($tokenUri)",
     "ConvertTo-SecureString",
     "$ExpectedWorkerBlob",
     "$ExpectedPreviewBlob",
     "$ExpectedJobId",
+    "TransportPreflightOnly",
+    "DNS8_E2E_TRANSPORT_PREFLIGHT_OK=1",
+    "DNS8_E2E_TRANSPORT_TOKEN_USED=0",
     "[System.Net.WebRequest]::DefaultWebProxy=[Net.GlobalProxySelection]::GetEmptyWebProxy()",
     "[System.Net.WebRequest]::DefaultWebProxy=$oldDefaultProxy",
     "DNS8_E2E_WINDOWS_TOKEN_PRINTED=0",
