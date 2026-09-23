@@ -62,7 +62,8 @@ If preparation fails after the re-arm, it attempts to restore the previous expir
 
 `collectors/windows/dns/Invoke-PhpIpamDnsE2EPilotOnce.ps1`:
 - requires HTTPS and the same authority for transfer/application URIs;
-- explicitly uses TLS1.2 and an empty WebClient proxy;
+- explicitly uses TLS1.2 and an empty WebClient proxy for transfer;
+- temporarily replaces .NET `DefaultWebProxy` with an empty proxy for the single worker HTTP cycle, then restores the previous proxy in `finally`;
 - does not bypass certificate validation;
 - downloads Worker + Preview into a unique Windows TEMP directory;
 - verifies both exact Git blob IDs and parses both scripts before token retrieval;
