@@ -9,6 +9,7 @@ on:
       - 'collectors/windows/dns/Uninstall-PhpIpamDnsCollector.ps1'
       - 'tests/dns9/**'
       - 'design/DNS9_AUTONOMOUS_WINDOWS_COLLECTOR.md'
+      - 'layers/dns9/**'
       - '.github/workflows/dns9-autonomous-collector.yml'
 
 permissions:
@@ -21,6 +22,9 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - run: python3 tests/dns9/autonomous-source.test.py
+      - run: php -l layers/dns9/functions/classes/class.IntegrationDnsAutonomousScheduler.php
+      - run: php -l layers/dns9/functions/scripts/dns-autonomous-scheduler.php
+      - run: php tests/dns9/autonomous-scheduler.test.php
 
   windows-powershell-51:
     runs-on: windows-2022
