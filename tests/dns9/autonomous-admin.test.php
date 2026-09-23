@@ -113,7 +113,11 @@ $after=$configRepo->connections[$connection['id']];
 ok9a($after['enabled']===false && $after['status']==='needs_validation','profile rotation disables automation');
 ok9a($after['revision']===$connection['revision']+1 && $after['binding_epoch']===$connection['binding_epoch']+1,'profile rotation invalidates revisions');
 
+$service->setCollectionEnabled($connection['id'],$after['revision'],true,1);
+ok9a($configRepo->connections[$connection['id']]['enabled']===true,'re-enabled before collector revoke');
 $service->revokeCollector($collectorId,1,1);
+ok9a($configRepo->connections[$connection['id']]['enabled']===false,'collector revoke disables connection');
+ok9a($configRepo->connections[$connection['id']]['status']==='collector_revoked','collector revoke status recorded');
 reject9a(
     fn()=> $service->setCollectionEnabled($connection['id'],$after['revision'],true,1),
     'assignment_unavailable'
