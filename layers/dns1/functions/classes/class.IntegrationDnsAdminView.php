@@ -59,7 +59,27 @@ final class IntegrationDnsAdminView
         return $html.'</form>';
     }
 
-    private function connection(?array $c,array $profiles,?array $runtime,bool $controlAvailable): string
+    private function collectorRegistration(): string
+    {
+        return '<form data-dns-action="register_collector">'.self::identity(null).
+            self::input('Название Windows-сборщика','name','').
+            '<p class="text-muted">После создания control token показывается только один раз. Он нужен только для первичной установки сборщика.</p>'.
+            '<button type="submit" class="btn btn-default btn-sm">Создать сборщик</button></form>';
+    }
+
+    private function collector(array $collector): string
+    {
+        $revoked=($collector['revoked']??false)===true;
+        $html='<form data-dns-action="collector">'.self::identity($collector).
+            '<p><strong>'.self::h($collector['name']).'</strong> — '.($revoked?'отозван':'активен').'</p>'.
+            '<p class="text-muted">ID: '.self::h($collector['id']).'. Control token повторно не отображается.</p>';
+        if(!$revoked) {
+            $html.='<button type="button" class="btn btn-default btn-sm" data-dns-operation="revoke_collector">Отозвать сборщик</button>';
+        }
+        return $html.'</form>';
+    }
+
+    private function connection(?array $c,array $profiles,array $collectors,?array $runtime,bool $controlAvailable): string
     {
         $html='<form data-dns-action="save_connection">'.self::identity($c);
         $html.=self::input('Название подключения','name',$c['name']??'').
@@ -87,15 +107,29 @@ final class IntegrationDnsAdminView
 
         $assigned=(bool)($runtime['assigned']??false);
         $revoked=($runtime['collector_revoked']??null)===true;
-        $collector=$runtime['collector_name']??null;
+        $collectorId=$runtime['collector_id']??null;
+        $collectorName=$runtime['collector_name']??null;
+        $assignmentRevision=(int)($runtime['assignment_revision']??0);
         $enabled=($c['enabled']??false)===true;
 
         $html.='<div class="well well-sm" data-dns-runtime>'.
             '<strong>Автоматический сбор:</strong> '.($enabled?'включён':'выключен').'<br>'.
-            '<strong>Сборщик:</strong> '.($assigned&&!$revoked?self::h($collector??'назначен'):'не назначен или недоступен').'<br>'.
+            '<strong>Сборщик:</strong> '.($assigned&&!$revoked?self::h($collectorName??'назначен'):'не назначен или недоступен').'<br>'.
             '<strong>Проверка доступа:</strong> '.self::h(self::jobLabel($runtime['test_connection']??null)).'<br>'.
             '<strong>Получение зон:</strong> '.self::h(self::jobLabel($runtime['list_zones']??null)).
             '</div>';
+
+        $html.='<div class="form-group"><label>Назначенный Windows-сборщик '.
+            '<select class="form-control input-sm" name="collector_assignment"><option value="">Выберите сборщик</option>';
+        foreach($collectors as $collector) {
+            if(($collector['revoked']??false)===true) continue;
+            $html.='<option value="'.self::h($collector['id']).'"'.($collectorId===$collector['id']?' selected':'').'>'.
+                self::h($collector['name']).'</option>';
+        }
+        $html.='</select></label>'.
+            '<input type="hidden" name="assignment_revision" value="'.self::h($assignmentRevision).'"> '.
+            '<button type="button" class="btn btn-default btn-sm" data-dns-operation="save_assignment"'.
+            ($enabled||!$collectors?' disabled':'').'>Назначить сборщик</button></div>';
 
         $html.='<p class="text-muted">После включения phpIPAM сам ставит задания по указанному интервалу, а Windows Scheduled Task забирает их автоматически.</p>'.
             '<button type="submit" class="btn btn-default btn-sm">Сохранить подключение</button>';
@@ -120,23 +154,36 @@ final class IntegrationDnsAdminView
         $profiles=is_array($state['profiles']??null)?$state['profiles']:[];
         $connections=is_array($state['connections']??null)?$state['connections']:[];
         $runtime=is_array($state['connection_runtime']??null)?$state['connection_runtime']:[];
+        $control=is_array($state['collector_control']??null)?$state['collector_control']:[];
+        $collectors=is_array($control['collectors']??null)?$control['collectors']:[];
         $controlAvailable=($state['collector_control_available']??false)===true;
 
         $html='<section id="dns-configuration" data-csrf="'.self::h($csrf).'">'.
             '<h3>Microsoft DNS — подключения и автоматический сбор</h3>'.
-            '<div data-dns-message role="status" aria-live="polite"></div>';
+            '<div data-dns-message role="status" aria-live="polite"></div>'.
+            '<div class="alert alert-info" data-dns-enrollment hidden>'.
+            '<strong>Control token сборщика — показывается один раз.</strong><br>'.
+            '<code data-dns-enrollment-token></code><br>'.
+            '<span class="text-muted">Сохраните его только для первичной установки. После обновления страницы token исчезнет.</span>'.
+            '</div>';
 
         $html.='<p class="text-muted">Обычная работа выполняется автоматически: phpIPAM планирует задания, установленный Windows-сборщик выполняет их без ручного PowerShell.</p>';
 
         $html.='<h4>Подключения</h4><details><summary>Новое подключение</summary>'.
-            $this->connection(null,$profiles,null,$controlAvailable).'</details>';
+            $this->connection(null,$profiles,$collectors,null,$controlAvailable).'</details>';
 
         foreach($connections as $c) {
             $enabled=($c['enabled']??false)===true;
             $summary=self::h($c['name']).' — '.self::h($c['server']).' ('.
                 ($enabled?'сбор включён':'сбор отключён').')';
             $html.='<details><summary>'.$summary.'</summary>'.
-                $this->connection($c,$profiles,$runtime[$c['id']]??null,$controlAvailable).'</details>';
+                $this->connection($c,$profiles,$collectors,$runtime[$c['id']]??null,$controlAvailable).'</details>';
+        }
+
+        $html.='<h4>Windows-сборщики</h4><details><summary>Новый сборщик</summary>'.$this->collectorRegistration().'</details>';
+        foreach($collectors as $collector) {
+            $html.='<details><summary>'.self::h($collector['name']).' — '.
+                (($collector['revoked']??false)?'отозван':'активен').'</summary>'.$this->collector($collector).'</details>';
         }
 
         $html.='<h4>Профили доступа</h4><details><summary>Новый профиль</summary>'.$this->profile(null).'</details>';
