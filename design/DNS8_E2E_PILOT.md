@@ -107,3 +107,12 @@ This helper does **not** remove the installed DNS8 pilot schema, routes or persi
 - cleanup blob: `32166b185c67031c95bcca36098863d02ce4c788`.
 
 The next runtime gate is the already-authorized single real `test_connection` E2E execution plus immediate transfer cleanup/readback.
+
+
+## Transport failure diagnostics after second no-op window
+
+The second authorized +300s window also ended without worker execution. Windows started the encoded launcher, but the very first direct WebClient `DownloadString` of the temporary bootstrap returned HTTP500. Post-cleanup readback remained pending/attempts0/unleased/credential_not_delivered/result absent/audit0, proving the failure happened before collector-token retrieval or machine polling.
+
+Before any further re-arm, `tools/live/dns-e2e-transport-diagnostic.py` must isolate the transport layer without token or database access. It publishes the exact bootstrap bytes simultaneously as `bootstrap.ps1` and `bootstrap.txt`, plus tiny control files with both extensions. Server-side canonical HTTPS readback records HTTP status, byte count and exactness. A Windows command then only downloads the four files over direct TLS1.2 and reports success/error; it does not execute downloaded content.
+
+The diagnostic source boundary explicitly contains no MariaDB access, no pilot-token access, no `custom_dns_` table references and no downloaded-code execution. Cleanup removes only its exact random diagnostic directory/state.
