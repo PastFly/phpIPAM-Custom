@@ -86,7 +86,8 @@ final class IntegrationDnsCollectorControlService
     {
         return array_intersect_key($row,array_flip([
             'id','collector_id','connection_id','assignment_revision','job_type','state','configuration_revision',
-            'binding_epoch','credential_version','created_at','expires_at','updated_at','updated_by'
+            'binding_epoch','credential_version','attempt_count','result_code','finished_at',
+            'created_at','expires_at','updated_at','updated_by'
         ]));
     }
 
