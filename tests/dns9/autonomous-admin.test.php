@@ -115,6 +115,8 @@ ok9a($after['revision']===$connection['revision']+1 && $after['binding_epoch']==
 
 $service->setCollectionEnabled($connection['id'],$after['revision'],true,1);
 ok9a($configRepo->connections[$connection['id']]['enabled']===true,'re-enabled before collector revoke');
+reject9a(fn()=> $service->revokeCollector($collectorId,99,1),'revision_conflict');
+ok9a($configRepo->connections[$connection['id']]['enabled']===true,'stale collector revoke preserves connection state');
 $service->revokeCollector($collectorId,1,1);
 ok9a($configRepo->connections[$connection['id']]['enabled']===false,'collector revoke disables connection');
 ok9a($configRepo->connections[$connection['id']]['status']==='collector_revoked','collector revoke status recorded');
