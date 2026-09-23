@@ -5,6 +5,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
 python3 tests/dns9/autonomous-source.test.py
+python3 tests/dns9/windows-fixture-stage-source.test.py
+python3 -m py_compile tools/live/dns9-windows-fixture-stage.py
 
 php -l layers/dns9/functions/classes/class.IntegrationDnsAutonomousScheduler.php
 php -l layers/dns9/functions/classes/class.IntegrationDnsAutonomousAdminService.php
