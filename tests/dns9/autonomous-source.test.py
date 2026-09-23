@@ -101,10 +101,6 @@ for required in [
 ]:
     ok(required in design,"design: "+required)
 
-print(f"DNS9_AUTONOMOUS_SOURCE_ASSERTIONS={n}")
-print("DNS9_AUTONOMOUS_SOURCE_TESTS_OK=1")
-
-
 for required in [
     "DROP CONSTRAINT custom_dns_connection_disabled",
     "custom_dns_connection_enabled CHECK (enabled IN (0,1))",
@@ -155,3 +151,6 @@ ok("DNS write" not in ui,"UI contains no DNS-write action")
 ok("data-dns-enrollment-token" in view,"view has one-time enrollment token target")
 ok("tokenBox.textContent = token" in ui,"UI renders one-time token only after registration response")
 ok("console.log" not in ui,"UI never logs enrollment token")
+
+print(f"DNS9_AUTONOMOUS_SOURCE_ASSERTIONS={n}")
+print("DNS9_AUTONOMOUS_SOURCE_TESTS_OK=1")
