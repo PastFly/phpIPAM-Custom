@@ -7,6 +7,11 @@ RUNNER=ROOT/"collectors/windows/dns/Invoke-PhpIpamDnsCollectorScheduled.ps1"
 STATUS=ROOT/"collectors/windows/dns/Get-PhpIpamDnsCollectorStatus.ps1"
 UNINSTALL=ROOT/"collectors/windows/dns/Uninstall-PhpIpamDnsCollector.ps1"
 DESIGN=ROOT/"design/DNS9_AUTONOMOUS_WINDOWS_COLLECTOR.md"
+ENABLE_SQL=ROOT/"database/dns9/001-autonomous-enable.sql"
+ADMIN=ROOT/"layers/dns9/functions/classes/class.IntegrationDnsAutonomousAdminService.php"
+CONTROLLER=ROOT/"layers/dns1/functions/classes/class.IntegrationDnsAdminController.php"
+VIEW=ROOT/"layers/dns1/functions/classes/class.IntegrationDnsAdminView.php"
+UI=ROOT/"layers/dns1/app/admin/integrations/dns/config.js"
 
 n=0
 def ok(v,label):
@@ -15,7 +20,7 @@ def ok(v,label):
     if not v:
         raise AssertionError(label)
 
-for path in (INSTALL,RUNNER,STATUS,UNINSTALL,DESIGN):
+for path in (INSTALL,RUNNER,STATUS,UNINSTALL,DESIGN,ENABLE_SQL,ADMIN,CONTROLLER,VIEW,UI):
     ok(path.is_file(),path.name+" exists")
 
 install=INSTALL.read_text()
@@ -23,6 +28,11 @@ runner=RUNNER.read_text()
 status=STATUS.read_text()
 uninstall=UNINSTALL.read_text()
 design=DESIGN.read_text()
+enable_sql=ENABLE_SQL.read_text()
+admin=ADMIN.read_text()
+controller=CONTROLLER.read_text()
+view=VIEW.read_text()
+ui=UI.read_text()
 
 for required in [
     "New-ScheduledTaskAction",
@@ -93,3 +103,42 @@ for required in [
 
 print(f"DNS9_AUTONOMOUS_SOURCE_ASSERTIONS={n}")
 print("DNS9_AUTONOMOUS_SOURCE_TESTS_OK=1")
+
+
+for required in [
+    "DROP CONSTRAINT custom_dns_connection_disabled",
+    "custom_dns_connection_enabled CHECK (enabled IN (0,1))",
+    "custom_dns_connection_legacy_collector_null CHECK (collector_id IS NULL)",
+]:
+    ok(required in enable_sql,"enable migration: "+required)
+ok("UPDATE " not in enable_sql and "DELETE " not in enable_sql,"migration has no data rewrite/delete")
+ok("DROP TABLE" not in enable_sql,"migration has no table drop")
+
+for required in [
+    "setCollectionEnabled",
+    "queueControlJob",
+    "collector_control_available",
+    "connection_runtime",
+    "assignment_unavailable",
+    "collector_unavailable",
+]:
+    ok(required in admin,"admin composition: "+required)
+
+for required in [
+    "queue_test_connection",
+    "queue_list_zones",
+    "set_collection_enabled",
+]:
+    ok(required in controller,"controller action: "+required)
+    ok(required in ui,"UI action: "+required)
+
+for required in [
+    "Автоматический сбор:",
+    "Проверить доступ",
+    "Получить зоны",
+    "Включить сбор",
+    "Отключить сбор",
+]:
+    ok(required in view,"view automation: "+required)
+
+ok("DNS write" not in ui,"UI contains no DNS-write action")
