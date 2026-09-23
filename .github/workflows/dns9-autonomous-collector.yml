@@ -11,6 +11,7 @@ on:
       - 'design/DNS9_AUTONOMOUS_WINDOWS_COLLECTOR.md'
       - 'layers/dns9/**'
       - 'deploy/dns9/**'
+      - 'tools/live/dns9-source-accept.sh'
       - '.github/workflows/dns9-autonomous-collector.yml'
 
 permissions:
@@ -22,7 +23,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - run: python3 tests/dns9/autonomous-source.test.py
+      - run: bash tools/live/dns9-source-accept.sh
       - run: php -l layers/dns9/functions/classes/class.IntegrationDnsAutonomousScheduler.php
       - run: php -l layers/dns9/functions/scripts/dns-autonomous-scheduler.php
       - run: php -l layers/dns9/functions/classes/class.IntegrationDnsAutonomousAdminService.php
@@ -39,23 +40,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - name: Parse DNS9 PowerShell sources
+      - name: DNS9 Windows PowerShell 5.1 fixture
         shell: powershell
         run: |
-          $ErrorActionPreference='Stop'
-          $files=@(
-            'collectors/windows/dns/Install-PhpIpamDnsCollector.ps1',
-            'collectors/windows/dns/Invoke-PhpIpamDnsCollectorScheduled.ps1',
-            'collectors/windows/dns/Get-PhpIpamDnsCollectorStatus.ps1',
-            'collectors/windows/dns/Uninstall-PhpIpamDnsCollector.ps1'
-          )
-          foreach($file in $files){
-            $tokens=$null
-            $errors=$null
-            [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file),[ref]$tokens,[ref]$errors)
-            if(@($errors).Count -ne 0){
-              $errors | Format-List * | Out-String | Write-Error
-              throw "PowerShell parse failed: $file"
-            }
-          }
-          Write-Output 'DNS9_WINDOWS_PARSE_OK=1'
+          & .\tests\dns9\autonomous-windows.test.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
