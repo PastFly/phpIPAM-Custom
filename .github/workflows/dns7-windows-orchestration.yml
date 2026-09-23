@@ -1,0 +1,31 @@
+name: DNS7 Windows collector orchestration
+on:
+  pull_request:
+    paths:
+      - 'collectors/windows/dns/**'
+      - 'tests/dns7/**'
+      - 'design/DNS7_WINDOWS_ORCHESTRATION_SOURCE.md'
+      - '.github/workflows/dns7-windows-orchestration.yml'
+permissions:
+  contents: read
+jobs:
+  source-boundary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: DNS7 source contract
+        run: python3 tests/dns7/orchestration-source.test.py
+  windows-powershell-51:
+    runs-on: windows-2022
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Confirm Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          if ($PSVersionTable.PSVersion.Major -ne 5) { throw "Windows PowerShell 5.1 required" }
+          $PSVersionTable.PSVersion.ToString()
+      - name: Execute offline worker fixture
+        shell: powershell
+        run: .\tests\dns7\orchestration-windows.test.ps1
