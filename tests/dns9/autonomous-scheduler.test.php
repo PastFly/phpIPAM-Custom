@@ -116,5 +116,30 @@ ok($r['queued_count']===1,'collector identity supported');
 $identityJob=array_values($repo4->jobs)[0];
 ok($identityJob['credential_version']===null,'collector identity has no credential version');
 
+$repo5=new Dns9MemoryRepo();
+$repo5->collectors[$collector]=['id'=>$collector,'revoked'=>false];
+$repo5->assignments[$connection]=['connection_id'=>$connection,'collector_id'=>$collector,'revision'=>1,'assigned_at'=>1,'assigned_by'=>1];
+$staleId=str_repeat('c',32);
+$repo5->jobs[$staleId]=[
+    'id'=>$staleId,'collector_id'=>$collector,'connection_id'=>$connection,'assignment_revision'=>1,
+    'job_type'=>'list_zones','state'=>'pending','configuration_revision'=>7,'binding_epoch'=>4,
+    'credential_version'=>9,'lease_id'=>null,'lease_expires_at'=>null,'attempt_count'=>0,
+    'credential_delivered_at'=>null,'result_code'=>null,'result_payload'=>null,'finished_at'=>null,
+    'created_at'=>1999999000,'expires_at'=>1999999300,'updated_at'=>1999999000,'updated_by'=>0
+];
+$oldId=str_repeat('d',32);
+$repo5->jobs[$oldId]=[
+    'id'=>$oldId,'collector_id'=>$collector,'connection_id'=>$connection,'assignment_revision'=>1,
+    'job_type'=>'test_connection','state'=>'succeeded','configuration_revision'=>7,'binding_epoch'=>4,
+    'credential_version'=>9,'lease_id'=>null,'lease_expires_at'=>null,'attempt_count'=>1,
+    'credential_delivered_at'=>1999800000,'result_code'=>'ok','result_payload'=>null,'finished_at'=>1999800000,
+    'created_at'=>1999800000,'expires_at'=>1999800300,'updated_at'=>1999800000,'updated_by'=>0
+];
+$scheduler5=new IntegrationDnsAutonomousScheduler($repo5,static fn(): int=>2000000000);
+$r=$scheduler5->run([$base]);
+ok(!isset($repo5->jobs[$oldId]),'old terminal job pruned');
+ok($repo5->jobs[$staleId]['state']==='expired' && $repo5->jobs[$staleId]['result_code']==='job_expired','stale pending job expired');
+ok($r['queued_count']===1,'scheduler recovers after stale pending job');
+
 echo "DNS9_AUTONOMOUS_SCHEDULER_ASSERTIONS={$n}\n";
 echo "DNS9_AUTONOMOUS_SCHEDULER_TESTS_OK=1\n";
