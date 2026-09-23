@@ -5,7 +5,10 @@ param(
     [System.Uri]$TransferBaseUri,
 
     [Parameter(Mandatory=$true)]
-    [System.Uri]$PhpIpamBaseUri
+    [System.Uri]$PhpIpamBaseUri,
+
+    [Parameter(Mandatory=$false)]
+    [switch]$TransportPreflightOnly
 )
 
 Set-StrictMode -Version 2.0
@@ -55,12 +58,19 @@ $defaultProxyChanged=$false
 
 try {
     New-Item -ItemType Directory -Path $temp -ErrorAction Stop | Out-Null
-    $workerUri=New-Object System.Uri($TransferBaseUri,'Invoke-PhpIpamDnsWorkerOnce.ps1')
-    $previewUri=New-Object System.Uri($TransferBaseUri,'Invoke-PhpIpamDnsPreview.ps1')
+    $workerUri=New-Object System.Uri($TransferBaseUri,'worker.txt')
+    $previewUri=New-Object System.Uri($TransferBaseUri,'preview.txt')
     $tokenUri=New-Object System.Uri($TransferBaseUri,'token.php')
 
-    $wc.DownloadFile($workerUri,$worker)
-    $wc.DownloadFile($previewUri,$preview)
+    $workerEncoded=$wc.DownloadString($workerUri).Trim()
+    $previewEncoded=$wc.DownloadString($previewUri).Trim()
+    try {
+        [System.IO.File]::WriteAllBytes($worker,[Convert]::FromBase64String($workerEncoded))
+        [System.IO.File]::WriteAllBytes($preview,[Convert]::FromBase64String($previewEncoded))
+    }
+    catch {
+        throw 'dns8_e2e_transfer_decode_failed'
+    }
 
     $workerBlob=Get-Dns8GitBlobSha1 -Path $worker
     $previewBlob=Get-Dns8GitBlobSha1 -Path $preview
@@ -75,6 +85,15 @@ try {
     $errors=$null
     [void][System.Management.Automation.Language.Parser]::ParseFile($preview,[ref]$tokens,[ref]$errors)
     if (@($errors).Count -ne 0) { throw 'dns8_e2e_preview_parse_failed' }
+
+    if ($TransportPreflightOnly) {
+        Write-Output 'DNS8_E2E_TRANSPORT_PREFLIGHT_OK=1'
+        Write-Output ('DNS8_E2E_TRANSPORT_WORKER_BLOB='+$workerBlob)
+        Write-Output ('DNS8_E2E_TRANSPORT_PREVIEW_BLOB='+$previewBlob)
+        Write-Output 'DNS8_E2E_TRANSPORT_TOKEN_USED=0'
+        Write-Output 'DNS8_E2E_TRANSPORT_WORKER_EXECUTED=0'
+        return
+    }
 
     $tokenText=$wc.DownloadString($tokenUri).Trim()
     if (-not [regex]::IsMatch($tokenText,('^dnsctl1\.'+$ExpectedCollectorId+'\.[A-Za-z0-9_-]{43}$'))) {
