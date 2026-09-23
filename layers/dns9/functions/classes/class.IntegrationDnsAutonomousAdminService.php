@@ -169,6 +169,10 @@ final class IntegrationDnsAutonomousAdminService
                 foreach($connectionIds as $connectionId) {
                     $row=$this->configRepo->connection($connectionId);
                     if($row===null) continue;
+                    if(($row['enabled']??false)===true) {
+                        $row['revision']=self::nextVersion((int)$row['revision']);
+                        $row['binding_epoch']=self::nextVersion((int)$row['binding_epoch']);
+                    }
                     $row['enabled']=false;
                     $row['status']='collector_revoked';
                     $row['updated_at']=time();
