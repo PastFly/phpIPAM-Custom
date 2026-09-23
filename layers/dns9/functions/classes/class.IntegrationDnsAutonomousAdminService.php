@@ -30,6 +30,12 @@ final class IntegrationDnsAutonomousAdminService
         return $value;
     }
 
+    private static function nextVersion(int $value): int
+    {
+        if($value<1||$value>=2147483647) throw new DomainException('version_exhausted');
+        return $value+1;
+    }
+
     private function controlIndex(array $snapshot): array
     {
         $collectors=[];
@@ -222,6 +228,10 @@ final class IntegrationDnsAutonomousAdminService
                 }
             }
 
+            if(($row['enabled']??false)!==$enabled) {
+                $row['revision']=self::nextVersion((int)$row['revision']);
+                $row['binding_epoch']=self::nextVersion((int)$row['binding_epoch']);
+            }
             $row['enabled']=$enabled;
             $row['status']=$enabled?'active':'disabled';
             $row['updated_at']=time();
