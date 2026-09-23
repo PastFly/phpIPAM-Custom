@@ -58,8 +58,8 @@ $defaultProxyChanged=$false
 
 try {
     New-Item -ItemType Directory -Path $temp -ErrorAction Stop | Out-Null
-    $workerUri=New-Object System.Uri($TransferBaseUri,'worker.txt')
-    $previewUri=New-Object System.Uri($TransferBaseUri,'preview.txt')
+    $workerUri=New-Object System.Uri($TransferBaseUri,'Invoke-PhpIpamDnsWorkerOnce.ps1')
+    $previewUri=New-Object System.Uri($TransferBaseUri,'Invoke-PhpIpamDnsPreview.ps1')
     $tokenUri=New-Object System.Uri($TransferBaseUri,'token.php')
 
     [System.IO.File]::WriteAllBytes($worker,$wc.DownloadData($workerUri))
