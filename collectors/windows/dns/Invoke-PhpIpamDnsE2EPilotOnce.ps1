@@ -50,6 +50,8 @@ $worker=Join-Path $temp 'Invoke-PhpIpamDnsWorkerOnce.ps1'
 $preview=Join-Path $temp 'Invoke-PhpIpamDnsPreview.ps1'
 $tokenText=$null
 $tokenSecure=$null
+$oldDefaultProxy=$null
+$defaultProxyChanged=$false
 
 try {
     New-Item -ItemType Directory -Path $temp -ErrorAction Stop | Out-Null
@@ -81,6 +83,9 @@ try {
     $tokenSecure=ConvertTo-SecureString -String $tokenText -AsPlainText -Force
     $tokenText=$null
 
+    $oldDefaultProxy=[System.Net.WebRequest]::DefaultWebProxy
+    [System.Net.WebRequest]::DefaultWebProxy=[Net.GlobalProxySelection]::GetEmptyWebProxy()
+    $defaultProxyChanged=$true
     $workerOutput=@(& $worker -PhpIpamBaseUri $PhpIpamBaseUri -ControlToken $tokenSecure)
     if ($workerOutput.Count -ne 1) { throw 'dns8_e2e_worker_result_count_invalid' }
     $result=$workerOutput[0]
@@ -99,6 +104,11 @@ try {
     Write-Output 'DNS8_E2E_WINDOWS_TOKEN_PRINTED=0'
 }
 finally {
+    if ($defaultProxyChanged) {
+        [System.Net.WebRequest]::DefaultWebProxy=$oldDefaultProxy
+    }
+    $oldDefaultProxy=$null
+    $defaultProxyChanged=$false
     $tokenText=$null
     $tokenSecure=$null
     if (Test-Path -LiteralPath $temp) {
