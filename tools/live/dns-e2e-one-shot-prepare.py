@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import base64
 import hashlib
 import json
 import os
@@ -274,11 +275,14 @@ COMMIT;
             f"$s=$wc.DownloadString('{base}Invoke-PhpIpamDnsE2EPilotOnce.ps1');"
             f"& ([ScriptBlock]::Create($s)) -TransferBaseUri '{base}' -PhpIpamBaseUri '{BASE_URI}'"
         )
+        encoded = base64.b64encode(windows.encode("utf-16le")).decode("ascii")
         print("DNS8_E2E_PREPARE_OK=1")
         print("DNS8_E2E_JOB_ID=" + JOB_ID)
         print("DNS8_E2E_EXPIRES_AT=" + str(new_expires))
         print("DNS8_E2E_TRANSFER_RECEIPT=" + str(receipt_path))
+        print("DNS8_E2E_WINDOWS_INSTRUCTION=RUN_ENCODED_COMMAND_NOT_PARSER_GATE")
         print("DNS8_E2E_WINDOWS_COMMAND=" + windows)
+        print("DNS8_E2E_WINDOWS_ENCODED_COMMAND=powershell.exe -NoProfile -EncodedCommand " + encoded)
         print("DNS8_E2E_TOKEN_PRINTED=0")
     except Exception:
         if rearmed:
