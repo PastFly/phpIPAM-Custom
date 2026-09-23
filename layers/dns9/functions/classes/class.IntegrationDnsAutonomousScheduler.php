@@ -1,0 +1,160 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * Server-side autonomous job scheduler.
+ * It queues only read-only list_zones jobs for enabled connections.
+ * No credential decrypt, collector token access, provider call or DNS write occurs here.
+ */
+final class IntegrationDnsAutonomousScheduler
+{
+    private Closure $clock;
+
+    public function __construct(
+        private IntegrationDnsCollectorControlRepository $repo,
+        ?callable $clock=null
+    ) {
+        $this->clock=$clock===null ? static fn(): int => time() : Closure::fromCallable($clock);
+    }
+
+    private function now(): int
+    {
+        $v=($this->clock)();
+        if(!is_int($v)||$v<1) throw new DomainException('scheduler_unavailable');
+        return $v;
+    }
+
+    private static function id(mixed $v): string
+    {
+        if(!is_string($v)||!preg_match('/^[0-9a-f]{32}$/D',$v)) throw new DomainException('scheduler_context_invalid');
+        return $v;
+    }
+
+    private static function context(array $c): array
+    {
+        $allowed=['id','enabled','interval_seconds','revision','binding_epoch','credential_mode','credential_version'];
+        if(array_diff(array_keys($c),$allowed)||array_diff($allowed,array_keys($c))) {
+            throw new DomainException('scheduler_context_invalid');
+        }
+        self::id($c['id']);
+        if(!is_bool($c['enabled'])||
+           !is_int($c['interval_seconds'])||$c['interval_seconds']<60||$c['interval_seconds']>3600||
+           !is_int($c['revision'])||$c['revision']<1||
+           !is_int($c['binding_epoch'])||$c['binding_epoch']<1||
+           !in_array($c['credential_mode'],['profile','collector_identity'],true)) {
+            throw new DomainException('scheduler_context_invalid');
+        }
+        if($c['credential_mode']==='profile') {
+            if(!is_int($c['credential_version'])||$c['credential_version']<1) {
+                throw new DomainException('scheduler_context_invalid');
+            }
+        } elseif($c['credential_version']!==null) {
+            throw new DomainException('scheduler_context_invalid');
+        }
+        return $c;
+    }
+
+    public function run(array $contexts): array
+    {
+        if(!array_is_list($contexts)||count($contexts)>256) throw new DomainException('scheduler_context_invalid');
+        $normalized=[];
+        foreach($contexts as $c) {
+            if(!is_array($c)) throw new DomainException('scheduler_context_invalid');
+            $c=self::context($c);
+            if(isset($normalized[$c['id']])) throw new DomainException('scheduler_context_invalid');
+            $normalized[$c['id']]=$c;
+        }
+
+        return $this->repo->transaction(function() use($normalized) {
+            $now=$this->now();
+            $jobs=$this->repo->jobs();
+            $queued=[];
+            $skippedDisabled=0;
+            $skippedNoAssignment=0;
+            $skippedCollector=0;
+            $skippedActive=0;
+            $skippedInterval=0;
+
+            foreach($normalized as $connectionId=>$ctx) {
+                if($ctx['enabled']!==true) {
+                    $skippedDisabled++;
+                    continue;
+                }
+
+                $assignment=$this->repo->assignment($connectionId);
+                if($assignment===null) {
+                    $skippedNoAssignment++;
+                    continue;
+                }
+                $collector=$this->repo->collector($assignment['collector_id']);
+                if($collector===null||($collector['revoked']??true)!==false) {
+                    $skippedCollector++;
+                    continue;
+                }
+
+                $latestCreated=0;
+                $active=false;
+                foreach($jobs as $job) {
+                    if(($job['connection_id']??null)!==$connectionId||($job['job_type']??null)!=='list_zones') continue;
+                    $created=(int)($job['created_at']??0);
+                    if($created>$latestCreated) $latestCreated=$created;
+                    if(in_array($job['state']??null,['pending','running'],true) &&
+                       (int)($job['expires_at']??0)>=$now) {
+                        $active=true;
+                    }
+                }
+                if($active) {
+                    $skippedActive++;
+                    continue;
+                }
+                if($latestCreated>0 && $latestCreated+$ctx['interval_seconds']>$now) {
+                    $skippedInterval++;
+                    continue;
+                }
+                if(count($jobs)+count($queued)>=512) throw new DomainException('job_limit');
+
+                $id=bin2hex(random_bytes(16));
+                $row=[
+                    'id'=>$id,
+                    'collector_id'=>$collector['id'],
+                    'connection_id'=>$connectionId,
+                    'assignment_revision'=>$assignment['revision'],
+                    'job_type'=>'list_zones',
+                    'state'=>'pending',
+                    'configuration_revision'=>$ctx['revision'],
+                    'binding_epoch'=>$ctx['binding_epoch'],
+                    'credential_version'=>$ctx['credential_version'],
+                    'lease_id'=>null,
+                    'lease_expires_at'=>null,
+                    'attempt_count'=>0,
+                    'credential_delivered_at'=>null,
+                    'result_code'=>null,
+                    'result_payload'=>null,
+                    'finished_at'=>null,
+                    'created_at'=>$now,
+                    'expires_at'=>$now+300,
+                    'updated_at'=>$now,
+                    'updated_by'=>0
+                ];
+                $this->repo->putJob($row);
+                $this->repo->audit([
+                    'action'=>'autonomous_job_queued',
+                    'object_id'=>$id,
+                    'actor_id'=>0,
+                    'created_at'=>$now
+                ]);
+                $queued[]=$id;
+            }
+
+            return [
+                'queued'=>$queued,
+                'queued_count'=>count($queued),
+                'skipped_disabled'=>$skippedDisabled,
+                'skipped_no_assignment'=>$skippedNoAssignment,
+                'skipped_collector'=>$skippedCollector,
+                'skipped_active'=>$skippedActive,
+                'skipped_interval'=>$skippedInterval
+            ];
+        });
+    }
+}
