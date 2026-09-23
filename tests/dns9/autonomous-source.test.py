@@ -34,6 +34,11 @@ for required in [
     "SecureString",
     "ServiceAccount",
     "SYSTEM",
+    "DnsCredentialMode",
+    "CollectorIdentity",
+    "dns9_collector_identity_requires_service_account",
+    "*S-1-5-18:(OI)(CI)F",
+    "*S-1-5-32-544:(OI)(CI)F",
     "DNS9_AUTONOMOUS_TOKEN_PRINTED=0",
 ]:
     ok(required in install,"installer boundary: "+required)
