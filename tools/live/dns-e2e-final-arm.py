@@ -191,16 +191,23 @@ def arm() -> None:
     original_expires = verify_pilot(token)
 
     endpoint = directory / "token.php"
-    spool = Path("/run") / ("phpipam-dns-e2e-final-token-" + directory.name.removeprefix("dns-e2e-final-"))
-    if endpoint.exists() or endpoint.is_symlink() or spool.exists() or spool.is_symlink():
+    token_dir = Path("/run") / ("phpipam-dns-e2e-final-" + directory.name.removeprefix("dns-e2e-final-"))
+    spool = token_dir / "token"
+    if endpoint.exists() or endpoint.is_symlink() or token_dir.exists() or token_dir.is_symlink():
         raise SystemExit("DNS8_FINAL_ARM_ERROR=token_transfer_collision")
 
     www = pwd.getpwnam("www-data")
     endpoint_created = False
+    token_dir_created = False
     spool_created = False
     rearmed = False
 
     try:
+        token_dir.mkdir(mode=0o700)
+        os.chown(token_dir, www.pw_uid, www.pw_gid)
+        os.chmod(token_dir, 0o700)
+        token_dir_created = True
+
         fd = os.open(spool, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, "w", encoding="ascii") as handle:
             handle.write(token + "\n")
@@ -271,6 +278,7 @@ COMMIT;
         state["armed_at"] = now
         state["expires_at"] = new_expires
         state["original_expires_at"] = original_expires
+        state["token_dir"] = str(token_dir)
         state["token_spool"] = str(spool)
         state["token_endpoint"] = str(endpoint)
         state["token_secret_recorded"] = False
@@ -315,6 +323,8 @@ WHERE id='{JOB_ID}' AND state='pending' AND attempt_count=0 AND lease_id IS NULL
             endpoint.unlink()
         if spool_created and spool.exists():
             spool.unlink()
+        if token_dir_created and token_dir.exists():
+            token_dir.rmdir()
         raise
     finally:
         token = ""
@@ -345,7 +355,13 @@ WHERE object_id='{JOB_ID}' AND action='credential_delivered';
 
     endpoint = Path(state["token_endpoint"])
     spool = Path(state["token_spool"])
+    token_dir = Path(state["token_dir"])
     cleanup_errors = []
+
+    if token_dir.parent != Path("/run") or not token_dir.name.startswith("phpipam-dns-e2e-final-"):
+        raise SystemExit("DNS8_FINAL_ACCEPT_ERROR=token_dir_boundary")
+    if spool.parent != token_dir or spool.name != "token":
+        raise SystemExit("DNS8_FINAL_ACCEPT_ERROR=token_spool_boundary")
 
     try:
         if spool.exists():
@@ -358,6 +374,14 @@ WHERE object_id='{JOB_ID}' AND action='credential_delivered';
                 cleanup_errors.append("endpoint_boundary")
             else:
                 endpoint.unlink()
+        if token_dir.exists():
+            if token_dir.is_symlink() or not stat.S_ISDIR(token_dir.lstat().st_mode):
+                cleanup_errors.append("token_dir_boundary")
+            else:
+                try:
+                    token_dir.rmdir()
+                except OSError as exc:
+                    cleanup_errors.append("token_dir_not_empty:" + str(exc))
     except Exception as exc:
         cleanup_errors.append("token_cleanup:" + str(exc))
 
