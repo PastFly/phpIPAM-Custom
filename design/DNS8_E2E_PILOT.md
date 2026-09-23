@@ -116,3 +116,16 @@ The second authorized +300s window also ended without worker execution. Windows 
 Before any further re-arm, `tools/live/dns-e2e-transport-diagnostic.py` must isolate the transport layer without token or database access. It publishes the exact bootstrap bytes simultaneously as `bootstrap.ps1` and `bootstrap.txt`, plus tiny control files with both extensions. Server-side canonical HTTPS readback records HTTP status, byte count and exactness. A Windows command then only downloads the four files over direct TLS1.2 and reports success/error; it does not execute downloaded content.
 
 The diagnostic source boundary explicitly contains no MariaDB access, no pilot-token access, no `custom_dns_` table references and no downloaded-code execution. Cleanup removes only its exact random diagnostic directory/state.
+
+
+## Final-stage transport preflight before any further re-arm
+
+The HTTP500 transport diagnostic proved that, from SRV-DC01, the same bootstrap bytes download successfully under both `.ps1` and `.txt`, and tiny control files also download successfully. Therefore there is no persistent extension/content/path block.
+
+Before any further +300s re-arm, `tools/live/dns-e2e-final-stage.py` now stages the exact final Bootstrap + repaired Worker + exact Preview under one random final path **without** token access, MariaDB access, token endpoint or job mutation. Server-side canonical HTTPS readback must be HTTP200 and byte-exact for all three files.
+
+The Windows preflight command downloads the exact bootstrap bytes with `DownloadData`, materializes them in memory, and invokes the bootstrap with `-TransportPreflightOnly`. The bootstrap then downloads Worker + Preview with `DownloadData`, verifies their exact Git blob IDs and PowerShell parser acceptance, reports `DNS8_E2E_TRANSPORT_PREFLIGHT_OK=1`, and exits before token retrieval.
+
+After Windows preflight success, Linux `--verify` rechecks the same staged directory/source/HTTPS bytes and reports `DNS8_FINAL_STAGE_READY_FOR_ARM=1`. The directory is intentionally preserved so the later authorized real E2E can use the **same exact transfer path and same exact files** rather than republishing to another random URL.
+
+No further re-arm is implied by this staging/preflight gate.
