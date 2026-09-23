@@ -24,7 +24,13 @@ jobs:
       - run: python3 tests/dns9/autonomous-source.test.py
       - run: php -l layers/dns9/functions/classes/class.IntegrationDnsAutonomousScheduler.php
       - run: php -l layers/dns9/functions/scripts/dns-autonomous-scheduler.php
+      - run: php -l layers/dns9/functions/classes/class.IntegrationDnsAutonomousAdminService.php
+      - run: php -l layers/dns1/functions/classes/class.IntegrationDnsAdminController.php
+      - run: php -l layers/dns1/functions/classes/class.IntegrationDnsAdminView.php
+      - run: php -l layers/dns1/app/admin/integrations/dns-config-action.php
+      - run: php -l layers/dns1/app/admin/integrations/dns-config-panel.php
       - run: php tests/dns9/autonomous-scheduler.test.php
+      - run: php tests/dns9/autonomous-admin.test.php
 
   windows-powershell-51:
     runs-on: windows-2022
