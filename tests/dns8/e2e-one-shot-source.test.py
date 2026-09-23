@@ -55,6 +55,8 @@ for required in [
     "$ExpectedWorkerBlob",
     "$ExpectedPreviewBlob",
     "$ExpectedJobId",
+    "[System.Net.WebRequest]::DefaultWebProxy=[Net.GlobalProxySelection]::GetEmptyWebProxy()",
+    "[System.Net.WebRequest]::DefaultWebProxy=$oldDefaultProxy",
     "DNS8_E2E_WINDOWS_TOKEN_PRINTED=0",
 ]:
     ok(required in bootstrap,"bootstrap boundary: "+required)
