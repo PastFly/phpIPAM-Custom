@@ -22,4 +22,5 @@ jobs:
       - run: python3 tests/dns8/e2e-one-shot-source.test.py
       - run: python3 tests/dns8/transport-diagnostic-source.test.py
       - run: python3 tests/dns8/final-stage-source.test.py
-      - run: python3 -m py_compile tools/live/dns-e2e-pilot-install.py tools/live/dns-e2e-pilot-cleanup.py tools/live/dns-e2e-one-shot-prepare.py tools/live/dns-e2e-one-shot-accept.py tools/live/dns-e2e-transport-diagnostic.py tools/live/dns-e2e-final-stage.py
+      - run: python3 tests/dns8/final-arm-source.test.py
+      - run: python3 -m py_compile tools/live/dns-e2e-pilot-install.py tools/live/dns-e2e-pilot-cleanup.py tools/live/dns-e2e-one-shot-prepare.py tools/live/dns-e2e-one-shot-accept.py tools/live/dns-e2e-transport-diagnostic.py tools/live/dns-e2e-final-stage.py tools/live/dns-e2e-final-arm.py
