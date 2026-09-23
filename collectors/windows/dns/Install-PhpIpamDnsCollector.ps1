@@ -4,6 +4,7 @@ param(
     [Parameter(Mandatory=$true)][System.Uri]$PhpIpamBaseUri,
     [Parameter(Mandatory=$true)][System.Security.SecureString]$ControlToken,
     [Parameter(Mandatory=$false)][ValidateSet('System','ServiceAccount')][string]$PrincipalMode='System',
+    [Parameter(Mandatory=$false)][ValidateSet('Profile','CollectorIdentity')][string]$DnsCredentialMode='Profile',
     [Parameter(Mandatory=$false)][string]$ServiceAccount,
     [Parameter(Mandatory=$false)][ValidateRange(1,15)][int]$PollIntervalMinutes=1,
     [Parameter(Mandatory=$false)][ValidateRange(5,120)][int]$HttpTimeoutSeconds=30,
@@ -32,7 +33,7 @@ function Set-Dns9Acl {
     param([Parameter(Mandatory=$true)][string]$Path,[Parameter(Mandatory=$false)][string]$ExtraIdentity)
     & icacls.exe $Path /inheritance:r | Out-Null
     if($LASTEXITCODE -ne 0){throw 'dns9_acl_failed'}
-    & icacls.exe $Path /grant:r 'SYSTEM:(OI)(CI)F' 'BUILTIN\Administrators:(OI)(CI)F' | Out-Null
+    & icacls.exe $Path /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' | Out-Null
     if($LASTEXITCODE -ne 0){throw 'dns9_acl_failed'}
     if(-not [string]::IsNullOrWhiteSpace($ExtraIdentity)){
         & icacls.exe $Path /grant:r ($ExtraIdentity+':(OI)(CI)M') | Out-Null
@@ -47,6 +48,10 @@ if($PrincipalMode -eq 'ServiceAccount'){
     if([string]::IsNullOrWhiteSpace($ServiceAccount) -or $ServiceAccount -notmatch '^[^\\]+\\[^\\]+\$$'){throw 'dns9_service_account_invalid'}
 }
 elseif(-not [string]::IsNullOrEmpty($ServiceAccount)){throw 'dns9_service_account_invalid'}
+
+if($DnsCredentialMode -eq 'CollectorIdentity' -and $PrincipalMode -ne 'ServiceAccount'){
+    throw 'dns9_collector_identity_requires_service_account'
+}
 
 foreach($source in @($WorkerSource,$PreviewSource,$RunnerSource)){
     if(-not (Test-Path -LiteralPath $source -PathType Leaf)){throw 'dns9_source_missing'}
@@ -101,6 +106,7 @@ try {
     Write-Output 'DNS9_AUTONOMOUS_INSTALL_OK=1'
     Write-Output ('DNS9_AUTONOMOUS_TASK='+$TaskName)
     Write-Output ('DNS9_AUTONOMOUS_PRINCIPAL_MODE='+$PrincipalMode)
+    Write-Output ('DNS9_AUTONOMOUS_DNS_CREDENTIAL_MODE='+$DnsCredentialMode)
     if($PrincipalMode -eq 'ServiceAccount'){Write-Output ('DNS9_AUTONOMOUS_SERVICE_ACCOUNT='+$ServiceAccount)}
     Write-Output ('DNS9_AUTONOMOUS_INTERVAL_MINUTES='+$PollIntervalMinutes)
     Write-Output ('DNS9_AUTONOMOUS_START_NOW='+([int][bool]$StartNow))
