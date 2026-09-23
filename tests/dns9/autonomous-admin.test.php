@@ -95,13 +95,14 @@ reject9a(fn()=> $service->queueControlJob($connection['id'],'test_connection',1)
 
 $enabled=$service->setCollectionEnabled($connection['id'],$connection['revision'],true,1);
 ok9a($enabled['enabled']===true && $enabled['status']==='active','collection enabled');
-ok9a($enabled['revision']===$connection['revision'],'operational toggle preserves config revision');
+ok9a($enabled['revision']===$connection['revision']+1 && $enabled['binding_epoch']===$connection['binding_epoch']+1,'enable invalidates stale jobs');
 ok9a($configRepo->connections[$connection['id']]['enabled']===true,'enabled persisted');
 
-$disabled=$service->setCollectionEnabled($connection['id'],$connection['revision'],false,1);
+$disabled=$service->setCollectionEnabled($connection['id'],$enabled['revision'],false,1);
 ok9a($disabled['enabled']===false && $disabled['status']==='disabled','collection disabled');
+ok9a($disabled['revision']===$enabled['revision']+1 && $disabled['binding_epoch']===$enabled['binding_epoch']+1,'disable invalidates stale jobs');
 
-$enabled=$service->setCollectionEnabled($connection['id'],$connection['revision'],true,1);
+$enabled=$service->setCollectionEnabled($connection['id'],$disabled['revision'],true,1);
 $rotate=[
     'id'=>$profile['id'],'expected_revision'=>$profile['revision'],'name'=>$profile['name'],
     'username'=>$profile['username'],'password_action'=>'replace','password'=>'new fictional password',
@@ -111,15 +112,17 @@ $rotated=$service->saveProfile($rotate,1);
 ok9a($rotated['secret_version']===2,'profile rotated');
 $after=$configRepo->connections[$connection['id']];
 ok9a($after['enabled']===false && $after['status']==='needs_validation','profile rotation disables automation');
-ok9a($after['revision']===$connection['revision']+1 && $after['binding_epoch']===$connection['binding_epoch']+1,'profile rotation invalidates revisions');
+ok9a($after['revision']===$connection['revision']+4 && $after['binding_epoch']===$connection['binding_epoch']+4,'profile rotation invalidates current operational epoch');
 
-$service->setCollectionEnabled($connection['id'],$after['revision'],true,1);
+$reEnabled=$service->setCollectionEnabled($connection['id'],$after['revision'],true,1);
 ok9a($configRepo->connections[$connection['id']]['enabled']===true,'re-enabled before collector revoke');
 reject9a(fn()=> $service->revokeCollector($collectorId,99,1),'revision_conflict');
 ok9a($configRepo->connections[$connection['id']]['enabled']===true,'stale collector revoke preserves connection state');
 $service->revokeCollector($collectorId,1,1);
 ok9a($configRepo->connections[$connection['id']]['enabled']===false,'collector revoke disables connection');
 ok9a($configRepo->connections[$connection['id']]['status']==='collector_revoked','collector revoke status recorded');
+$revokedConnection=$configRepo->connections[$connection['id']];
+ok9a($revokedConnection['revision']===$reEnabled['revision']+1 && $revokedConnection['binding_epoch']===$reEnabled['binding_epoch']+1,'collector revoke invalidates active epoch');
 reject9a(
     fn()=> $service->setCollectionEnabled($connection['id'],$after['revision'],true,1),
     'assignment_unavailable'
@@ -152,7 +155,7 @@ $out=$controller->handle($req(['action'=>'queue_test_connection','data'=>['id'=>
 ok9a(in_array($out['status'],[200,409],true),'controller queue test bounded');
 
 $out=$controller->handle($req(['action'=>'set_collection_enabled','data'=>[
-    'id'=>$connection['id'],'expected_revision'=>$after['revision'],'enabled'=>false
+    'id'=>$connection['id'],'expected_revision'=>$revokedConnection['revision'],'enabled'=>false
 ]]));
 ok9a($out['status']===200,'controller collection toggle');
 
