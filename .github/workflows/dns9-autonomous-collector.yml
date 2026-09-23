@@ -10,6 +10,7 @@ on:
       - 'tests/dns9/**'
       - 'design/DNS9_AUTONOMOUS_WINDOWS_COLLECTOR.md'
       - 'layers/dns9/**'
+      - 'deploy/dns9/**'
       - '.github/workflows/dns9-autonomous-collector.yml'
 
 permissions:
@@ -31,6 +32,7 @@ jobs:
       - run: php -l layers/dns1/app/admin/integrations/dns-config-panel.php
       - run: php tests/dns9/autonomous-scheduler.test.php
       - run: php tests/dns9/autonomous-admin.test.php
+      - run: node --check layers/dns1/app/admin/integrations/dns/config.js
 
   windows-powershell-51:
     runs-on: windows-2022
