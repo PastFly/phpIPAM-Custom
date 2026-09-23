@@ -51,7 +51,7 @@ It fails closed unless:
 It then:
 - publishes only Bootstrap + exact Worker + exact Preview below one random HTTPS directory;
 - creates a one-shot token endpoint backed by a temporary `/run` spool readable only by the Apache account;
-- binds token delivery to the resolved SRV-DC01 source address;
+- exposes the token only through the random one-shot HTTPS endpoint; the endpoint deletes its temporary token spool and its own PHP source on the first successful read;
 - extends only the exact pending job expiry to `now + 300` seconds;
 - records a root-only transfer state/receipt without the token secret;
 - prints the Windows command, never the collector token.
