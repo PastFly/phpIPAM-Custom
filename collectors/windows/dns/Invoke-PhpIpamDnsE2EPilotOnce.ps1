@@ -62,15 +62,8 @@ try {
     $previewUri=New-Object System.Uri($TransferBaseUri,'preview.txt')
     $tokenUri=New-Object System.Uri($TransferBaseUri,'token.php')
 
-    $workerEncoded=$wc.DownloadString($workerUri).Trim()
-    $previewEncoded=$wc.DownloadString($previewUri).Trim()
-    try {
-        [System.IO.File]::WriteAllBytes($worker,[Convert]::FromBase64String($workerEncoded))
-        [System.IO.File]::WriteAllBytes($preview,[Convert]::FromBase64String($previewEncoded))
-    }
-    catch {
-        throw 'dns8_e2e_transfer_decode_failed'
-    }
+    [System.IO.File]::WriteAllBytes($worker,$wc.DownloadData($workerUri))
+    [System.IO.File]::WriteAllBytes($preview,$wc.DownloadData($previewUri))
 
     $workerBlob=Get-Dns8GitBlobSha1 -Path $worker
     $previewBlob=Get-Dns8GitBlobSha1 -Path $preview
