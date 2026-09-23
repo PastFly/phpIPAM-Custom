@@ -24,7 +24,7 @@ for required in [
 ]:
     ok(required in src,"installer contract: "+required)
 
-ok("print(token)" not in src and "TOKEN="+token if False else True,"token not intentionally printed")
+ok("print(token)" not in src and "TOKEN_VALUE" not in src,"token not intentionally printed")
 ok('print("DNS_E2E_PILOT_TOKEN_PATH="' in src,"only token path printed")
 ok("schema_not_empty" in src and "target_exists" in src and "token_path_exists" in src,"create-only boundaries")
 ok("php","-l"" in src or '["php","-l"' in src,"installed PHP linted")
