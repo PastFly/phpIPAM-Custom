@@ -141,6 +141,35 @@ final class IntegrationDnsAutonomousAdminService
     {
         self::actor($actor);
         self::id($id);
+
+        $snapshot=$this->control->snapshot();
+        $connectionIds=[];
+        foreach($snapshot['assignments']??[] as $assignment) {
+            if(($assignment['collector_id']??null)===$id && is_string($assignment['connection_id']??null)) {
+                $connectionIds[]=$assignment['connection_id'];
+            }
+        }
+
+        if($connectionIds) {
+            $this->configRepo->transaction(function() use($connectionIds,$actor) {
+                foreach($connectionIds as $connectionId) {
+                    $row=$this->configRepo->connection($connectionId);
+                    if($row===null) continue;
+                    $row['enabled']=false;
+                    $row['status']='collector_revoked';
+                    $row['updated_at']=time();
+                    $row['updated_by']=$actor;
+                    $this->configRepo->putConnection($row);
+                    $this->configRepo->audit([
+                        'action'=>'collection_disabled',
+                        'object_id'=>$connectionId,
+                        'actor_id'=>$actor,
+                        'created_at'=>time()
+                    ]);
+                }
+            });
+        }
+
         $this->control->revokeCollector($id,$expectedRevision,$actor);
     }
 
