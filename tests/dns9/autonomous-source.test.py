@@ -117,6 +117,9 @@ ok("DROP TABLE" not in enable_sql,"migration has no table drop")
 for required in [
     "setCollectionEnabled",
     "queueControlJob",
+    "registerCollector",
+    "saveCollectorAssignment",
+    "revokeCollector",
     "collector_control_available",
     "connection_runtime",
     "assignment_unavailable",
@@ -125,6 +128,9 @@ for required in [
     ok(required in admin,"admin composition: "+required)
 
 for required in [
+    "register_collector",
+    "save_assignment",
+    "revoke_collector",
     "queue_test_connection",
     "queue_list_zones",
     "set_collection_enabled",
@@ -138,7 +144,14 @@ for required in [
     "Получить зоны",
     "Включить сбор",
     "Отключить сбор",
+    "Windows-сборщики",
+    "Назначить сборщик",
+    "Control token сборщика — показывается один раз.",
 ]:
     ok(required in view,"view automation: "+required)
 
 ok("DNS write" not in ui,"UI contains no DNS-write action")
+
+ok("data-dns-enrollment-token" in view,"view has one-time enrollment token target")
+ok("tokenBox.textContent = token" in ui,"UI renders one-time token only after registration response")
+ok("console.log" not in ui,"UI never logs enrollment token")
