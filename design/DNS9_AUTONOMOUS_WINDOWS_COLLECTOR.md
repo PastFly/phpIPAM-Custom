@@ -97,3 +97,34 @@ The Windows side is only a least-privilege execution agent.
 DNS9 is source-only. It does not install a production Scheduled Task until separately approved and runtime-tested.
 
 The current DNS8 one-shot E2E remains an acceptance gate for the underlying worker/control protocol, but it is not the intended end-user workflow.
+
+
+## phpIPAM-side autonomous scheduling
+
+DNS9 also adds `IntegrationDnsAutonomousScheduler` plus a CLI entrypoint. This is the server-side half of the automation.
+
+For each enabled Microsoft DNS connection it:
+- resolves the current collector assignment;
+- rejects revoked/missing collectors;
+- respects the configured `interval_seconds`;
+- refuses to create a duplicate active `list_zones` job;
+- queues only read-only `list_zones` jobs;
+- binds the job to current configuration/binding/credential/assignment revisions;
+- uses a bounded five-minute job expiry;
+- records a redacted `autonomous_job_queued` audit event with system actor 0.
+
+The scheduler never opens the credential keyring, never sees the collector token, never calls Microsoft DNS and never writes native phpIPAM address data.
+
+A later activation/UI layer will control when a connection is enabled. The scheduler source is already separated from the Windows agent so each side can be tested and deployed independently.
+
+## Intended operator experience
+
+After initial enrollment/install:
+1. configure the DNS source and credentials in phpIPAM;
+2. assign/install the collector once;
+3. enable the connection in phpIPAM;
+4. phpIPAM schedules read-only jobs automatically;
+5. Windows Task Scheduler picks them up automatically;
+6. status/results return to phpIPAM automatically.
+
+Routine synchronization must not require RDP, an interactive PowerShell prompt, copying commands, or manually handling collector tokens.
