@@ -8,6 +8,7 @@ require_once $root.'/layers/dns1/functions/classes/class.IntegrationDnsConfigSer
 require_once $root.'/layers/dns3/functions/classes/class.IntegrationDnsCollectorControlRepository.php';
 require_once $root.'/layers/dns3/functions/classes/class.IntegrationDnsCollectorControlService.php';
 require_once $root.'/layers/dns9/functions/classes/class.IntegrationDnsAutonomousAdminService.php';
+require_once $root.'/layers/dns1/functions/classes/class.IntegrationDnsAdminController.php';
 require_once $root.'/tests/dns1/memory-repository.php';
 require_once $root.'/tests/dns3/control-memory-repository.php';
 
@@ -72,11 +73,11 @@ reject9a(
     'assignment_unavailable'
 );
 
-$registered=$control->registerCollector(['name'=>'Collector 01'],1);
+$registered=$service->registerCollector('Collector 01',1);
 $collectorId=$registered['collector']['id'];
-$assignment=$control->saveAssignment([
-    'connection_id'=>$connection['id'],'collector_id'=>$collectorId,'expected_revision'=>0
-],1);
+ok9a(preg_match('/^dnsctl1\.[0-9a-f]{32}\.[A-Za-z0-9_-]{43}$/D',$registered['control_token'])===1,'one-time collector token returned');
+ok9a(!str_contains(json_encode($service->snapshot(),JSON_THROW_ON_ERROR),$registered['control_token']),'collector token absent from snapshot');
+$assignment=$service->saveCollectorAssignment($connection['id'],$collectorId,0,1);
 ok9a($assignment['revision']===1,'assignment ready');
 
 $state=$service->snapshot();
@@ -112,7 +113,7 @@ $after=$configRepo->connections[$connection['id']];
 ok9a($after['enabled']===false && $after['status']==='needs_validation','profile rotation disables automation');
 ok9a($after['revision']===$connection['revision']+1 && $after['binding_epoch']===$connection['binding_epoch']+1,'profile rotation invalidates revisions');
 
-$control->revokeCollector($collectorId,1,1);
+$service->revokeCollector($collectorId,1,1);
 reject9a(
     fn()=> $service->setCollectionEnabled($connection['id'],$after['revision'],true,1),
     'assignment_unavailable'
@@ -124,5 +125,29 @@ foreach($configRepo->events as $event) {
 foreach($controlRepo->events as $event) {
     ok9a(!isset($event['token'])&&!isset($event['token_digest']),'control audit redacted');
 }
+
+$controller=new IntegrationDnsAdminController(static fn()=> $service);
+$req=static fn(array $input): array => [
+    'method'=>'POST','authenticated'=>true,'admin'=>true,'https'=>true,'csrf_valid'=>true,
+    'actor_id'=>1,'input'=>$input
+];
+
+$out=$controller->handle($req(['action'=>'register_collector','data'=>['name'=>'Collector 02']]));
+ok9a($out['status']===200 && preg_match('/^dnsctl1\./',$out['body']['data']['control_token'])===1,'controller register collector');
+
+$out=$controller->handle($req(['action'=>'save_assignment','data'=>[
+    'connection_id'=>$connection['id'],
+    'collector_id'=>$out['body']['data']['collector']['id'],
+    'expected_revision'=>0
+]]));
+ok9a($out['status']===200,'controller assignment action');
+
+$out=$controller->handle($req(['action'=>'queue_test_connection','data'=>['id'=>$connection['id']]]));
+ok9a(in_array($out['status'],[200,409],true),'controller queue test bounded');
+
+$out=$controller->handle($req(['action'=>'set_collection_enabled','data'=>[
+    'id'=>$connection['id'],'expected_revision'=>$after['revision'],'enabled'=>false
+]]));
+ok9a($out['status']===200,'controller collection toggle');
 
 printf("DNS9_AUTONOMOUS_ADMIN_ASSERTIONS=%d\nDNS9_AUTONOMOUS_ADMIN_TESTS_OK=1\n",$n);
