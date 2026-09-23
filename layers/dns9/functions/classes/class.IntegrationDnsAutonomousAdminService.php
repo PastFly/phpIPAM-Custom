@@ -143,6 +143,14 @@ final class IntegrationDnsAutonomousAdminService
         self::id($id);
 
         $snapshot=$this->control->snapshot();
+        $target=null;
+        foreach($snapshot['collectors']??[] as $collector) {
+            if(($collector['id']??null)===$id) {$target=$collector; break;}
+        }
+        if($target===null) throw new DomainException('not_found');
+        if(($target['revision']??null)!==$expectedRevision) throw new DomainException('revision_conflict');
+        if(($target['revoked']??true)===true) throw new DomainException('collector_unavailable');
+
         $connectionIds=[];
         foreach($snapshot['assignments']??[] as $assignment) {
             if(($assignment['collector_id']??null)===$id && is_string($assignment['connection_id']??null)) {
