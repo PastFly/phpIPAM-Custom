@@ -19,6 +19,7 @@ on:
       - 'database/dns9/**'
       - 'deploy/dns9/**'
       - 'tools/live/dns9-source-accept.sh'
+      - 'tools/live/dns9-windows-fixture-stage.py'
       - '.github/workflows/dns9-autonomous-collector.yml'
 
 permissions:
