@@ -27,6 +27,16 @@
                         interval_seconds: Number(read(form, 'interval_seconds')), credential_mode: mode,
                         profile_id: mode === 'profile' ? read(form, 'profile_id') || null : null,
                         share_profile: form.elements.namedItem('share_profile').checked});
+                } else if (action === 'register_collector') {
+                    data = {name: read(form, 'name')};
+                } else if (action === 'save_assignment') {
+                    var collectorId = read(form, 'collector_assignment');
+                    if (!collectorId) { message.textContent = 'Выберите Windows-сборщик.'; return; }
+                    data = {connection_id: read(form, 'id'), collector_id: collectorId,
+                        expected_revision: Number(read(form, 'assignment_revision'))};
+                } else if (action === 'revoke_collector') {
+                    if (!global.confirm('Отозвать этот Windows-сборщик? Его активные задания станут недействительными.')) return;
+                    data = {id: read(form, 'id'), expected_revision: Number(read(form, 'expected_revision'))};
                 } else if (action === 'queue_test_connection' || action === 'queue_list_zones') {
                     data = {id: read(form, 'id')};
                 } else if (action === 'set_collection_enabled') {
@@ -51,8 +61,20 @@
                 var result = await response.json();
                 if (response.status === 409) { message.textContent = 'Данные изменились или затронуты другие подключения. Обновите страницу и повторите проверку.'; return; }
                 if (!response.ok || !result || result.ok !== true) { message.textContent = 'Не удалось подтвердить сохранение. Проверьте поля, права и состояние хранилища; при сомнении обновите страницу.'; return; }
+                if (action === 'register_collector') {
+                    var token = result.data && result.data.control_token;
+                    var enrollment = root.querySelector('[data-dns-enrollment]');
+                    var tokenBox = root.querySelector('[data-dns-enrollment-token]');
+                    if (typeof token !== 'string' || !token || !enrollment || !tokenBox) throw new Error();
+                    tokenBox.textContent = token;
+                    enrollment.hidden = false;
+                    message.textContent = 'Сборщик создан. Control token показан один раз — используйте его для первичной установки.';
+                    return;
+                }
                 if (action === 'queue_test_connection') message.textContent = 'Проверка доступа поставлена в очередь.';
                 else if (action === 'queue_list_zones') message.textContent = 'Получение зон поставлено в очередь.';
+                else if (action === 'save_assignment') message.textContent = 'Windows-сборщик назначен.';
+                else if (action === 'revoke_collector') message.textContent = 'Windows-сборщик отозван.';
                 else if (action === 'set_collection_enabled') message.textContent = data.enabled ? 'Автоматический сбор включён.' : 'Автоматический сбор отключён.';
                 else message.textContent = 'Сохранено.';
                 if (typeof afterSave === 'function') afterSave(result.data); else global.location.reload();
