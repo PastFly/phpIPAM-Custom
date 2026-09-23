@@ -125,6 +125,11 @@ final class IntegrationDnsAutonomousAdminService
         self::id($connectionId);
         self::id($collectorId);
         if($expectedRevision<0) throw new DomainException('revision_conflict');
+        $connection=$this->configRepo->transaction(function() use($connectionId): ?array {
+            return $this->configRepo->connection($connectionId);
+        });
+        if($connection===null) throw new DomainException('not_found');
+        if(($connection['enabled']??false)===true) throw new DomainException('connection_must_be_disabled');
         return $this->control->saveAssignment([
             'connection_id'=>$connectionId,
             'collector_id'=>$collectorId,
