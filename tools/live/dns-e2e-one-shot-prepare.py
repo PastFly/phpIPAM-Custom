@@ -6,7 +6,6 @@ import pwd
 import re
 import secrets
 import shutil
-import socket
 import stat
 import subprocess
 import time
@@ -134,11 +133,6 @@ FROM custom_dns_collector_assignments WHERE connection_id='{CONNECTION_ID}';
     if assignment != [CONNECTION_ID, COLLECTOR_ID, "1"]:
         raise SystemExit("DNS8_E2E_PREPARE_ERROR=assignment_boundary_invalid")
 
-    try:
-        collector_ip = socket.gethostbyname(SERVER)
-    except OSError as exc:
-        raise SystemExit("DNS8_E2E_PREPARE_ERROR=collector_dns_resolution_failed") from exc
-
     nonce = secrets.token_hex(16)
     transfer_name = "dns-e2e-run-" + nonce
     transfer_dir = WEBROOT / transfer_name
@@ -194,7 +188,6 @@ header('Content-Type: text/plain; charset=us-ascii');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 header('Pragma: no-cache');
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {{ http_response_code(405); exit; }}
-if (($_SERVER['REMOTE_ADDR'] ?? '') !== {php_literal(collector_ip)}) {{ http_response_code(403); exit; }}
 $path={php_literal(str(spool))};
 $token=@file_get_contents($path);
 if (!is_string($token) || trim($token)==='') {{ http_response_code(410); exit; }}
@@ -223,7 +216,6 @@ echo trim($token)."\\n";
             "base_uri": base,
             "transfer_dir": str(transfer_dir),
             "token_spool": str(spool),
-            "collector_ip": collector_ip,
             "job_id": JOB_ID,
             "collector_id": COLLECTOR_ID,
             "connection_id": CONNECTION_ID,
@@ -284,7 +276,6 @@ COMMIT;
         )
         print("DNS8_E2E_PREPARE_OK=1")
         print("DNS8_E2E_JOB_ID=" + JOB_ID)
-        print("DNS8_E2E_COLLECTOR_IP=" + collector_ip)
         print("DNS8_E2E_EXPIRES_AT=" + str(new_expires))
         print("DNS8_E2E_TRANSFER_RECEIPT=" + str(receipt_path))
         print("DNS8_E2E_WINDOWS_COMMAND=" + windows)
