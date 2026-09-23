@@ -45,7 +45,6 @@ function Test-Dns7ExactProperties {
     return (($actual -join [char]0) -eq ($expected -join [char]0))
 }
 
-
 function Test-Dns7PositiveInteger {
     param($Value)
     if ($null -eq $Value) { return $false }
