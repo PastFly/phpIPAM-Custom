@@ -12,6 +12,8 @@ ADMIN=ROOT/"layers/dns9/functions/classes/class.IntegrationDnsAutonomousAdminSer
 CONTROLLER=ROOT/"layers/dns1/functions/classes/class.IntegrationDnsAdminController.php"
 VIEW=ROOT/"layers/dns1/functions/classes/class.IntegrationDnsAdminView.php"
 UI=ROOT/"layers/dns1/app/admin/integrations/dns/config.js"
+SYSTEMD_SERVICE=ROOT/"deploy/dns9/phpipam-dns-autonomous.service"
+SYSTEMD_TIMER=ROOT/"deploy/dns9/phpipam-dns-autonomous.timer"
 
 n=0
 def ok(v,label):
@@ -20,7 +22,7 @@ def ok(v,label):
     if not v:
         raise AssertionError(label)
 
-for path in (INSTALL,RUNNER,STATUS,UNINSTALL,DESIGN,ENABLE_SQL,ADMIN,CONTROLLER,VIEW,UI):
+for path in (INSTALL,RUNNER,STATUS,UNINSTALL,DESIGN,ENABLE_SQL,ADMIN,CONTROLLER,VIEW,UI,SYSTEMD_SERVICE,SYSTEMD_TIMER):
     ok(path.is_file(),path.name+" exists")
 
 install=INSTALL.read_text()
@@ -33,6 +35,8 @@ admin=ADMIN.read_text()
 controller=CONTROLLER.read_text()
 view=VIEW.read_text()
 ui=UI.read_text()
+systemd_service=SYSTEMD_SERVICE.read_text()
+systemd_timer=SYSTEMD_TIMER.read_text()
 
 for required in [
     "New-ScheduledTaskAction",
@@ -151,6 +155,22 @@ ok("DNS write" not in ui,"UI contains no DNS-write action")
 ok("data-dns-enrollment-token" in view,"view has one-time enrollment token target")
 ok("tokenBox.textContent = token" in ui,"UI renders one-time token only after registration response")
 ok("console.log" not in ui,"UI never logs enrollment token")
+
+for required in [
+    "Type=oneshot",
+    "User=www-data",
+    "ExecStart=/usr/bin/php /var/www/html/functions/scripts/dns-autonomous-scheduler.php",
+    "NoNewPrivileges=true",
+    "ProtectSystem=full",
+]:
+    ok(required in systemd_service,"systemd service: "+required)
+for required in [
+    "OnUnitActiveSec=60s",
+    "Unit=phpipam-dns-autonomous.service",
+    "WantedBy=timers.target",
+]:
+    ok(required in systemd_timer,"systemd timer interval: "+required)
+ok("curl " not in systemd_service and "wget " not in systemd_service,"server scheduler does not shell-fetch code")
 
 print(f"DNS9_AUTONOMOUS_SOURCE_ASSERTIONS={n}")
 print("DNS9_AUTONOMOUS_SOURCE_TESTS_OK=1")
