@@ -125,6 +125,8 @@ WHERE object_id='{JOB_ID}' AND action='credential_delivered';
     print("DNS8_E2E_CREDENTIAL_AUDIT_COUNT=" + str(audit_count))
     print("DNS8_E2E_ACCEPT=" + ("1" if accepted else "0"))
     print("DNS8_E2E_TOKEN_PRINTED=0")
+    if not accepted:
+        raise SystemExit(2)
 
 
 if __name__ == "__main__":
