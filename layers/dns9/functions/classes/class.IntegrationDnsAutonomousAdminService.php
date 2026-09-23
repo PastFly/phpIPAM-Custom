@@ -113,6 +113,32 @@ final class IntegrationDnsAutonomousAdminService
         $this->config->deleteConnection($id,$expected,$actor);
     }
 
+    public function registerCollector(string $name,int $actor): array
+    {
+        self::actor($actor);
+        return $this->control->registerCollector(['name'=>$name],$actor);
+    }
+
+    public function saveCollectorAssignment(string $connectionId,string $collectorId,int $expectedRevision,int $actor): array
+    {
+        self::actor($actor);
+        self::id($connectionId);
+        self::id($collectorId);
+        if($expectedRevision<0) throw new DomainException('revision_conflict');
+        return $this->control->saveAssignment([
+            'connection_id'=>$connectionId,
+            'collector_id'=>$collectorId,
+            'expected_revision'=>$expectedRevision
+        ],$actor);
+    }
+
+    public function revokeCollector(string $id,int $expectedRevision,int $actor): void
+    {
+        self::actor($actor);
+        self::id($id);
+        $this->control->revokeCollector($id,$expectedRevision,$actor);
+    }
+
     public function queueControlJob(string $id,string $jobType,int $actor): array
     {
         self::actor($actor);
