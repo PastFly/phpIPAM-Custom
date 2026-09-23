@@ -67,7 +67,35 @@ final class IntegrationDnsAutonomousScheduler
 
         return $this->repo->transaction(function() use($normalized) {
             $now=$this->now();
-            $jobs=$this->repo->jobs();
+            $jobs=[];
+            foreach($this->repo->jobs() as $job) {
+                $state=$job['state']??'';
+                $finished=(int)($job['finished_at']??$job['updated_at']??0);
+                if(in_array($state,['succeeded','failed','expired','obsolete'],true) && $finished<=$now-86400) {
+                    $this->repo->removeJob($job['id']);
+                    continue;
+                }
+                if($state==='pending' && (int)($job['expires_at']??0)<$now) {
+                    $job['state']='expired';
+                    $job['result_code']='job_expired';
+                    $job['result_payload']=null;
+                    $job['finished_at']=$now;
+                    $job['updated_at']=$now;
+                    $job['updated_by']=0;
+                    $this->repo->putJob($job);
+                } elseif($state==='running' && (int)($job['lease_expires_at']??0)<$now) {
+                    $job['state']='expired';
+                    $job['lease_id']=null;
+                    $job['lease_expires_at']=null;
+                    $job['result_code']='lease_expired';
+                    $job['result_payload']=null;
+                    $job['finished_at']=$now;
+                    $job['updated_at']=$now;
+                    $job['updated_by']=0;
+                    $this->repo->putJob($job);
+                }
+                $jobs[]=$job;
+            }
             $queued=[];
             $skippedDisabled=0;
             $skippedNoAssignment=0;
