@@ -4,6 +4,7 @@ on:
     paths:
       - 'tools/live/dns-e2e-pilot-*.py'
       - 'tools/live/dns-e2e-one-shot-*.py'
+      - 'tools/live/dns-e2e-transport-*.py'
       - 'collectors/windows/dns/Invoke-PhpIpamDnsE2EPilotOnce.ps1'
       - 'tests/dns8/**'
       - 'design/DNS8_E2E_PILOT.md'
