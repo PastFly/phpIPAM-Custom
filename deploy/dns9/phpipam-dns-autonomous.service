@@ -1,0 +1,17 @@
+[Unit]
+Description=phpIPAM Microsoft DNS autonomous scheduler
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/html
+ExecStart=/usr/bin/php /var/www/html/functions/scripts/dns-autonomous-scheduler.php
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+RestrictSUIDSGID=true
+LockPersonality=true
