@@ -27,7 +27,7 @@ for required in [
 ok("print(token)" not in src and "TOKEN_VALUE" not in src,"token not intentionally printed")
 ok('print("DNS_E2E_PILOT_TOKEN_PATH="' in src,"only token path printed")
 ok("schema_not_empty" in src and "target_exists" in src and "token_path_exists" in src,"create-only boundaries")
-ok("php","-l"" in src or '["php","-l"' in src,"installed PHP linted")
+ok('["php","-l"' in src, "installed PHP linted")
 ok("DROP TABLE IF EXISTS" in src,"installer rollback schema cleanup")
 ok("rollback_incomplete" in src,"rollback errors fail closed")
 
