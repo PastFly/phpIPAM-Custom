@@ -1,0 +1,128 @@
+<?php
+declare(strict_types=1);
+
+$root=dirname(__DIR__,2);
+require_once $root.'/layers/dns1/functions/classes/class.IntegrationDnsCipher.php';
+require_once $root.'/layers/dns1/functions/classes/class.IntegrationDnsConfigRepository.php';
+require_once $root.'/layers/dns1/functions/classes/class.IntegrationDnsConfigService.php';
+require_once $root.'/layers/dns3/functions/classes/class.IntegrationDnsCollectorControlRepository.php';
+require_once $root.'/layers/dns3/functions/classes/class.IntegrationDnsCollectorControlService.php';
+require_once $root.'/layers/dns9/functions/classes/class.IntegrationDnsAutonomousAdminService.php';
+require_once $root.'/tests/dns1/memory-repository.php';
+require_once $root.'/tests/dns3/control-memory-repository.php';
+
+$n=0;
+function ok9a(bool $v,string $label): void {
+    global $n;
+    ++$n;
+    if(!$v) throw new RuntimeException('ASSERT '.$label);
+}
+function reject9a(callable $fn,string $code): void {
+    try{$fn();}catch(DomainException $e){ok9a($e->getMessage()===$code,'reject '.$code);return;}
+    throw new RuntimeException('expected '.$code);
+}
+
+$key=random_bytes(32);
+$cipher=new IntegrationDnsCipher('test-key',['test-key'=>$key]);
+$configRepo=new DnsMemoryRepository();
+$config=new IntegrationDnsConfigService($configRepo,$cipher);
+$controlRepo=new Dns3MemoryRepository();
+
+$resolver=static function(string $id) use($configRepo): ?array {
+    return $configRepo->transaction(static function() use($configRepo,$id): ?array {
+        $c=$configRepo->connection($id);
+        if($c===null) return null;
+        $credentialVersion=null;
+        if($c['credential_mode']==='profile') {
+            $p=$configRepo->profile($c['profile_id']);
+            if($p===null||$p['secret_envelope']===null) return null;
+            $credentialVersion=$p['secret_version'];
+        }
+        return [
+            'id'=>$c['id'],
+            'revision'=>$c['revision'],
+            'binding_epoch'=>$c['binding_epoch'],
+            'credential_mode'=>$c['credential_mode'],
+            'profile_id'=>$c['profile_id'],
+            'credential_version'=>$credentialVersion,
+            'enabled'=>$c['enabled']
+        ];
+    });
+};
+
+$clock=1700000000;
+$control=new IntegrationDnsCollectorControlService(
+    $controlRepo,
+    $resolver,
+    static function() use(&$clock): int { return $clock; }
+);
+$service=new IntegrationDnsAutonomousAdminService($config,$configRepo,$control);
+
+$profile=$service->saveProfile([
+    'id'=>null,'expected_revision'=>0,'name'=>'DNS service','username'=>'svc@example.invalid',
+    'password_action'=>'replace','password'=>'fictional password','acknowledge_connections'=>[]
+],1);
+$connection=$service->saveConnection([
+    'id'=>null,'expected_revision'=>0,'name'=>'DNS source','server'=>'dc01.example.invalid',
+    'interval_seconds'=>300,'credential_mode'=>'profile','profile_id'=>$profile['id'],'share_profile'=>false
+],1);
+
+reject9a(
+    fn()=> $service->setCollectionEnabled($connection['id'],$connection['revision'],true,1),
+    'assignment_unavailable'
+);
+
+$registered=$control->registerCollector(['name'=>'Collector 01'],1);
+$collectorId=$registered['collector']['id'];
+$assignment=$control->saveAssignment([
+    'connection_id'=>$connection['id'],'collector_id'=>$collectorId,'expected_revision'=>0
+],1);
+ok9a($assignment['revision']===1,'assignment ready');
+
+$state=$service->snapshot();
+ok9a($state['collector_control_available']===true,'control available');
+$runtime=$state['connection_runtime'][$connection['id']];
+ok9a($runtime['assigned']===true && $runtime['collector_id']===$collectorId,'runtime maps collector');
+ok9a($runtime['test_connection']===null && $runtime['list_zones']===null,'runtime initially empty');
+
+$testJob=$service->queueControlJob($connection['id'],'test_connection',1);
+ok9a($testJob['state']==='pending' && $testJob['job_type']==='test_connection','test job queued');
+
+$state=$service->snapshot();
+ok9a($state['connection_runtime'][$connection['id']]['test_connection']['id']===$testJob['id'],'latest test visible');
+reject9a(fn()=> $service->queueControlJob($connection['id'],'test_connection',1),'job_already_pending');
+
+$enabled=$service->setCollectionEnabled($connection['id'],$connection['revision'],true,1);
+ok9a($enabled['enabled']===true && $enabled['status']==='active','collection enabled');
+ok9a($enabled['revision']===$connection['revision'],'operational toggle preserves config revision');
+ok9a($configRepo->connections[$connection['id']]['enabled']===true,'enabled persisted');
+
+$disabled=$service->setCollectionEnabled($connection['id'],$connection['revision'],false,1);
+ok9a($disabled['enabled']===false && $disabled['status']==='disabled','collection disabled');
+
+$enabled=$service->setCollectionEnabled($connection['id'],$connection['revision'],true,1);
+$rotate=[
+    'id'=>$profile['id'],'expected_revision'=>$profile['revision'],'name'=>$profile['name'],
+    'username'=>$profile['username'],'password_action'=>'replace','password'=>'new fictional password',
+    'acknowledge_connections'=>[$connection['id']]
+];
+$rotated=$service->saveProfile($rotate,1);
+ok9a($rotated['secret_version']===2,'profile rotated');
+$after=$configRepo->connections[$connection['id']];
+ok9a($after['enabled']===false && $after['status']==='needs_validation','profile rotation disables automation');
+ok9a($after['revision']===$connection['revision']+1 && $after['binding_epoch']===$connection['binding_epoch']+1,'profile rotation invalidates revisions');
+
+$control->revokeCollector($collectorId,1,1);
+reject9a(
+    fn()=> $service->setCollectionEnabled($connection['id'],$after['revision'],true,1),
+    'assignment_unavailable'
+);
+
+foreach($configRepo->events as $event) {
+    ok9a(!isset($event['password'])&&!isset($event['token']),'config audit redacted');
+}
+foreach($controlRepo->events as $event) {
+    ok9a(!isset($event['token'])&&!isset($event['token_digest']),'control audit redacted');
+}
+
+printf("DNS9_AUTONOMOUS_ADMIN_ASSERTIONS=%d\nDNS9_AUTONOMOUS_ADMIN_TESTS_OK=1\n",$n);
