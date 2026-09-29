@@ -10,6 +10,7 @@ python3 tests/dns9/production-preflight-source.test.py
 python3 tests/dns9/server-foundation-source.test.py
 python3 tests/dns9/phase-b-preflight-source.test.py
 python3 tests/dns9/winrm-bootstrap-source.test.py
+python3 tests/dns9/winrm-client-source.test.py
 python3 - <<'PY'
 from pathlib import Path
 source=Path("tools/live/dns9-windows-fixture-stage.py").read_text()
