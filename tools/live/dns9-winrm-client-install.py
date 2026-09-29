@@ -41,8 +41,9 @@ def imports_ok()->bool:
         "import inspect,requests_ntlm,xmltodict;"
         "from winrm.protocol import Protocol;"
         "s=inspect.signature(Protocol);"
+        "o=inspect.signature(Protocol.open_shell);"
         "assert 'message_encryption' in s.parameters;"
-        "assert 'proxy' in s.parameters"
+        "assert 'env_vars' in o.parameters"
     )
     return run(["python3","-c",code]).returncode==0
 
