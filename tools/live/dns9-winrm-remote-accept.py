@@ -9,7 +9,7 @@ import stat
 import time
 from pathlib import Path
 
-from dns9_winrm_common import protocol, regular, run_ps, stage_bytes, remove_tree, json_line, ps_quote
+from dns9_winrm_common import protocol, regular, run_ps, stage_bytes, remove_tree, json_line, ps_quote, ensure_ntlm_md4_runtime
 
 ROOT=Path(__file__).resolve().parents[2]
 BACKUP_ROOT=Path("/var/backups/phpipam-custom")
@@ -38,6 +38,9 @@ def main()->None:
 
     if os.geteuid()!=0:
         raise SystemExit("DNS9_WINRM_ACCEPT_ERROR=root_required")
+
+    md4_mode=ensure_ntlm_md4_runtime()
+    print("DNS9_WINRM_ACCEPT_MD4_PROVIDER="+md4_mode)
 
     source={name:regular(path) for name,path in FILES.items()}
     manifest={
