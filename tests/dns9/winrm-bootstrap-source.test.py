@@ -6,6 +6,7 @@ ROOT=Path(__file__).resolve().parents[2]
 COMMON=ROOT/"tools/live/dns9_winrm_common.py"
 ACCEPT=ROOT/"tools/live/dns9-winrm-remote-accept.py"
 BOOT=ROOT/"tools/live/dns9-winrm-bootstrap.py"
+SELFTEST=ROOT/"tools/live/dns9-winrm-md4-selftest.py"
 
 n=0
 def ok(v,label):
@@ -14,7 +15,7 @@ def ok(v,label):
     if not v:
         raise AssertionError(label)
 
-for path in (COMMON,ACCEPT,BOOT):
+for path in (COMMON,ACCEPT,BOOT,SELFTEST):
     ok(path.is_file(),path.name+" exists")
     ast.parse(path.read_text())
     ok(True,path.name+" python syntax")
@@ -22,6 +23,7 @@ for path in (COMMON,ACCEPT,BOOT):
 common=COMMON.read_text()
 accept=ACCEPT.read_text()
 boot=BOOT.read_text()
+selftest=SELFTEST.read_text()
 
 for required in [
     'endpoint=f"http://{server}:5985/wsman"',
@@ -105,6 +107,16 @@ for required in [
     "DNS9_WINRM_BOOTSTRAP_OK=1",
 ]:
     ok(required in boot,"WinRM bootstrap contract: "+required)
+
+for required in [
+    "ensure_ntlm_md4_runtime",
+    'hashlib.new("md4",b"dns9")',
+    "DNS9_WINRM_MD4_CONFIG_MEMFD=1",
+    "DNS9_WINRM_MD4_PERSISTENT_FILE_MUTATION=0",
+    "DNS9_WINRM_MD4_SYSTEM_OPENSSL_CONFIG_MUTATION=0",
+    "DNS9_WINRM_MD4_SELFTEST_OK=1",
+]:
+    ok(required in selftest,"MD4 selftest contract: "+required)
 
 for forbidden in [
     "print(control_token",
