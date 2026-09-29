@@ -12,6 +12,9 @@ DB="phpipam"
 KEYRING=Path("/etc/phpipam-custom/dns-credentials.key")
 SERVICE=Path("/etc/systemd/system/phpipam-dns-autonomous.service")
 TIMER=Path("/etc/systemd/system/phpipam-dns-autonomous.timer")
+TRACKED_DIRS=[
+    Path("/var/www/html/app/admin/integrations/dns"),
+]
 
 def sha256(data: bytes)->str:
     return hashlib.sha256(data).hexdigest()
@@ -78,8 +81,11 @@ def main()->None:
 
     files=receipt.get("files")
     created=receipt.get("created_targets")
-    if not isinstance(files,dict) or not isinstance(created,list):
+    created_dirs=receipt.get("created_dirs")
+    if not isinstance(files,dict) or not isinstance(created,list) or not isinstance(created_dirs,list):
         raise SystemExit("DNS9_SERVER_ROLLBACK_ERROR=file_receipt")
+    if not set(created_dirs).issubset({str(p) for p in TRACKED_DIRS}):
+        raise SystemExit("DNS9_SERVER_ROLLBACK_ERROR=tracked_dir_receipt")
 
     for target in created:
         info=files.get(target)
@@ -136,6 +142,12 @@ def main()->None:
 
     for target in reversed(created):
         Path(target).unlink()
+
+    for directory in reversed(created_dirs):
+        path=Path(directory)
+        if path.is_symlink() or not path.is_dir():
+            raise RuntimeError("tracked_dir_boundary:"+directory)
+        path.rmdir()
 
     sql("""
 ALTER TABLE custom_dns_connections
