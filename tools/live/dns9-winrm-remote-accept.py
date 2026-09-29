@@ -9,7 +9,7 @@ import stat
 import time
 from pathlib import Path
 
-from dns9_winrm_common import protocol, regular, run_ps, stage_bytes, remove_tree, json_line
+from dns9_winrm_common import protocol, regular, run_ps, stage_bytes, remove_tree, json_line, ps_quote
 
 ROOT=Path(__file__).resolve().parents[2]
 BACKUP_ROOT=Path("/var/backups/phpipam-custom")
@@ -40,7 +40,12 @@ def main()->None:
         raise SystemExit("DNS9_WINRM_ACCEPT_ERROR=root_required")
 
     source={name:regular(path) for name,path in FILES.items()}
-    manifest={name:{"sha256":sha256(data),"bytes":len(data)} for name,data in source.items()}
+    manifest={
+        name:{"sha256":sha256(data),"bytes":len(data)}
+        for name,data in source.items()
+        if name.startswith("collectors/windows/dns/")
+    }
+    fixture_sha256=sha256(source["tests/dns9/autonomous-windows.test.ps1"])
     password=getpass.getpass("WinRM bootstrap password: ")
     if not password:
         raise SystemExit("DNS9_WINRM_ACCEPT_ERROR=password_empty")
@@ -86,7 +91,7 @@ $root=[bool](Test-Path -LiteralPath '{INSTALL_ROOT}')
             stage_bytes(p,remote,data)
 
         fixture=stage+r"\tests\dns9\autonomous-windows.test.ps1"
-        rc,out,err=run_ps(p,f"& {json.dumps(fixture)}")
+        rc,out,err=run_ps(p,"& "+ps_quote(fixture))
         if rc!=0:
             raise RuntimeError("windows_fixture_failed:"+err[:512])
         for marker in [
@@ -116,6 +121,7 @@ $root=[bool](Test-Path -LiteralPath '{INSTALL_ROOT}')
         "transport":"winrm_ntlm_message_encryption",
         "bootstrap_identity_recorded":False,
         "package":manifest,
+        "windows_fixture_sha256":fixture_sha256,
         "windows_fixture_ok":True,
         "windows_fixture_task_created":False,
         "windows_fixture_token_printed":False,
