@@ -32,6 +32,12 @@ for required in [
     "env_vars",
     "Get-FileHash -Algorithm SHA256",
     "DNS9_REMOTE_STAGE_CLEAN=1",
+    'ensure_ntlm_md4_runtime()',
+    'env["DNS9_OPENSSL_LEGACY_REEXEC"]="1"',
+    'env["OPENSSL_CONF"]="/proc/self/fd/"+str(fd)',
+    'os.set_inheritable(fd,True)',
+    'os.memfd_create("phpipam-dns9-openssl",flags=0)',
+    'OPENSSL_LEGACY_CONFIG',
 ]:
     ok(required in common,"common transport contract: "+required)
 
@@ -39,6 +45,9 @@ for forbidden in [
     "send_command_input",
     "stdin_data",
     "proxy=None",
+    "/run/phpipam-dns9-openssl",
+    "tempfile.mkstemp",
+    "/etc/ssl/openssl.cnf",
     'transport="basic"',
     'message_encryption="never"',
     "AllowUnencrypted",
@@ -60,6 +69,7 @@ for required in [
     "windows_fixture_sha256",
     'name.startswith("collectors/windows/dns/")',
     "DNS9_WINRM_ACCEPT_PACKAGE_FILES=",
+    "DNS9_WINRM_ACCEPT_MD4_PROVIDER=",
     "DNS9_WINRM_ACCEPT_OK=1",
 ]:
     ok(required in accept,"WinRM accept contract: "+required)
@@ -91,6 +101,7 @@ for required in [
     "DNS9_WINRM_BOOTSTRAP_TASK_ENABLED=0",
     "DNS9_WINRM_BOOTSTRAP_TASK_STARTED=0",
     "DNS9_WINRM_BOOTSTRAP_TOKEN_PRINTED=0",
+    "DNS9_WINRM_BOOTSTRAP_MD4_PROVIDER=",
     "DNS9_WINRM_BOOTSTRAP_OK=1",
 ]:
     ok(required in boot,"WinRM bootstrap contract: "+required)
