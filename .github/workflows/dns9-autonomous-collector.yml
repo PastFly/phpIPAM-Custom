@@ -21,6 +21,8 @@ on:
       - 'tools/live/dns9-source-accept.sh'
       - 'tools/live/dns9-windows-fixture-stage.py'
       - 'tools/live/dns9-production-preflight.py'
+      - 'tests/dns9/phase-b-preflight-source.test.py'
+      - 'tools/live/dns9-phase-b-preflight.py'
       - 'tools/live/dns9-server-post-install-accept.py'
       - 'tools/live/dns9-server-rollback.py'
       - 'tools/live/dns9-server-install.py'
