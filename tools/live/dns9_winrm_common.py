@@ -2,6 +2,7 @@
 import base64
 import hashlib
 import json
+import os
 import re
 from pathlib import Path
 
@@ -30,6 +31,12 @@ def protocol(server: str, username: str, password: str):
     if not username or len(username)>256 or any(x in username for x in "\r\n\0"):
         raise RuntimeError("username_invalid")
     Protocol=load_protocol()
+    for key in ("NO_PROXY","no_proxy"):
+        current=os.environ.get(key,"")
+        values=[x.strip() for x in current.split(",") if x.strip()]
+        if server not in values:
+            values.append(server)
+        os.environ[key]=",".join(values)
     return Protocol(
         endpoint=f"http://{server}:5985/wsman",
         transport="ntlm",
@@ -38,23 +45,20 @@ def protocol(server: str, username: str, password: str):
         message_encryption="always",
         operation_timeout_sec=20,
         read_timeout_sec=30,
-        proxy=None,
     )
 
 def _decode(data: bytes)->str:
     return data.decode("utf-8","replace").replace("\x00","")
 
-def run(protocol_obj, executable: str, arguments=(), stdin_data: bytes|None=None):
+def run(protocol_obj, executable: str, arguments=(), env_vars: dict[str,str]|None=None):
     shell_id=None
     command_id=None
     try:
-        shell_id=protocol_obj.open_shell(codepage=65001)
+        shell_id=protocol_obj.open_shell(codepage=65001,env_vars=env_vars)
         command_id=protocol_obj.run_command(
             shell_id,executable,arguments,
             console_mode_stdin=True,skip_cmd_shell=True
         )
-        if stdin_data is not None:
-            protocol_obj.send_command_input(shell_id,command_id,stdin_data,end=True)
         out,err,rc=protocol_obj.get_command_output(shell_id,command_id)
         return int(rc),_decode(out),_decode(err)
     finally:
@@ -65,12 +69,12 @@ def run(protocol_obj, executable: str, arguments=(), stdin_data: bytes|None=None
             try: protocol_obj.close_shell(shell_id)
             except Exception: pass
 
-def run_ps(protocol_obj, script: str):
+def run_ps(protocol_obj, script: str, env_vars: dict[str,str]|None=None):
     encoded=base64.b64encode(script.encode("utf-16le")).decode("ascii")
     return run(protocol_obj,"powershell.exe",[
         "-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass",
         "-EncodedCommand",encoded
-    ])
+    ],env_vars=env_vars)
 
 def stage_bytes(protocol_obj, remote_path: str, data: bytes)->str:
     b64=base64.b64encode(data).decode("ascii")
