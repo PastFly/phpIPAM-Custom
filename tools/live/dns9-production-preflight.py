@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import hashlib
+import grp
 import json
 import os
 import stat
@@ -276,9 +277,10 @@ FROM custom_dns_control_jobs WHERE id='{PILOT_JOB_ID}';
 
     if KEYRING.exists() or KEYRING.is_symlink():
         try:
+            www_gid=grp.getgrnam("www-data").gr_gid
             ks=KEYRING.lstat()
             keyring_ready=(not KEYRING.is_symlink() and stat.S_ISREG(ks.st_mode)
-                and stat.S_IMODE(ks.st_mode)==0o640 and ks.st_uid==0 and ks.st_gid==33
+                and stat.S_IMODE(ks.st_mode)==0o640 and ks.st_uid==0 and ks.st_gid==www_gid
                 and ks.st_nlink==1 and 1<=ks.st_size<=4096)
         except Exception:
             keyring_ready=False
