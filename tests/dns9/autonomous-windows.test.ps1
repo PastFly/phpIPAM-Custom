@@ -6,6 +6,8 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
 
+Add-Type -AssemblyName System.Security -ErrorAction Stop
+
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $Files=@(
     (Join-Path $Root 'collectors\windows\dns\Install-PhpIpamDnsCollector.ps1'),
@@ -54,12 +56,12 @@ $entropy=[Text.Encoding]::UTF8.GetBytes('phpipam-dns-control-token-v1')
 $protected=$null
 $roundtrip=$null
 try {
-    $protected=[Security.Cryptography.ProtectedData]::Protect(
-        $bytes,$entropy,[Security.Cryptography.DataProtectionScope]::LocalMachine
+    $protected=[System.Security.Cryptography.ProtectedData]::Protect(
+        $bytes,$entropy,[System.Security.Cryptography.DataProtectionScope]::LocalMachine
     )
     Assert-Dns9 -Value ($protected.Length -gt 32) -Label 'DPAPI LocalMachine protect'
-    $decoded=[Security.Cryptography.ProtectedData]::Unprotect(
-        $protected,$entropy,[Security.Cryptography.DataProtectionScope]::LocalMachine
+    $decoded=[System.Security.Cryptography.ProtectedData]::Unprotect(
+        $protected,$entropy,[System.Security.Cryptography.DataProtectionScope]::LocalMachine
     )
     $roundtrip=[Text.Encoding]::UTF8.GetString($decoded)
     Assert-Dns9 -Value ($roundtrip -ceq $plain) -Label 'DPAPI LocalMachine roundtrip'
