@@ -135,18 +135,37 @@ function Write-DnsPreviewFile {
 
 Import-Module DnsServer -ErrorAction Stop
 
+$serverKey=$Server.Trim().TrimEnd('.').ToLowerInvariant()
+$localNames=@()
+if (-not [string]::IsNullOrWhiteSpace($env:COMPUTERNAME)) {
+    $localNames += $env:COMPUTERNAME.Trim().TrimEnd('.').ToLowerInvariant()
+    if (-not [string]::IsNullOrWhiteSpace($env:USERDNSDOMAIN)) {
+        $localNames += (($env:COMPUTERNAME+'.'+$env:USERDNSDOMAIN).Trim().TrimEnd('.').ToLowerInvariant())
+    }
+    try {
+        $resolvedLocal=[System.Net.Dns]::GetHostEntry($env:COMPUTERNAME).HostName
+        if (-not [string]::IsNullOrWhiteSpace($resolvedLocal)) {
+            $localNames += $resolvedLocal.Trim().TrimEnd('.').ToLowerInvariant()
+        }
+    } catch {}
+}
+$isLocal=@($localNames | Select-Object -Unique) -contains $serverKey
+
 $session = $null
 try {
-    $sessionArgs = @{
-        ComputerName = $Server
-        Authentication = 'Kerberos'
-        OperationTimeoutSec = $OperationTimeoutSeconds
-        ErrorAction = 'Stop'
+    if ($isLocal) {
+        $available = @(Get-DnsServerZone -ErrorAction Stop)
+    } else {
+        $sessionArgs = @{
+            ComputerName = $Server
+            Authentication = 'Kerberos'
+            OperationTimeoutSec = $OperationTimeoutSeconds
+            ErrorAction = 'Stop'
+        }
+        if ($null -ne $Credential) { $sessionArgs.Credential = $Credential }
+        $session = New-CimSession @sessionArgs
+        $available = @(Get-DnsServerZone -CimSession $session -ErrorAction Stop)
     }
-    if ($null -ne $Credential) { $sessionArgs.Credential = $Credential }
-    $session = New-CimSession @sessionArgs
-
-    $available = @(Get-DnsServerZone -CimSession $session -ErrorAction Stop)
     $zoneIndex = @{}
     foreach ($item in $available) {
         $zoneName = [string]$item.ZoneName
@@ -202,7 +221,11 @@ try {
         $zoneName = [string]$zoneIndex[$key].ZoneName
         $records = @()
         foreach ($type in @('A','AAAA','CNAME','PTR')) {
-            $items = @(Get-DnsServerResourceRecord -CimSession $session -ZoneName $zoneName -RRType $type -ErrorAction Stop)
+            if ($isLocal) {
+                $items = @(Get-DnsServerResourceRecord -ZoneName $zoneName -RRType $type -ErrorAction Stop)
+            } else {
+                $items = @(Get-DnsServerResourceRecord -CimSession $session -ZoneName $zoneName -RRType $type -ErrorAction Stop)
+            }
             foreach ($record in $items) {
                 $records += ConvertTo-DnsPreviewRecord -Record $record -ZoneName $zoneName -Type $type
             }
