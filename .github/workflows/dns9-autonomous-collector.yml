@@ -27,6 +27,7 @@ on:
       - 'tools/live/dns9-winrm-client-install.py'
       - 'tests/dns9/winrm-bootstrap-source.test.py'
       - 'tools/live/dns9-winrm-bootstrap.py'
+      - 'tools/live/dns9-winrm-md4-selftest.py'
       - 'tools/live/dns9-winrm-remote-accept.py'
       - 'tools/live/dns9_winrm_common.py'
       - 'tools/live/dns9-server-post-install-accept.py'
