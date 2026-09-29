@@ -174,6 +174,14 @@ def main()->None:
     if KEYRING.exists() or KEYRING.is_symlink():
         raise SystemExit("DNS9_SERVER_INSTALL_ERROR=keyring_already_exists")
     www_gid=grp.getgrnam("www-data").gr_gid
+    if KEYRING.parent.exists() or KEYRING.parent.is_symlink():
+        if KEYRING.parent.is_symlink() or not stat.S_ISDIR(KEYRING.parent.lstat().st_mode):
+            raise SystemExit("DNS9_SERVER_INSTALL_ERROR=keyring_parent_boundary")
+        ps=KEYRING.parent.lstat()
+        pm=stat.S_IMODE(ps.st_mode)
+        traversable=((ps.st_gid==www_gid and (pm & 0o010)!=0) or (pm & 0o001)!=0)
+        if ps.st_uid!=0 or (pm & 0o002)!=0 or not traversable:
+            raise SystemExit("DNS9_SERVER_INSTALL_ERROR=keyring_parent_access")
 
     for src in PHP_TARGETS:
         p=subprocess.run(["php","-l",str(src)],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
@@ -277,8 +285,9 @@ def main()->None:
         keyring_parent_created=False
         if not KEYRING.parent.exists():
             KEYRING.parent.mkdir(parents=True,mode=0o750)
-            os.chown(KEYRING.parent,0,www_gid)
             keyring_parent_created=True
+            os.chmod(KEYRING.parent,0o750)
+            os.chown(KEYRING.parent,0,www_gid)
         elif KEYRING.parent.is_symlink() or not stat.S_ISDIR(KEYRING.parent.lstat().st_mode):
             raise RuntimeError("keyring_parent_boundary")
         atomic_create(KEYRING,key_bytes,0o640,0,www_gid)
