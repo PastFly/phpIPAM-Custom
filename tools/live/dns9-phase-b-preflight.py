@@ -281,7 +281,7 @@ FROM custom_dns_control_jobs WHERE id='{PILOT_JOB_ID}';
     print("DNS9_PHASE_B_WINRM_CLIENT_BOOTSTRAP="+client_bootstrap)
 
     ntlm_route=ports.get("WINRM5985",False) and (
-        "ntlm" in winrm_auth or "negotiate" in winrm_auth or winrm_status in (401,405)
+        "ntlm" in winrm_auth or "negotiate" in winrm_auth
     )
     print("DNS9_PHASE_B_WINRM_NTLM_ROUTE="+("1" if ntlm_route else "0"))
     if ntlm_route and client_bootstrap!="unavailable":
