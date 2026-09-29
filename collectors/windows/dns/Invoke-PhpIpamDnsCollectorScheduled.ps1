@@ -9,6 +9,8 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
 
+Add-Type -AssemblyName System.Security -ErrorAction Stop
+
 $ConfigPath=Join-Path $InstallRoot 'collector.json'
 $TokenPath=Join-Path $InstallRoot 'control-token.dpapi'
 $WorkerPath=Join-Path $InstallRoot 'Invoke-PhpIpamDnsWorkerOnce.ps1'
@@ -90,8 +92,8 @@ try {
     $protected=[IO.File]::ReadAllBytes($TokenPath)
     if($protected.Length -lt 32 -or $protected.Length -gt 8192){throw 'dns9_token_blob_invalid'}
     $entropy=[Text.Encoding]::UTF8.GetBytes($EntropyText)
-    $plainBytes=[Security.Cryptography.ProtectedData]::Unprotect(
-        $protected,$entropy,[Security.Cryptography.DataProtectionScope]::LocalMachine
+    $plainBytes=[System.Security.Cryptography.ProtectedData]::Unprotect(
+        $protected,$entropy,[System.Security.Cryptography.DataProtectionScope]::LocalMachine
     )
     $plain=[Text.Encoding]::UTF8.GetString($plainBytes)
     if(-not [regex]::IsMatch($plain,'^dnsctl1\.[0-9a-f]{32}\.[A-Za-z0-9_-]{43}$')){
