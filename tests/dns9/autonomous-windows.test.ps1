@@ -35,7 +35,7 @@ foreach($file in $Files){
 
 foreach($command in @(
     'New-ScheduledTaskAction','New-ScheduledTaskTrigger','New-ScheduledTaskPrincipal',
-    'New-ScheduledTaskSettingsSet','Register-ScheduledTask','Get-ScheduledTask','Start-ScheduledTask'
+    'New-ScheduledTaskSettingsSet','Register-ScheduledTask','Disable-ScheduledTask','Get-ScheduledTask','Start-ScheduledTask'
 )){
     Assert-Dns9 -Value ($null -ne (Get-Command $command -ErrorAction SilentlyContinue)) -Label ('ScheduledTasks API '+$command)
 }
