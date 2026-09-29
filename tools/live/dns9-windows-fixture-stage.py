@@ -18,6 +18,8 @@ BASE_URI="https://ipam.realistbank.ru/"
 FILES={
     "tests/dns9/autonomous-windows.test.ps1": ROOT/"tests/dns9/autonomous-windows.test.ps1",
     "collectors/windows/dns/Install-PhpIpamDnsCollector.ps1": ROOT/"collectors/windows/dns/Install-PhpIpamDnsCollector.ps1",
+    "collectors/windows/dns/Invoke-PhpIpamDnsWorkerOnce.ps1": ROOT/"collectors/windows/dns/Invoke-PhpIpamDnsWorkerOnce.ps1",
+    "collectors/windows/dns/Invoke-PhpIpamDnsPreview.ps1": ROOT/"collectors/windows/dns/Invoke-PhpIpamDnsPreview.ps1",
     "collectors/windows/dns/Invoke-PhpIpamDnsCollectorScheduled.ps1": ROOT/"collectors/windows/dns/Invoke-PhpIpamDnsCollectorScheduled.ps1",
     "collectors/windows/dns/Get-PhpIpamDnsCollectorStatus.ps1": ROOT/"collectors/windows/dns/Get-PhpIpamDnsCollectorStatus.ps1",
     "collectors/windows/dns/Uninstall-PhpIpamDnsCollector.ps1": ROOT/"collectors/windows/dns/Uninstall-PhpIpamDnsCollector.ps1",
@@ -86,6 +88,8 @@ def publish()->None:
             "$files=@("
             "'tests/dns9/autonomous-windows.test.ps1',"
             "'collectors/windows/dns/Install-PhpIpamDnsCollector.ps1',"
+            "'collectors/windows/dns/Invoke-PhpIpamDnsWorkerOnce.ps1',"
+            "'collectors/windows/dns/Invoke-PhpIpamDnsPreview.ps1',"
             "'collectors/windows/dns/Invoke-PhpIpamDnsCollectorScheduled.ps1',"
             "'collectors/windows/dns/Get-PhpIpamDnsCollectorStatus.ps1',"
             "'collectors/windows/dns/Uninstall-PhpIpamDnsCollector.ps1'"
