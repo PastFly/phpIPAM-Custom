@@ -55,7 +55,7 @@ for required in [
     "DNS9_WINRM_ACCEPT_TOKEN_USED=0",
     "ps_quote",
     "windows_fixture_sha256",
-    "name.startswith("collectors/windows/dns/")",
+    'name.startswith("collectors/windows/dns/")',
     "DNS9_WINRM_ACCEPT_PACKAGE_FILES=",
     "DNS9_WINRM_ACCEPT_OK=1",
 ]:
