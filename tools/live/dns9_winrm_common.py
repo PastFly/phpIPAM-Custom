@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
-import atexit
 import base64
 import hashlib
 import json
 import os
 import re
 import sys
-import tempfile
 from pathlib import Path
 
 OPENSSL_LEGACY_CONFIG="""openssl_conf = openssl_init
@@ -25,22 +23,6 @@ activate = 1
 activate = 1
 """
 
-def _cleanup_legacy_config()->None:
-    path=os.environ.get("DNS9_OPENSSL_LEGACY_CONFIG")
-    if not path:
-        return
-    try:
-        st=os.lstat(path)
-        if os.path.isfile(path) and not os.path.islink(path) and st.st_uid==os.geteuid():
-            os.unlink(path)
-    except FileNotFoundError:
-        pass
-    except OSError:
-        pass
-
-if os.environ.get("DNS9_OPENSSL_LEGACY_CONFIG"):
-    atexit.register(_cleanup_legacy_config)
-
 def _md4_ready()->bool:
     try:
         hashlib.new("md4",b"dns9")
@@ -55,21 +37,16 @@ def ensure_ntlm_md4_runtime()->str:
         raise RuntimeError("ntlm_md4_unavailable_after_legacy_provider")
     if os.geteuid()!=0:
         raise RuntimeError("ntlm_md4_legacy_provider_requires_root")
-    fd,path=tempfile.mkstemp(
-        prefix="phpipam-dns9-openssl-",
-        suffix=".cnf",
-        dir="/run",
-        text=True
-    )
-    try:
-        os.fchmod(fd,0o600)
-        os.write(fd,OPENSSL_LEGACY_CONFIG.encode("ascii"))
-    finally:
-        os.close(fd)
+    if not hasattr(os,"memfd_create"):
+        raise RuntimeError("ntlm_md4_memfd_unavailable")
+    fd=os.memfd_create("phpipam-dns9-openssl",flags=0)
+    os.set_inheritable(fd,True)
+    os.write(fd,OPENSSL_LEGACY_CONFIG.encode("ascii"))
+    os.lseek(fd,0,os.SEEK_SET)
     env=dict(os.environ)
-    env["OPENSSL_CONF"]=path
-    env["DNS9_OPENSSL_LEGACY_CONFIG"]=path
+    env["OPENSSL_CONF"]="/proc/self/fd/"+str(fd)
     env["DNS9_OPENSSL_LEGACY_REEXEC"]="1"
+    env["DNS9_OPENSSL_LEGACY_FD"]=str(fd)
     os.execve(sys.executable,[sys.executable,*sys.argv],env)
     raise RuntimeError("ntlm_md4_reexec_failed")
 
