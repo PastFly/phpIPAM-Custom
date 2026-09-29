@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import hashlib
+import grp
 import json
 import os
 import stat
@@ -100,9 +101,10 @@ def main()->None:
         raise SystemExit("DNS9_SERVER_ACCEPT_ERROR=index_marker")
     print("DNS9_SERVER_ACCEPT_INDEX_OK=1")
 
+    www_gid=grp.getgrnam("www-data").gr_gid
     st=KEYRING.lstat()
     keyring_ok=(not KEYRING.is_symlink() and stat.S_ISREG(st.st_mode)
-        and stat.S_IMODE(st.st_mode)==0o640 and st.st_uid==0 and st.st_gid==33
+        and stat.S_IMODE(st.st_mode)==0o640 and st.st_uid==0 and st.st_gid==www_gid
         and st.st_nlink==1 and 1<=st.st_size<=4096)
     if not keyring_ok:
         raise SystemExit("DNS9_SERVER_ACCEPT_ERROR=keyring_metadata")
