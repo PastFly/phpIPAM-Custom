@@ -55,7 +55,7 @@ for required in [
     "def winrm_auth_probe",
     "HTTPConnection(host,5985",
     '"python3-winrm","python3-requests-ntlm"',
-    '"winrm_ntlm_message_encryption"',
+    "DNS9_PHASE_B_TRANSPORT_SELECTED=winrm_ntlm_message_encryption",
     '"ntlm" in winrm_auth or "negotiate" in winrm_auth',
     "DNS9_PHASE_B_PREFLIGHT_OK=1",
 ]:
