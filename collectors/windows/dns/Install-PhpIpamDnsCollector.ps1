@@ -16,6 +16,8 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
 
+Add-Type -AssemblyName System.Security -ErrorAction Stop
+
 $TaskName='phpIPAM Microsoft DNS Collector'
 $Root=Join-Path $env:ProgramData 'phpIPAM\DnsCollector'
 $WorkerSource=Join-Path $PSScriptRoot 'Invoke-PhpIpamDnsWorkerOnce.ps1'
@@ -82,7 +84,7 @@ try {
     if(-not [regex]::IsMatch($plain,'^dnsctl1\.[0-9a-f]{32}\.[A-Za-z0-9_-]{43}$')){throw 'dns9_token_invalid'}
     $plainBytes=[Text.Encoding]::UTF8.GetBytes($plain)
     $entropy=[Text.Encoding]::UTF8.GetBytes($EntropyText)
-    $protected=[Security.Cryptography.ProtectedData]::Protect($plainBytes,$entropy,[Security.Cryptography.DataProtectionScope]::LocalMachine)
+    $protected=[System.Security.Cryptography.ProtectedData]::Protect($plainBytes,$entropy,[System.Security.Cryptography.DataProtectionScope]::LocalMachine)
     [IO.File]::WriteAllBytes((Join-Path $Root 'control-token.dpapi'),$protected)
 
     Set-Dns9Acl -Path $Root -ExtraIdentity $(if($PrincipalMode -eq 'ServiceAccount'){$ServiceAccount}else{$null})
