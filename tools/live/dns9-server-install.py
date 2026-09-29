@@ -48,6 +48,9 @@ SYSTEMD_SOURCES={
     ROOT/"deploy/dns9/phpipam-dns-autonomous.service": SERVICE_TARGET,
     ROOT/"deploy/dns9/phpipam-dns-autonomous.timer": TIMER_TARGET,
 }
+TRACKED_DIRS=[
+    WEBROOT/"app/admin/integrations/dns",
+]
 
 def sha256(data: bytes)->str:
     return hashlib.sha256(data).hexdigest()
@@ -145,6 +148,18 @@ def main()->None:
     if index_before.decode("utf-8").count(INDEX_MARKER)!=0:
         raise SystemExit("DNS9_SERVER_INSTALL_ERROR=index_marker_state")
 
+    tracked_dir_plan=[]
+    for directory in TRACKED_DIRS:
+        if directory.exists() or directory.is_symlink():
+            if directory.is_symlink() or not stat.S_ISDIR(directory.lstat().st_mode):
+                raise SystemExit("DNS9_SERVER_INSTALL_ERROR=tracked_dir_boundary:"+str(directory))
+            tracked_dir_plan.append((directory,False))
+        else:
+            parent=directory.parent
+            if parent.is_symlink() or not parent.is_dir():
+                raise SystemExit("DNS9_SERVER_INSTALL_ERROR=tracked_dir_parent:"+str(parent))
+            tracked_dir_plan.append((directory,True))
+
     target_manifest={}
     create_targets=[]
     for src,dst in {**PHP_TARGETS,**STATIC_TARGETS}.items():
@@ -165,6 +180,7 @@ def main()->None:
         if p.returncode!=0:
             raise SystemExit("DNS9_SERVER_INSTALL_ERROR=php_lint:"+str(src.relative_to(ROOT)))
 
+    print("DNS9_SERVER_INSTALL_CREATE_DIRS="+str(sum(1 for _d,create in tracked_dir_plan if create)))
     print("DNS9_SERVER_INSTALL_CREATE_FILES="+str(len(create_targets)))
     print("DNS9_SERVER_INSTALL_EXISTING_EXACT="+str(len(target_manifest)-len(create_targets)))
     print("DNS9_SERVER_INSTALL_INDEX_APPEND=1")
@@ -192,6 +208,7 @@ def main()->None:
         "created_at":int(time.time()),
         "files":target_manifest,
         "created_targets":[],
+        "created_dirs":[],
         "index_path":str(LIVE_INDEX),
         "index_backup":str(index_backup),
         "index_before_sha256":sha256(index_before),
@@ -209,11 +226,14 @@ def main()->None:
     os.chmod(receipt_path,0o600)
 
     created=[]
+    created_dirs=[]
     systemd_created=[]
     keyring_created=False
     keyring_parent_created=False
     index_changed=False
     migration_applied=False
+
+    print("DNS9_SERVER_INSTALL_RECEIPT="+str(receipt_path))
 
     try:
         migration=regular(MIGRATION).decode("utf-8")
@@ -224,6 +244,15 @@ def main()->None:
             constraint_count("custom_dns_connection_enabled"),
             constraint_count("custom_dns_connection_legacy_collector_null")] != [0,1,1]:
             raise RuntimeError("migration_postcheck_failed")
+
+        for directory,create in tracked_dir_plan:
+            if not create:
+                continue
+            parent_stat=directory.parent.lstat()
+            mode=stat.S_IMODE(parent_stat.st_mode)
+            directory.mkdir(mode=mode)
+            os.chown(directory,parent_stat.st_uid,parent_stat.st_gid)
+            created_dirs.append(directory)
 
         for src,dst in create_targets:
             data=regular(src)
@@ -281,6 +310,7 @@ def main()->None:
         receipt.update({
             "stage":"installed_inactive",
             "created_targets":[str(p) for p in created],
+            "created_dirs":[str(p) for p in created_dirs],
             "systemd_created":[str(p) for p in systemd_created],
             "migration_applied":True,
             "keyring_created":True,
@@ -337,6 +367,11 @@ def main()->None:
                 if dst.exists() and not dst.is_symlink(): dst.unlink()
             except Exception as e:
                 errors.append("file:"+str(e))
+        for directory in reversed(created_dirs):
+            try:
+                directory.rmdir()
+            except Exception as e:
+                errors.append("tracked_dir:"+str(e))
         if migration_applied:
             try:
                 sql("""
@@ -353,6 +388,7 @@ ALTER TABLE custom_dns_connections
         os.chmod(receipt_path,0o600)
         if errors:
             raise RuntimeError("rollback_incomplete:"+";".join(errors))
+        print("DNS9_SERVER_INSTALL_INTERNAL_ROLLBACK_OK=1")
         raise
 
 if __name__=="__main__":
