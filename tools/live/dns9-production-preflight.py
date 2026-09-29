@@ -75,6 +75,9 @@ MIGRATION=ROOT/"database/dns9/001-autonomous-enable.sql"
 INDEX_APPEND=ROOT/"layers/dns1/app/admin/integrations/index-dns1-append.php"
 LIVE_INDEX=WEBROOT/"app/admin/integrations/index.php"
 INDEX_MARKER="PHPIPAM_CUSTOM_DNS1_CONFIG_INDEX_APPEND_V1"
+TRACKED_DIRS=[
+    WEBROOT/"app/admin/integrations/dns",
+]
 
 EXPECTED_TABLES=[
     "custom_dns_collector_assignments",
@@ -256,6 +259,18 @@ FROM custom_dns_control_jobs WHERE id='{PILOT_JOB_ID}';
     print("DNS9_PREFLIGHT_INDEX_MARKER_COUNT="+str(marker_count))
     if marker_count>1:
         raise SystemExit("DNS9_PRODUCTION_PREFLIGHT_ERROR=integration_index_marker_duplicate")
+
+    tracked_existing=0
+    for directory in TRACKED_DIRS:
+        if directory.exists() or directory.is_symlink():
+            if directory.is_symlink() or not directory.is_dir():
+                raise SystemExit("DNS9_PRODUCTION_PREFLIGHT_ERROR=tracked_dir_boundary:"+str(directory))
+            tracked_existing+=1
+        else:
+            parent=directory.parent
+            if parent.is_symlink() or not parent.is_dir():
+                raise SystemExit("DNS9_PRODUCTION_PREFLIGHT_ERROR=tracked_dir_parent:"+str(parent))
+    print("DNS9_PREFLIGHT_TRACKED_DIR_EXISTING="+str(tracked_existing))
 
     systemd_existing=[]
     for src,dst in SYSTEMD_TARGETS.items():
