@@ -46,6 +46,12 @@ for required in [
     "timer_unexpectedly_enabled",
     "timer_unexpectedly_active",
     "installed_inactive",
+    "TRACKED_DIRS",
+    "DNS9_SERVER_INSTALL_CREATE_DIRS=",
+    '"created_dirs":[]',
+    "created_dirs.append(directory)",
+    "os.chmod(directory,mode)",
+    "DNS9_SERVER_INSTALL_INTERNAL_ROLLBACK_OK=1",
 ]:
     ok(required in install,"installer contract: "+required)
 
@@ -72,6 +78,10 @@ for required in [
     "index_before_gid",
     "keyring_sha256",
     "custom_dns_connection_disabled",
+    "TRACKED_DIRS",
+    'created_dirs=receipt.get("created_dirs")',
+    "tracked_dir_receipt",
+    "path.rmdir()",
 ]:
     ok(required in rollback,"rollback contract: "+required)
 
@@ -86,6 +96,8 @@ for required in [
     "DNS9_SERVER_ACCEPT_FILES_EXACT=",
     "DNS9_SERVER_ACCEPT_PHP_LINTED=",
     "DNS9_SERVER_ACCEPT_INDEX_OK=1",
+    "TRACKED_DIRS",
+    "DNS9_SERVER_ACCEPT_TRACKED_DIRS_OK=1",
     "DNS9_SERVER_ACCEPT_KEYRING_OK=1",
     "grp.getgrnam(\"www-data\").gr_gid",
     "DNS9_SERVER_ACCEPT_SYSTEMD_FILES_OK=1",
