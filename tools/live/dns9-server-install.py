@@ -74,7 +74,8 @@ def one(query: str)->str:
 def atomic_create(path: Path,data: bytes,mode: int=0o644,uid: int=0,gid: int=0)->None:
     if path.exists() or path.is_symlink():
         raise RuntimeError("target_exists:"+str(path))
-    path.parent.mkdir(parents=True,exist_ok=True)
+    if not path.parent.is_dir() or path.parent.is_symlink():
+        raise RuntimeError("target_parent_invalid:"+str(path.parent))
     fd,tmp_name=tempfile.mkstemp(prefix=path.name+".",dir=str(path.parent))
     tmp=Path(tmp_name)
     try:
