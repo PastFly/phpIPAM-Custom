@@ -10,7 +10,7 @@ import stat
 import time
 from pathlib import Path
 
-from dns9_winrm_common import protocol, regular, run, run_ps, stage_bytes, remove_tree, json_line
+from dns9_winrm_common import protocol, regular, run, run_ps, stage_bytes, remove_tree, json_line, ps_quote
 
 ROOT=Path(__file__).resolve().parents[2]
 BACKUP_ROOT=Path("/var/backups/phpipam-custom")
@@ -218,7 +218,7 @@ $configPath=Join-Path $root 'collector.json'
                 uninstall_path=stage+chr(92)+"Uninstall-PhpIpamDnsCollector.ps1"
                 rollback=f"""
 $ErrorActionPreference='Stop'
-$script={json.dumps(uninstall_path)}
+$script={ps_quote(uninstall_path)}
 if(Test-Path -LiteralPath $script -PathType Leaf){{& $script -Confirm:$false}}
 $task=[bool](Get-ScheduledTask -TaskName '{TASK_NAME}' -ErrorAction SilentlyContinue)
 $root=[bool](Test-Path -LiteralPath '{INSTALL_ROOT}')
