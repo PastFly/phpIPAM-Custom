@@ -6,6 +6,7 @@ cd "$ROOT"
 
 python3 tests/dns9/autonomous-source.test.py
 python3 tests/dns9/windows-fixture-stage-source.test.py
+python3 tests/dns9/production-preflight-source.test.py
 python3 - <<'PY'
 from pathlib import Path
 source=Path("tools/live/dns9-windows-fixture-stage.py").read_text()
