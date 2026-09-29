@@ -149,7 +149,7 @@ if (-not [string]::IsNullOrWhiteSpace($env:COMPUTERNAME)) {
         }
     } catch {}
 }
-$isLocal=@($localNames | Select-Object -Unique) -contains $serverKey
+$isLocal=($null -eq $Credential) -and (@($localNames | Select-Object -Unique) -contains $serverKey)
 
 $session = $null
 try {
