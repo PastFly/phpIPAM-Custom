@@ -31,6 +31,8 @@ Scheduled Task:
 
 `phpIPAM Microsoft DNS Collector`
 
+The installer registers the Scheduled Task disabled by default. Enabling it is a separate activation gate; `StartNow` is rejected unless explicit task enablement is requested. This prevents installation from consuming queued work before phpIPAM-side activation checks complete.
+
 Default poll cadence is once per minute. The task uses `MultipleInstances=IgnoreNew`; the runner also takes a machine-wide mutex so overlapping collector cycles fail closed.
 
 ## Token persistence
