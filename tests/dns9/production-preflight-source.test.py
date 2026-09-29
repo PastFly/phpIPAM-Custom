@@ -34,6 +34,8 @@ for required in [
     "systemctl",
     "is-enabled",
     "dns-credentials.key",
+    "DNS9_PREFLIGHT_KEYRING_PARENT_STATE=",
+    "keyring_parent_access",
     "sodium_crypto_aead_xchacha20poly1305_ietf_encrypt",
     "DNS9_PREFLIGHT_WINDOWS_PACKAGE_MANIFEST=",
     "PHPIPAM_CUSTOM_DNS1_CONFIG_INDEX_APPEND_V1",
