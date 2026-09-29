@@ -22,6 +22,8 @@ for required in [
     "dns9-windows-fixture-",
     "autonomous-windows.test.ps1",
     "Install-PhpIpamDnsCollector.ps1",
+    "Invoke-PhpIpamDnsWorkerOnce.ps1",
+    "Invoke-PhpIpamDnsPreview.ps1",
     "Invoke-PhpIpamDnsCollectorScheduled.ps1",
     "Get-PhpIpamDnsCollectorStatus.ps1",
     "Uninstall-PhpIpamDnsCollector.ps1",
