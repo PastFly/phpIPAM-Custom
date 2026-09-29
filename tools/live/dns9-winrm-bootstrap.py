@@ -128,7 +128,7 @@ $root=[bool](Test-Path -LiteralPath '{INSTALL_ROOT}')
             raise RuntimeError("winrm_collector_already_present")
 
         for name,data in source.items():
-            stage_bytes(p,stage+"\"+name,data)
+            stage_bytes(p,stage+chr(92)+name,data)
 
         bootstrap=r"""param([Parameter(Mandatory=$true)][string]$Stage)
 Set-StrictMode -Version 2.0
@@ -215,9 +215,10 @@ $configPath=Join-Path $root 'collector.json'
         control_token=""
         if installed:
             try:
+                uninstall_path=stage+chr(92)+"Uninstall-PhpIpamDnsCollector.ps1"
                 rollback=f"""
 $ErrorActionPreference='Stop'
-$script={json.dumps(stage+r'\Uninstall-PhpIpamDnsCollector.ps1')}
+$script={json.dumps(uninstall_path)}
 if(Test-Path -LiteralPath $script -PathType Leaf){{& $script -Confirm:$false}}
 $task=[bool](Get-ScheduledTask -TaskName '{TASK_NAME}' -ErrorAction SilentlyContinue)
 $root=[bool](Test-Path -LiteralPath '{INSTALL_ROOT}')
