@@ -53,6 +53,10 @@ for required in [
     "production_collector_present_before",
     "bootstrap_identity_recorded",
     "DNS9_WINRM_ACCEPT_TOKEN_USED=0",
+    "ps_quote",
+    "windows_fixture_sha256",
+    "name.startswith("collectors/windows/dns/")",
+    "DNS9_WINRM_ACCEPT_PACKAGE_FILES=",
     "DNS9_WINRM_ACCEPT_OK=1",
 ]:
     ok(required in accept,"WinRM accept contract: "+required)
@@ -77,6 +81,7 @@ for required in [
     "DNS9_AUTONOMOUS_START_NOW=0",
     "DNS9_AUTONOMOUS_TOKEN_PRINTED=0",
     "remote_task_not_disabled",
+    "ps_quote(uninstall_path)",
     "installed_disabled",
     "control_token_recorded",
     "bootstrap_identity_recorded",
