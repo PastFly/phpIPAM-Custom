@@ -251,8 +251,9 @@ def main()->None:
             parent_stat=directory.parent.lstat()
             mode=stat.S_IMODE(parent_stat.st_mode)
             directory.mkdir(mode=mode)
-            os.chown(directory,parent_stat.st_uid,parent_stat.st_gid)
             created_dirs.append(directory)
+            os.chmod(directory,mode)
+            os.chown(directory,parent_stat.st_uid,parent_stat.st_gid)
 
         for src,dst in create_targets:
             data=regular(src)
