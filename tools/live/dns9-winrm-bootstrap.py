@@ -136,7 +136,8 @@ $ErrorActionPreference='Stop'
 $tokenLine=$null
 $secure=$null
 try {
-    $tokenLine=[Console]::In.ReadLine()
+    $tokenLine=[string]$env:PHPIPAM_DNS9_CONTROL_TOKEN
+$env:PHPIPAM_DNS9_CONTROL_TOKEN=$null
     if(-not [regex]::IsMatch($tokenLine,'^dnsctl1\.[0-9a-f]{32}\.[A-Za-z0-9_-]{43}$')){throw 'dns9_bootstrap_token_invalid'}
     $secure=ConvertTo-SecureString -String $tokenLine -AsPlainText -Force
     & (Join-Path $Stage 'Install-PhpIpamDnsCollector.ps1') `
@@ -157,7 +158,7 @@ finally {
             p,"powershell.exe",
             ["-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass",
              "-File",bootstrap_path,"-Stage",stage],
-            stdin_data=(control_token+"\r\n").encode("ascii")
+            env_vars={"PHPIPAM_DNS9_CONTROL_TOKEN":control_token}
         )
         control_token=""
         if rc!=0:
