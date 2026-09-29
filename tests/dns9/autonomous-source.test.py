@@ -14,6 +14,7 @@ VIEW=ROOT/"layers/dns1/functions/classes/class.IntegrationDnsAdminView.php"
 UI=ROOT/"layers/dns1/app/admin/integrations/dns/config.js"
 SYSTEMD_SERVICE=ROOT/"deploy/dns9/phpipam-dns-autonomous.service"
 SYSTEMD_TIMER=ROOT/"deploy/dns9/phpipam-dns-autonomous.timer"
+WINDOWS_FIXTURE=ROOT/"tests/dns9/autonomous-windows.test.ps1"
 
 n=0
 def ok(v,label):
@@ -22,7 +23,7 @@ def ok(v,label):
     if not v:
         raise AssertionError(label)
 
-for path in (INSTALL,RUNNER,STATUS,UNINSTALL,DESIGN,ENABLE_SQL,ADMIN,CONTROLLER,VIEW,UI,SYSTEMD_SERVICE,SYSTEMD_TIMER):
+for path in (INSTALL,RUNNER,STATUS,UNINSTALL,DESIGN,ENABLE_SQL,ADMIN,CONTROLLER,VIEW,UI,SYSTEMD_SERVICE,SYSTEMD_TIMER,WINDOWS_FIXTURE):
     ok(path.is_file(),path.name+" exists")
 
 install=INSTALL.read_text()
@@ -37,6 +38,7 @@ view=VIEW.read_text()
 ui=UI.read_text()
 systemd_service=SYSTEMD_SERVICE.read_text()
 systemd_timer=SYSTEMD_TIMER.read_text()
+windows_fixture=WINDOWS_FIXTURE.read_text()
 
 for required in [
     "New-ScheduledTaskAction",
@@ -175,8 +177,16 @@ for required in [
     ok(required in systemd_timer,"systemd timer interval: "+required)
 ok("curl " not in systemd_service and "wget " not in systemd_service,"server scheduler does not shell-fetch code")
 
-print(f"DNS9_AUTONOMOUS_SOURCE_ASSERTIONS={n}")
-print("DNS9_AUTONOMOUS_SOURCE_TESTS_OK=1")
-
 ok("[Security.Cryptography.ProtectedData]" not in install,"installer has no short DPAPI type")
 ok("[Security.Cryptography.ProtectedData]" not in runner,"runner has no short DPAPI type")
+ok("[Security.Cryptography.ProtectedData]" not in windows_fixture,"fixture has no short DPAPI type")
+for required in [
+    "Add-Type -AssemblyName System.Security -ErrorAction Stop",
+    "System.Security.Cryptography.ProtectedData]::Protect",
+    "System.Security.Cryptography.ProtectedData]::Unprotect",
+    "System.Security.Cryptography.DataProtectionScope]::LocalMachine",
+]:
+    ok(required in windows_fixture,"Windows fixture DPAPI compatibility: "+required)
+
+print(f"DNS9_AUTONOMOUS_SOURCE_ASSERTIONS={n}")
+print("DNS9_AUTONOMOUS_SOURCE_TESTS_OK=1")
