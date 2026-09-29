@@ -6,7 +6,12 @@ cd "$ROOT"
 
 python3 tests/dns9/autonomous-source.test.py
 python3 tests/dns9/windows-fixture-stage-source.test.py
-python3 -m py_compile tools/live/dns9-windows-fixture-stage.py
+python3 - <<'PY'
+from pathlib import Path
+source=Path("tools/live/dns9-windows-fixture-stage.py").read_text()
+compile(source,"tools/live/dns9-windows-fixture-stage.py","exec")
+print("DNS9_SOURCE_FIXTURE_STAGE_PYTHON_COMPILE=1")
+PY
 
 php -l layers/dns9/functions/classes/class.IntegrationDnsAutonomousScheduler.php
 php -l layers/dns9/functions/classes/class.IntegrationDnsAutonomousAdminService.php
