@@ -30,7 +30,7 @@ for required in [
     "PILOT_COLLECTOR_ID",
     "PILOT_JOB_ID",
     "pilot_job_consumed_or_drifted",
-    "php -l",
+    '["php","-l",str(src)]',
     "systemctl",
     "is-enabled",
     "dns-credentials.key",
