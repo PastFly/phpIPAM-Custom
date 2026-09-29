@@ -27,15 +27,18 @@ for required in [
     'endpoint=f"http://{server}:5985/wsman"',
     'transport="ntlm"',
     'message_encryption="always"',
-    'proxy=None',
-    "send_command_input",
-    "stdin_data",
+    'os.environ[key]=",".join(values)',
+    '"NO_PROXY","no_proxy"',
+    "env_vars",
     "Get-FileHash -Algorithm SHA256",
     "DNS9_REMOTE_STAGE_CLEAN=1",
 ]:
     ok(required in common,"common transport contract: "+required)
 
 for forbidden in [
+    "send_command_input",
+    "stdin_data",
+    "proxy=None",
     'transport="basic"',
     'message_encryption="never"',
     "AllowUnencrypted",
@@ -73,8 +76,8 @@ for required in [
     "/root/phpipam-dns-e2e-pilot-token",
     "st_nlink!=1",
     "winrm_ntlm_message_encryption",
-    "stdin_data=(control_token+",
-    "[Console]::In.ReadLine()",
+    'env_vars={"PHPIPAM_DNS9_CONTROL_TOKEN":control_token}',
+    "$env:PHPIPAM_DNS9_CONTROL_TOKEN=$null",
     "-PrincipalMode System",
     "-DnsCredentialMode CollectorIdentity",
     "DNS9_AUTONOMOUS_TASK_ENABLED=0",
