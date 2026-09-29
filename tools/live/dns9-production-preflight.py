@@ -290,9 +290,21 @@ FROM custom_dns_control_jobs WHERE id='{PILOT_JOB_ID}';
     if timer_enabled:
         raise SystemExit("DNS9_PRODUCTION_PREFLIGHT_ERROR=timer_already_enabled")
 
+    www_gid=grp.getgrnam("www-data").gr_gid
+    if KEYRING.parent.exists() or KEYRING.parent.is_symlink():
+        if KEYRING.parent.is_symlink() or not stat.S_ISDIR(KEYRING.parent.lstat().st_mode):
+            raise SystemExit("DNS9_PRODUCTION_PREFLIGHT_ERROR=keyring_parent_boundary")
+        ps=KEYRING.parent.lstat()
+        pm=stat.S_IMODE(ps.st_mode)
+        traversable=((ps.st_gid==www_gid and (pm & 0o010)!=0) or (pm & 0o001)!=0)
+        if ps.st_uid!=0 or (pm & 0o002)!=0 or not traversable:
+            raise SystemExit("DNS9_PRODUCTION_PREFLIGHT_ERROR=keyring_parent_access")
+        print("DNS9_PREFLIGHT_KEYRING_PARENT_STATE=existing_usable")
+    else:
+        print("DNS9_PREFLIGHT_KEYRING_PARENT_STATE=absent_will_create")
+
     if KEYRING.exists() or KEYRING.is_symlink():
         try:
-            www_gid=grp.getgrnam("www-data").gr_gid
             ks=KEYRING.lstat()
             keyring_ready=(not KEYRING.is_symlink() and stat.S_ISREG(ks.st_mode)
                 and stat.S_IMODE(ks.st_mode)==0o640 and ks.st_uid==0 and ks.st_gid==www_gid
