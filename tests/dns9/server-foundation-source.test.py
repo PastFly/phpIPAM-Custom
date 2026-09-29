@@ -75,7 +75,7 @@ for required in [
 ]:
     ok(required in rollback,"rollback contract: "+required)
 
-ok("systemctl","enable" not in rollback,"rollback never enables timer")
+ok('["systemctl","enable"' not in rollback,"rollback never enables timer")
 ok("Register-ScheduledTask" not in rollback,"rollback has no Windows task registration")
 ok("DROP TABLE" not in rollback,"rollback has no table drop")
 
