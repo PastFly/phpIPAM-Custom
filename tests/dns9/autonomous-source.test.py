@@ -4,6 +4,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
 INSTALL=ROOT/"collectors/windows/dns/Install-PhpIpamDnsCollector.ps1"
 RUNNER=ROOT/"collectors/windows/dns/Invoke-PhpIpamDnsCollectorScheduled.ps1"
+PREVIEW=ROOT/"collectors/windows/dns/Invoke-PhpIpamDnsPreview.ps1"
 STATUS=ROOT/"collectors/windows/dns/Get-PhpIpamDnsCollectorStatus.ps1"
 UNINSTALL=ROOT/"collectors/windows/dns/Uninstall-PhpIpamDnsCollector.ps1"
 DESIGN=ROOT/"design/DNS9_AUTONOMOUS_WINDOWS_COLLECTOR.md"
@@ -23,11 +24,12 @@ def ok(v,label):
     if not v:
         raise AssertionError(label)
 
-for path in (INSTALL,RUNNER,STATUS,UNINSTALL,DESIGN,ENABLE_SQL,ADMIN,CONTROLLER,VIEW,UI,SYSTEMD_SERVICE,SYSTEMD_TIMER,WINDOWS_FIXTURE):
+for path in (INSTALL,RUNNER,PREVIEW,STATUS,UNINSTALL,DESIGN,ENABLE_SQL,ADMIN,CONTROLLER,VIEW,UI,SYSTEMD_SERVICE,SYSTEMD_TIMER,WINDOWS_FIXTURE):
     ok(path.is_file(),path.name+" exists")
 
 install=INSTALL.read_text()
 runner=RUNNER.read_text()
+preview=PREVIEW.read_text()
 status=STATUS.read_text()
 uninstall=UNINSTALL.read_text()
 design=DESIGN.read_text()
@@ -54,7 +56,6 @@ for required in [
     "SYSTEM",
     "DnsCredentialMode",
     "CollectorIdentity",
-    "dns9_collector_identity_requires_service_account",
     "*S-1-5-18:(OI)(CI)F",
     "*S-1-5-32-544:(OI)(CI)F",
     "DNS9_AUTONOMOUS_TOKEN_PRINTED=0",
@@ -62,6 +63,7 @@ for required in [
     ok(required in install,"installer boundary: "+required)
 
 ok("-Password" not in install,"installer does not accept scheduled-task password")
+ok("dns9_collector_identity_requires_service_account" not in install,"System + collector_identity allowed")
 ok("Write-Output $plain" not in install,"installer does not print token plaintext")
 ok("Set-DnsServer" not in install and "Add-DnsServer" not in install and "Remove-DnsServer" not in install,"installer has no DNS write cmdlets")
 
@@ -84,6 +86,17 @@ ok("Write-Output $plain" not in runner,"runner does not print token plaintext")
 ok("Set-DnsServer" not in runner and "Add-DnsServer" not in runner and "Remove-DnsServer" not in runner,"runner has no DNS write cmdlets")
 ok("while(" not in runner.lower() and "while (" not in runner.lower(),"runner has no permanent polling loop")
 ok("Start-Sleep" not in runner,"runner has no retry sleep loop")
+
+for required in [
+    "$serverKey=$Server.Trim().TrimEnd('.').ToLowerInvariant()",
+    "$isLocal=",
+    "Get-DnsServerZone -ErrorAction Stop",
+    "Get-DnsServerResourceRecord -ZoneName $zoneName -RRType $type -ErrorAction Stop",
+    "Authentication = 'Kerberos'",
+]:
+    ok(required in preview,"local preview boundary: "+required)
+ok("Set-DnsServer" not in preview and "Add-DnsServer" not in preview and "Remove-DnsServer" not in preview,
+   "preview has no DNS write cmdlets")
 
 for required in [
     "Get-ScheduledTask",
