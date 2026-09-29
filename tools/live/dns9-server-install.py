@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import hashlib
+import grp
 import json
 import os
 import secrets
@@ -156,6 +157,7 @@ def main()->None:
 
     if KEYRING.exists() or KEYRING.is_symlink():
         raise SystemExit("DNS9_SERVER_INSTALL_ERROR=keyring_already_exists")
+    www_gid=grp.getgrnam("www-data").gr_gid
 
     for src in PHP_TARGETS:
         p=subprocess.run(["php","-l",str(src)],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
@@ -244,11 +246,11 @@ def main()->None:
         keyring_parent_created=False
         if not KEYRING.parent.exists():
             KEYRING.parent.mkdir(parents=True,mode=0o750)
-            os.chown(KEYRING.parent,0,0)
+            os.chown(KEYRING.parent,0,www_gid)
             keyring_parent_created=True
         elif KEYRING.parent.is_symlink() or not stat.S_ISDIR(KEYRING.parent.lstat().st_mode):
             raise RuntimeError("keyring_parent_boundary")
-        atomic_create(KEYRING,key_bytes,0o640,0,33)
+        atomic_create(KEYRING,key_bytes,0o640,0,www_gid)
         keyring_created=True
         key_hex=""
         key_bytes=b""
