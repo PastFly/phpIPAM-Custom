@@ -1,0 +1,113 @@
+#!/usr/bin/env python3
+import base64
+import hashlib
+import json
+import re
+from pathlib import Path
+
+def sha256(data: bytes)->str:
+    return hashlib.sha256(data).hexdigest()
+
+def regular(path: Path)->bytes:
+    st=path.lstat()
+    if path.is_symlink() or not path.is_file():
+        raise RuntimeError("file_boundary_invalid:"+str(path))
+    return path.read_bytes()
+
+def ps_quote(value: str)->str:
+    return "'" + value.replace("'","''") + "'"
+
+def load_protocol():
+    try:
+        from winrm.protocol import Protocol
+    except Exception as exc:
+        raise RuntimeError("pywinrm_unavailable") from exc
+    return Protocol
+
+def protocol(server: str, username: str, password: str):
+    if not re.fullmatch(r"(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?",server):
+        raise RuntimeError("server_invalid")
+    if not username or len(username)>256 or any(x in username for x in "\r\n\0"):
+        raise RuntimeError("username_invalid")
+    Protocol=load_protocol()
+    return Protocol(
+        endpoint=f"http://{server}:5985/wsman",
+        transport="ntlm",
+        username=username,
+        password=password,
+        message_encryption="always",
+        operation_timeout_sec=20,
+        read_timeout_sec=30,
+        proxy=None,
+    )
+
+def _decode(data: bytes)->str:
+    return data.decode("utf-8","replace").replace("\x00","")
+
+def run(protocol_obj, executable: str, arguments=(), stdin_data: bytes|None=None):
+    shell_id=None
+    command_id=None
+    try:
+        shell_id=protocol_obj.open_shell(codepage=65001)
+        command_id=protocol_obj.run_command(
+            shell_id,executable,arguments,
+            console_mode_stdin=True,skip_cmd_shell=True
+        )
+        if stdin_data is not None:
+            protocol_obj.send_command_input(shell_id,command_id,stdin_data,end=True)
+        out,err,rc=protocol_obj.get_command_output(shell_id,command_id)
+        return int(rc),_decode(out),_decode(err)
+    finally:
+        if shell_id is not None and command_id is not None:
+            try: protocol_obj.cleanup_command(shell_id,command_id)
+            except Exception: pass
+        if shell_id is not None:
+            try: protocol_obj.close_shell(shell_id)
+            except Exception: pass
+
+def run_ps(protocol_obj, script: str):
+    encoded=base64.b64encode(script.encode("utf-16le")).decode("ascii")
+    return run(protocol_obj,"powershell.exe",[
+        "-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass",
+        "-EncodedCommand",encoded
+    ])
+
+def stage_bytes(protocol_obj, remote_path: str, data: bytes)->str:
+    b64=base64.b64encode(data).decode("ascii")
+    expected=sha256(data)
+    script=f"""
+$ErrorActionPreference='Stop'
+$path={ps_quote(remote_path)}
+$parent=Split-Path -Parent $path
+if(-not (Test-Path -LiteralPath $parent -PathType Container)){{
+    New-Item -ItemType Directory -Path $parent -Force | Out-Null
+}}
+[IO.File]::WriteAllBytes($path,[Convert]::FromBase64String({ps_quote(b64)}))
+$actual=(Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLowerInvariant()
+if($actual -cne {ps_quote(expected)}){{throw 'dns9_stage_hash_mismatch'}}
+Write-Output ('DNS9_STAGE_SHA256='+$actual)
+"""
+    rc,out,err=run_ps(protocol_obj,script)
+    if rc!=0 or ("DNS9_STAGE_SHA256="+expected) not in out:
+        raise RuntimeError("remote_stage_failed:"+remote_path+":"+err[:512])
+    return expected
+
+def remove_tree(protocol_obj, remote_path: str)->None:
+    script=f"""
+$ErrorActionPreference='Stop'
+$path={ps_quote(remote_path)}
+if(Test-Path -LiteralPath $path){{
+    Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction Stop
+}}
+Write-Output 'DNS9_REMOTE_STAGE_CLEAN=1'
+"""
+    rc,out,err=run_ps(protocol_obj,script)
+    if rc!=0 or "DNS9_REMOTE_STAGE_CLEAN=1" not in out:
+        raise RuntimeError("remote_stage_cleanup_failed:"+err[:512])
+
+def json_line(output: str, prefix: str):
+    for line in output.splitlines():
+        line=line.strip()
+        if line.startswith(prefix):
+            return json.loads(line[len(prefix):])
+    raise RuntimeError("remote_json_marker_missing:"+prefix)
