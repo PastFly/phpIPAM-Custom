@@ -9,6 +9,7 @@ param(
     [Parameter(Mandatory=$false)][ValidateRange(1,15)][int]$PollIntervalMinutes=1,
     [Parameter(Mandatory=$false)][ValidateRange(5,120)][int]$HttpTimeoutSeconds=30,
     [Parameter(Mandatory=$false)][ValidateRange(15,180)][int]$DnsTimeoutSeconds=60,
+    [Parameter(Mandatory=$false)][switch]$EnableTask,
     [Parameter(Mandatory=$false)][switch]$StartNow
 )
 
@@ -44,6 +45,8 @@ function Set-Dns9Acl {
 }
 
 Assert-Dns9Admin
+
+if($StartNow -and -not $EnableTask){throw 'dns9_start_requires_enabled_task'}
 
 if(-not $PhpIpamBaseUri.IsAbsoluteUri -or $PhpIpamBaseUri.Scheme -ne 'https' -or -not [string]::IsNullOrEmpty($PhpIpamBaseUri.UserInfo) -or -not [string]::IsNullOrEmpty($PhpIpamBaseUri.Query) -or -not [string]::IsNullOrEmpty($PhpIpamBaseUri.Fragment)){throw 'dns9_base_uri_invalid'}
 if($PrincipalMode -eq 'ServiceAccount'){
@@ -99,6 +102,9 @@ try {
     Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings | Out-Null
     $taskCreated=$true
 
+    if(-not $EnableTask){
+        Disable-ScheduledTask -TaskName $TaskName | Out-Null
+    }
     if($StartNow){Start-ScheduledTask -TaskName $TaskName}
 
     Write-Output 'DNS9_AUTONOMOUS_INSTALL_OK=1'
@@ -107,6 +113,7 @@ try {
     Write-Output ('DNS9_AUTONOMOUS_DNS_CREDENTIAL_MODE='+$DnsCredentialMode)
     if($PrincipalMode -eq 'ServiceAccount'){Write-Output ('DNS9_AUTONOMOUS_SERVICE_ACCOUNT='+$ServiceAccount)}
     Write-Output ('DNS9_AUTONOMOUS_INTERVAL_MINUTES='+$PollIntervalMinutes)
+    Write-Output ('DNS9_AUTONOMOUS_TASK_ENABLED='+([int][bool]$EnableTask))
     Write-Output ('DNS9_AUTONOMOUS_START_NOW='+([int][bool]$StartNow))
     Write-Output 'DNS9_AUTONOMOUS_TOKEN_PRINTED=0'
 }
