@@ -25,7 +25,7 @@ for required in [
     "apt-get",
     "apt-cache",
     "dpkg-query",
-    "apt-get","-s","install",
+    '["apt-get","-s","install"',
     "--no-install-recommends",
     "message_encryption",
     "DNS9_WINRM_CLIENT_DRY_RUN=1",
@@ -37,7 +37,7 @@ for required in [
     "dns9-winrm-client-install-",
     "receipt.json",
     "rollback_after_failure",
-    "apt-get","remove",
+    '["apt-get","remove"',
     "DNS9_WINRM_CLIENT_INTERNAL_ROLLBACK_OK=1",
     "DNS9_WINRM_CLIENT_IMPORTS_OK=1",
     "DNS9_WINRM_CLIENT_OK=1",
@@ -52,9 +52,9 @@ for forbidden in [
     "Set-DnsServer",
     "Add-DnsServer",
     "Remove-DnsServer",
-    "apt-get","upgrade",
-    "apt-get","dist-upgrade",
-    "apt-get","autoremove",
+    '["apt-get","upgrade"',
+    '["apt-get","dist-upgrade"',
+    '["apt-get","autoremove"',
 ]:
     ok(forbidden not in src,"WinRM client installer forbidden: "+forbidden)
 
