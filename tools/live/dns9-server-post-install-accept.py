@@ -16,6 +16,9 @@ SERVICE=Path("/etc/systemd/system/phpipam-dns-autonomous.service")
 TIMER=Path("/etc/systemd/system/phpipam-dns-autonomous.timer")
 INDEX=WEBROOT/"app/admin/integrations/index.php"
 INDEX_MARKER="PHPIPAM_CUSTOM_DNS1_CONFIG_INDEX_APPEND_V1"
+TRACKED_DIRS=[
+    WEBROOT/"app/admin/integrations/dns",
+]
 
 TARGETS={
     ROOT/"layers/dns1/functions/classes/class.IntegrationDnsCipher.php": WEBROOT/"functions/classes/class.IntegrationDnsCipher.php",
@@ -79,6 +82,11 @@ def main()->None:
         count_constraint("custom_dns_connection_legacy_collector_null")] != [0,1,1]:
         raise SystemExit("DNS9_SERVER_ACCEPT_ERROR=constraint_state")
     print("DNS9_SERVER_ACCEPT_MIGRATION_OK=1")
+
+    for directory in TRACKED_DIRS:
+        if directory.is_symlink() or not directory.is_dir():
+            raise SystemExit("DNS9_SERVER_ACCEPT_ERROR=tracked_dir_boundary:"+str(directory))
+    print("DNS9_SERVER_ACCEPT_TRACKED_DIRS_OK=1")
 
     exact=0
     php_linted=0
