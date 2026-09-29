@@ -11,6 +11,8 @@ Add-Type -AssemblyName System.Security -ErrorAction Stop
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $Files=@(
     (Join-Path $Root 'collectors\windows\dns\Install-PhpIpamDnsCollector.ps1'),
+    (Join-Path $Root 'collectors\windows\dns\Invoke-PhpIpamDnsWorkerOnce.ps1'),
+    (Join-Path $Root 'collectors\windows\dns\Invoke-PhpIpamDnsPreview.ps1'),
     (Join-Path $Root 'collectors\windows\dns\Invoke-PhpIpamDnsCollectorScheduled.ps1'),
     (Join-Path $Root 'collectors\windows\dns\Get-PhpIpamDnsCollectorStatus.ps1'),
     (Join-Path $Root 'collectors\windows\dns\Uninstall-PhpIpamDnsCollector.ps1')
