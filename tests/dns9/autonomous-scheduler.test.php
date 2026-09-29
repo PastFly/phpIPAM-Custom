@@ -53,7 +53,7 @@ $base=[
     'credential_version'=>9
 ];
 
-$scheduler=new IntegrationDnsAutonomousScheduler($repo,static fn(): int=>$now);
+$scheduler=new IntegrationDnsAutonomousScheduler($repo,static function() use (&$now): int { return $now; });
 $r=$scheduler->run([$base]);
 ok($r['queued_count']===1,'first due job queued');
 ok(count($repo->jobs)===1,'one job persisted');
