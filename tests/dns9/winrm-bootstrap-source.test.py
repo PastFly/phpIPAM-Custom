@@ -91,7 +91,7 @@ for forbidden in [
     "print(control_token",
     "print(password",
     "password_recorded",
-    "control_token_recorded":True",
+    '"control_token_recorded":true',
     "-EnableTask",
     "-StartNow",
     "systemctl",
