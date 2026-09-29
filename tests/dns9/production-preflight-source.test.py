@@ -37,6 +37,10 @@ for required in [
     "sodium_crypto_aead_xchacha20poly1305_ietf_encrypt",
     "DNS9_PREFLIGHT_WINDOWS_PACKAGE_MANIFEST=",
     "PHPIPAM_CUSTOM_DNS1_CONFIG_INDEX_APPEND_V1",
+    "TRACKED_DIRS",
+    "DNS9_PREFLIGHT_TRACKED_DIR_EXISTING=",
+    "tracked_dir_boundary",
+    "tracked_dir_parent",
 ]:
     ok(required in src,"preflight contract: "+required)
 
