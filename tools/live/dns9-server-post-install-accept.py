@@ -110,6 +110,16 @@ def main()->None:
     print("DNS9_SERVER_ACCEPT_INDEX_OK=1")
 
     www_gid=grp.getgrnam("www-data").gr_gid
+    parent=KEYRING.parent
+    if parent.is_symlink() or not parent.is_dir():
+        raise SystemExit("DNS9_SERVER_ACCEPT_ERROR=keyring_parent_boundary")
+    ps=parent.lstat()
+    pm=stat.S_IMODE(ps.st_mode)
+    traversable=((ps.st_gid==www_gid and (pm & 0o010)!=0) or (pm & 0o001)!=0)
+    if ps.st_uid!=0 or (pm & 0o002)!=0 or not traversable:
+        raise SystemExit("DNS9_SERVER_ACCEPT_ERROR=keyring_parent_access")
+    print("DNS9_SERVER_ACCEPT_KEYRING_PARENT_OK=1")
+
     st=KEYRING.lstat()
     keyring_ok=(not KEYRING.is_symlink() and stat.S_ISREG(st.st_mode)
         and stat.S_IMODE(st.st_mode)==0o640 and st.st_uid==0 and st.st_gid==www_gid
