@@ -4,6 +4,21 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
+python3 - <<'PY'
+from pathlib import Path
+paths=sorted(set(
+    Path("tests/dns9").glob("*.py")
+) | set(
+    Path("tools/live").glob("dns9*.py")
+))
+count=0
+for path in paths:
+    source=path.read_text()
+    compile(source,str(path),"exec")
+    count+=1
+print(f"DNS9_SOURCE_PYTHON_COMPILE={count}")
+PY
+
 python3 tests/dns9/autonomous-source.test.py
 python3 tests/dns9/windows-fixture-stage-source.test.py
 python3 tests/dns9/production-preflight-source.test.py
