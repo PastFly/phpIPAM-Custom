@@ -54,8 +54,8 @@ for required in [
     "def apt_candidate",
     "def winrm_auth_probe",
     "HTTPConnection(host,5985",
-    ""python3-winrm","python3-requests-ntlm"",
-    ""winrm_ntlm_message_encryption"",
+    '"python3-winrm","python3-requests-ntlm"',
+    '"winrm_ntlm_message_encryption"',
     "DNS9_PHASE_B_PREFLIGHT_OK=1",
 ]:
     ok(required in src,"Phase B preflight contract: "+required)
