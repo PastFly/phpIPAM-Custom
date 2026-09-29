@@ -50,10 +50,10 @@ The runner decrypts the DPAPI blob only in memory, converts it to SecureString f
 
 Two task-principal modes are supported:
 
-1. `System` — recommended when the phpIPAM connection uses a centrally managed credential profile. The Scheduled Task itself needs no domain password.
-2. `ServiceAccount` — for `collector_identity`. The intended account is a gMSA or equivalent passwordless Windows service account with delegated read-only DNS rights.
+1. `System` — recommended when the collector runs on the DNS server itself. It supports both a centrally managed credential profile and local `collector_identity`; for the latter the preview uses the local DnsServer provider directly instead of creating a Kerberos CIM hop back to the same server.
+2. `ServiceAccount` — optional for deployments that deliberately need a delegated gMSA/passwordless service identity.
 
-A normal interactive administrator account is not the intended long-term task identity.
+A normal interactive administrator account is not the intended long-term task identity. Administrative credentials, when needed for remote installation, are bootstrap-only and are not the collector runtime identity.
 
 ## Runtime
 
@@ -90,7 +90,7 @@ The phpIPAM side will own:
 - health/status display;
 - later selected-zone snapshot ingestion.
 
-The Windows side is only a least-privilege execution agent.
+The Windows side is only an execution agent. The default local collector runs as LocalSystem because it must create a durable Scheduled Task and query the local DNS provider without persisting a domain password; routine DNS operations remain read-only.
 
 ## Current boundary
 
