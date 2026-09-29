@@ -136,6 +136,10 @@ def main()->None:
     if not LIVE_INDEX.is_file() or LIVE_INDEX.is_symlink():
         raise SystemExit("DNS9_SERVER_INSTALL_ERROR=integration_index_boundary")
     index_before=regular(LIVE_INDEX)
+    index_stat=LIVE_INDEX.lstat()
+    index_mode=stat.S_IMODE(index_stat.st_mode)
+    index_uid=index_stat.st_uid
+    index_gid=index_stat.st_gid
     if index_before.decode("utf-8").count(INDEX_MARKER)!=0:
         raise SystemExit("DNS9_SERVER_INSTALL_ERROR=index_marker_state")
 
@@ -188,6 +192,9 @@ def main()->None:
         "index_path":str(LIVE_INDEX),
         "index_backup":str(index_backup),
         "index_before_sha256":sha256(index_before),
+        "index_before_mode":index_mode,
+        "index_before_uid":index_uid,
+        "index_before_gid":index_gid,
         "keyring_path":str(KEYRING),
         "keyring_secret_recorded":False,
         "systemd_targets":[str(SERVICE_TARGET),str(TIMER_TARGET)],
@@ -201,6 +208,7 @@ def main()->None:
     created=[]
     systemd_created=[]
     keyring_created=False
+    keyring_parent_created=False
     index_changed=False
     migration_applied=False
 
@@ -224,7 +232,7 @@ def main()->None:
         if not merged.endswith(b"\n"):
             merged+=b"\n"
         merged+=b"\n"+append
-        write_atomic_replace(LIVE_INDEX,merged,0o644,0,0)
+        write_atomic_replace(LIVE_INDEX,merged,index_mode,index_uid,index_gid)
         index_changed=True
         if regular(LIVE_INDEX).decode("utf-8").count(INDEX_MARKER)!=1:
             raise RuntimeError("index_postcheck_failed")
@@ -233,7 +241,13 @@ def main()->None:
         key_hex=secrets.token_hex(32)
         key_doc={"version":1,"active":key_id,"keys":{key_id:key_hex}}
         key_bytes=(json.dumps(key_doc,sort_keys=True,separators=(',',':'))+"\n").encode()
-        KEYRING.parent.mkdir(parents=True,exist_ok=True)
+        keyring_parent_created=False
+        if not KEYRING.parent.exists():
+            KEYRING.parent.mkdir(parents=True,mode=0o750)
+            os.chown(KEYRING.parent,0,0)
+            keyring_parent_created=True
+        elif KEYRING.parent.is_symlink() or not stat.S_ISDIR(KEYRING.parent.lstat().st_mode):
+            raise RuntimeError("keyring_parent_boundary")
         atomic_create(KEYRING,key_bytes,0o640,0,33)
         keyring_created=True
         key_hex=""
@@ -267,6 +281,8 @@ def main()->None:
             "systemd_created":[str(p) for p in systemd_created],
             "migration_applied":True,
             "keyring_created":True,
+            "keyring_parent_created":keyring_parent_created,
+            "keyring_sha256":sha256(regular(KEYRING)),
             "index_after_sha256":sha256(regular(LIVE_INDEX)),
             "php_linted":php_ok,
         })
@@ -303,9 +319,14 @@ def main()->None:
                 if KEYRING.exists() and not KEYRING.is_symlink(): KEYRING.unlink()
             except Exception as e:
                 errors.append("keyring:"+str(e))
+        if keyring_parent_created:
+            try:
+                KEYRING.parent.rmdir()
+            except Exception as e:
+                errors.append("keyring_parent:"+str(e))
         if index_changed:
             try:
-                write_atomic_replace(LIVE_INDEX,index_before,0o644,0,0)
+                write_atomic_replace(LIVE_INDEX,index_before,index_mode,index_uid,index_gid)
             except Exception as e:
                 errors.append("index:"+str(e))
         for dst in reversed(created):
