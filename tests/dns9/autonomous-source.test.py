@@ -43,7 +43,9 @@ for required in [
     "New-ScheduledTaskTrigger",
     "Register-ScheduledTask",
     "MultipleInstances IgnoreNew",
-    "DataProtectionScope]::LocalMachine",
+    "Add-Type -AssemblyName System.Security -ErrorAction Stop",
+    "System.Security.Cryptography.ProtectedData]::Protect",
+    "System.Security.Cryptography.DataProtectionScope]::LocalMachine",
     "control-token.dpapi",
     "SecureString",
     "ServiceAccount",
@@ -64,8 +66,9 @@ ok("Set-DnsServer" not in install and "Add-DnsServer" not in install and "Remove
 for required in [
     "Global\\phpIPAM-DNS-Collector-v1",
     "WaitOne(0",
-    "ProtectedData]::Unprotect",
-    "DataProtectionScope]::LocalMachine",
+    "Add-Type -AssemblyName System.Security -ErrorAction Stop",
+    "System.Security.Cryptography.ProtectedData]::Unprotect",
+    "System.Security.Cryptography.DataProtectionScope]::LocalMachine",
     "Invoke-PhpIpamDnsWorkerOnce.ps1",
     "DefaultWebProxy=[Net.GlobalProxySelection]::GetEmptyWebProxy()",
     "DefaultWebProxy=$oldProxy",
@@ -174,3 +177,6 @@ ok("curl " not in systemd_service and "wget " not in systemd_service,"server sch
 
 print(f"DNS9_AUTONOMOUS_SOURCE_ASSERTIONS={n}")
 print("DNS9_AUTONOMOUS_SOURCE_TESTS_OK=1")
+
+ok("[Security.Cryptography.ProtectedData]" not in install,"installer has no short DPAPI type")
+ok("[Security.Cryptography.ProtectedData]" not in runner,"runner has no short DPAPI type")
