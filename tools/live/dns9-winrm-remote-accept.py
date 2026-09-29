@@ -82,7 +82,7 @@ $root=[bool](Test-Path -LiteralPath '{INSTALL_ROOT}')
             raise RuntimeError("winrm_collector_already_present")
 
         for name,data in source.items():
-            remote=stage+"\"+name.replace("/","\")
+            remote=stage+chr(92)+name.replace("/",chr(92))
             stage_bytes(p,remote,data)
 
         fixture=stage+r"\tests\dns9\autonomous-windows.test.ps1"
