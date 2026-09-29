@@ -51,10 +51,6 @@ if($PrincipalMode -eq 'ServiceAccount'){
 }
 elseif(-not [string]::IsNullOrEmpty($ServiceAccount)){throw 'dns9_service_account_invalid'}
 
-if($DnsCredentialMode -eq 'CollectorIdentity' -and $PrincipalMode -ne 'ServiceAccount'){
-    throw 'dns9_collector_identity_requires_service_account'
-}
-
 foreach($source in @($WorkerSource,$PreviewSource,$RunnerSource)){
     if(-not (Test-Path -LiteralPath $source -PathType Leaf)){throw 'dns9_source_missing'}
 }
