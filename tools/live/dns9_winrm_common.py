@@ -1,10 +1,77 @@
 #!/usr/bin/env python3
+import atexit
 import base64
 import hashlib
 import json
 import os
 import re
+import sys
+import tempfile
 from pathlib import Path
+
+OPENSSL_LEGACY_CONFIG="""openssl_conf = openssl_init
+
+[openssl_init]
+providers = provider_sect
+
+[provider_sect]
+default = default_sect
+legacy = legacy_sect
+
+[default_sect]
+activate = 1
+
+[legacy_sect]
+activate = 1
+"""
+
+def _cleanup_legacy_config()->None:
+    path=os.environ.get("DNS9_OPENSSL_LEGACY_CONFIG")
+    if not path:
+        return
+    try:
+        st=os.lstat(path)
+        if os.path.isfile(path) and not os.path.islink(path) and st.st_uid==os.geteuid():
+            os.unlink(path)
+    except FileNotFoundError:
+        pass
+    except OSError:
+        pass
+
+if os.environ.get("DNS9_OPENSSL_LEGACY_CONFIG"):
+    atexit.register(_cleanup_legacy_config)
+
+def _md4_ready()->bool:
+    try:
+        hashlib.new("md4",b"dns9")
+        return True
+    except (ValueError,TypeError):
+        return False
+
+def ensure_ntlm_md4_runtime()->str:
+    if _md4_ready():
+        return "legacy_process" if os.environ.get("DNS9_OPENSSL_LEGACY_REEXEC")=="1" else "native"
+    if os.environ.get("DNS9_OPENSSL_LEGACY_REEXEC")=="1":
+        raise RuntimeError("ntlm_md4_unavailable_after_legacy_provider")
+    if os.geteuid()!=0:
+        raise RuntimeError("ntlm_md4_legacy_provider_requires_root")
+    fd,path=tempfile.mkstemp(
+        prefix="phpipam-dns9-openssl-",
+        suffix=".cnf",
+        dir="/run",
+        text=True
+    )
+    try:
+        os.fchmod(fd,0o600)
+        os.write(fd,OPENSSL_LEGACY_CONFIG.encode("ascii"))
+    finally:
+        os.close(fd)
+    env=dict(os.environ)
+    env["OPENSSL_CONF"]=path
+    env["DNS9_OPENSSL_LEGACY_CONFIG"]=path
+    env["DNS9_OPENSSL_LEGACY_REEXEC"]="1"
+    os.execve(sys.executable,[sys.executable,*sys.argv],env)
+    raise RuntimeError("ntlm_md4_reexec_failed")
 
 def sha256(data: bytes)->str:
     return hashlib.sha256(data).hexdigest()
@@ -26,6 +93,7 @@ def load_protocol():
     return Protocol
 
 def protocol(server: str, username: str, password: str):
+    ensure_ntlm_md4_runtime()
     if not re.fullmatch(r"(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?",server):
         raise RuntimeError("server_invalid")
     if not username or len(username)>256 or any(x in username for x in "\r\n\0"):
