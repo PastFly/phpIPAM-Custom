@@ -2,6 +2,7 @@
 import argparse
 import grp
 import hashlib
+import http.client
 import importlib.util
 import json
 import os
@@ -68,6 +69,46 @@ def tcp_open(host: str,port: int)->bool:
             return True
     except OSError:
         return False
+
+def apt_candidate(package: str)->bool:
+    apt=shutil.which("apt-cache")
+    if not apt:
+        return False
+    p=subprocess.run(
+        [apt,"policy",package],
+        stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False
+    )
+    if p.returncode!=0:
+        return False
+    for line in p.stdout.splitlines():
+        line=line.strip()
+        if line.startswith("Candidate:"):
+            value=line.split(":",1)[1].strip()
+            return bool(value and value!="(none)")
+    return False
+
+def winrm_auth_probe(host: str)->tuple[int,set[str]]:
+    conn=http.client.HTTPConnection(host,5985,timeout=3.0)
+    try:
+        conn.request(
+            "POST","/wsman",body=b"",
+            headers={"Content-Type":"application/soap+xml;charset=UTF-8","Content-Length":"0"}
+        )
+        response=conn.getresponse()
+        status=int(response.status)
+        values=[]
+        for name,value in response.getheaders():
+            if name.lower()=="www-authenticate":
+                values.append(value)
+        response.read(4096)
+    finally:
+        conn.close()
+    auth=set()
+    joined=",".join(values).lower()
+    for name in ("negotiate","ntlm","kerberos","basic"):
+        if name in joined:
+            auth.add(name)
+    return status,auth
 
 def main()->None:
     ap=argparse.ArgumentParser()
@@ -167,10 +208,25 @@ FROM custom_dns_control_jobs WHERE id='{PILOT_JOB_ID}';
     if not addrs:
         raise SystemExit("DNS9_PHASE_B_PREFLIGHT_ERROR=server_resolution")
 
+    ports={}
     for port,name in [(135,"RPC135"),(445,"SMB445"),(5985,"WINRM5985"),(5986,"WINRM5986")]:
-        print("DNS9_PHASE_B_"+name+"_OPEN="+("1" if tcp_open(SERVER,port) else "0"))
+        opened=tcp_open(SERVER,port)
+        ports[name]=opened
+        print("DNS9_PHASE_B_"+name+"_OPEN="+("1" if opened else "0"))
 
-    commands=["kinit","klist","smbclient","rpcclient","wbinfo","pwsh","python3"]
+    winrm_status=0
+    winrm_auth=set()
+    if ports["WINRM5985"]:
+        try:
+            winrm_status,winrm_auth=winrm_auth_probe(SERVER)
+        except (OSError,http.client.HTTPException):
+            winrm_status=0
+            winrm_auth=set()
+    print("DNS9_PHASE_B_WINRM_HTTP_STATUS="+str(winrm_status))
+    for auth_name in ("NEGOTIATE","NTLM","KERBEROS","BASIC"):
+        print("DNS9_PHASE_B_WINRM_AUTH_"+auth_name+"="+("1" if auth_name.lower() in winrm_auth else "0"))
+
+    commands=["kinit","klist","smbclient","rpcclient","wbinfo","pwsh","python3","pip3","curl","apt-cache"]
     for command in commands:
         label=command.upper().replace("-","_")
         print("DNS9_PHASE_B_CMD_"+label+"="+("1" if shutil.which(command) else "0"))
@@ -182,10 +238,56 @@ FROM custom_dns_control_jobs WHERE id='{PILOT_JOB_ID}';
         ).returncode==0
     print("DNS9_PHASE_B_KERBEROS_CACHE="+("1" if kerberos_cache else "0"))
 
-    modules=["winrm","impacket","gssapi","requests_kerberos"]
+    modules=["winrm","impacket","gssapi","requests_kerberos","requests_ntlm","requests","xmltodict","venv","ensurepip"]
+    module_state={}
     for module in modules:
-        label=module.upper().replace("_","_")
-        print("DNS9_PHASE_B_PY_"+label+"="+("1" if importlib.util.find_spec(module) else "0"))
+        present=importlib.util.find_spec(module) is not None
+        module_state[module]=present
+        label=module.upper()
+        print("DNS9_PHASE_B_PY_"+label+"="+("1" if present else "0"))
+
+    pip_ready=subprocess.run(
+        ["python3","-m","pip","--version"],
+        stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,check=False
+    ).returncode==0
+    venv_help=subprocess.run(
+        ["python3","-m","venv","--help"],
+        stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,check=False
+    ).returncode==0
+    print("DNS9_PHASE_B_PYTHON_PIP_READY="+("1" if pip_ready else "0"))
+    print("DNS9_PHASE_B_PYTHON_VENV_READY="+("1" if venv_help else "0"))
+
+    apt_packages=[
+        "python3-winrm","python3-requests-ntlm","python3-requests","python3-xmltodict",
+        "python3-venv","python3-pip","krb5-user","python3-kerberos"
+    ]
+    apt_state={}
+    for package in apt_packages:
+        available=apt_candidate(package)
+        apt_state[package]=available
+        label=package.upper().replace("-","_")
+        print("DNS9_PHASE_B_APT_"+label+"="+("1" if available else "0"))
+
+    if module_state.get("winrm") and module_state.get("requests_ntlm"):
+        client_bootstrap="existing"
+    elif apt_state.get("python3-winrm") and apt_state.get("python3-requests-ntlm"):
+        client_bootstrap="apt"
+    elif pip_ready and venv_help:
+        client_bootstrap="venv_pip"
+    elif apt_state.get("python3-venv") and apt_state.get("python3-pip"):
+        client_bootstrap="apt_then_venv_pip"
+    else:
+        client_bootstrap="unavailable"
+    print("DNS9_PHASE_B_WINRM_CLIENT_BOOTSTRAP="+client_bootstrap)
+
+    ntlm_route=ports.get("WINRM5985",False) and (
+        "ntlm" in winrm_auth or "negotiate" in winrm_auth or winrm_status in (401,405)
+    )
+    print("DNS9_PHASE_B_WINRM_NTLM_ROUTE="+("1" if ntlm_route else "0"))
+    if ntlm_route and client_bootstrap!="unavailable":
+        print("DNS9_PHASE_B_TRANSPORT_SELECTED=winrm_ntlm_message_encryption")
+    else:
+        print("DNS9_PHASE_B_TRANSPORT_SELECTED=none")
 
     print("DNS9_PHASE_B_DB_MUTATION=0")
     print("DNS9_PHASE_B_FILE_MUTATION=0")
