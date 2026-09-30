@@ -315,6 +315,9 @@ finally {{
         "credential_delivered":True,
         "permanent_task_state":"Disabled",
         "temporary_task_removed":True,
+        "temporary_task_trigger_count":1,
+        "temporary_task_trigger_enabled":False,
+        "temporary_task_trigger_future":True,
         "server_timer_enabled":False,
         "server_timer_active":False,
         "dns_write":False,
@@ -325,6 +328,9 @@ finally {{
     print("DNS9_PHASE_B3_WINRM_AUTH_OK=1")
     print("DNS9_PHASE_B3_SYSTEM_CYCLE_OK=1")
     print("DNS9_PHASE_B3_PERMANENT_TASK_ENABLED=0")
+    print("DNS9_PHASE_B3_TEMP_TASK_TRIGGER_COUNT=1")
+    print("DNS9_PHASE_B3_TEMP_TASK_TRIGGER_ENABLED=0")
+    print("DNS9_PHASE_B3_TEMP_TASK_TRIGGER_FUTURE=1")
     print("DNS9_PHASE_B3_TEMP_TASK_REMOVED=1")
     print("DNS9_PHASE_B3_PILOT_SUCCEEDED=1")
     print("DNS9_PHASE_B3_SERVER_TIMER_ENABLED=0")
