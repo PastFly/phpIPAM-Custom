@@ -121,24 +121,70 @@ def run_ps(protocol_obj, script: str, env_vars: dict[str,str]|None=None):
         "-EncodedCommand",encoded
     ],env_vars=env_vars)
 
+STAGE_CHUNK_RAW_BYTES=3072
+STAGE_MAX_BYTES=2*1024*1024
+
 def stage_bytes(protocol_obj, remote_path: str, data: bytes)->str:
-    b64=base64.b64encode(data).decode("ascii")
+    if len(data)>STAGE_MAX_BYTES:
+        raise RuntimeError("remote_stage_source_too_large:"+remote_path)
     expected=sha256(data)
-    script=f"""
+
+    init_script=f"""
 $ErrorActionPreference='Stop'
 $path={ps_quote(remote_path)}
 $parent=Split-Path -Parent $path
 if(-not (Test-Path -LiteralPath $parent -PathType Container)){{
     New-Item -ItemType Directory -Path $parent -Force | Out-Null
 }}
-[IO.File]::WriteAllBytes($path,[Convert]::FromBase64String({ps_quote(b64)}))
+if(Test-Path -LiteralPath $path){{throw 'dns9_stage_target_exists'}}
+[IO.File]::WriteAllBytes($path,[byte[]]@())
+Write-Output 'DNS9_STAGE_INIT_OK=1'
+"""
+    rc,out,err=run_ps(protocol_obj,init_script)
+    if rc!=0 or "DNS9_STAGE_INIT_OK=1" not in out:
+        raise RuntimeError("remote_stage_init_failed:"+remote_path+":"+err[:512])
+
+    for offset in range(0,len(data),STAGE_CHUNK_RAW_BYTES):
+        chunk=data[offset:offset+STAGE_CHUNK_RAW_BYTES]
+        encoded=base64.b64encode(chunk).decode("ascii")
+        chunk_script=f"""
+$ErrorActionPreference='Stop'
+$path={ps_quote(remote_path)}
+$encoded=[string]$env:PHPIPAM_DNS9_STAGE_CHUNK
+$env:PHPIPAM_DNS9_STAGE_CHUNK=$null
+if([string]::IsNullOrEmpty($encoded)){{throw 'dns9_stage_chunk_missing'}}
+$bytes=[Convert]::FromBase64String($encoded)
+$stream=$null
+try {{
+    $stream=[IO.File]::Open($path,[IO.FileMode]::Append,[IO.FileAccess]::Write,[IO.FileShare]::None)
+    $stream.Write($bytes,0,$bytes.Length)
+}}
+finally {{
+    if($null -ne $stream){{$stream.Dispose()}}
+    if($null -ne $bytes){{[Array]::Clear($bytes,0,$bytes.Length)}}
+    $encoded=$null
+}}
+Write-Output 'DNS9_STAGE_CHUNK_OK=1'
+"""
+        rc,out,err=run_ps(
+            protocol_obj,
+            chunk_script,
+            env_vars={"PHPIPAM_DNS9_STAGE_CHUNK":encoded}
+        )
+        encoded=""
+        if rc!=0 or "DNS9_STAGE_CHUNK_OK=1" not in out:
+            raise RuntimeError("remote_stage_chunk_failed:"+remote_path+":"+err[:512])
+
+    verify_script=f"""
+$ErrorActionPreference='Stop'
+$path={ps_quote(remote_path)}
 $actual=(Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLowerInvariant()
 if($actual -cne {ps_quote(expected)}){{throw 'dns9_stage_hash_mismatch'}}
 Write-Output ('DNS9_STAGE_SHA256='+$actual)
 """
-    rc,out,err=run_ps(protocol_obj,script)
+    rc,out,err=run_ps(protocol_obj,verify_script)
     if rc!=0 or ("DNS9_STAGE_SHA256="+expected) not in out:
-        raise RuntimeError("remote_stage_failed:"+remote_path+":"+err[:512])
+        raise RuntimeError("remote_stage_verify_failed:"+remote_path+":"+err[:512])
     return expected
 
 def remove_tree(protocol_obj, remote_path: str)->None:
