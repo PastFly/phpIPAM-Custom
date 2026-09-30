@@ -21,12 +21,12 @@ TASK_NAME="phpIPAM Microsoft DNS Collector"
 INSTALL_ROOT=r"C:\ProgramData\phpIPAM\DnsCollector"
 
 PACKAGE={
-    "Install-PhpIpamDnsCollector.ps1": ROOT/"collectors/windows/dns/Install-PhpIpamDnsCollector.ps1",
-    "Invoke-PhpIpamDnsWorkerOnce.ps1": ROOT/"collectors/windows/dns/Invoke-PhpIpamDnsWorkerOnce.ps1",
-    "Invoke-PhpIpamDnsPreview.ps1": ROOT/"collectors/windows/dns/Invoke-PhpIpamDnsPreview.ps1",
-    "Invoke-PhpIpamDnsCollectorScheduled.ps1": ROOT/"collectors/windows/dns/Invoke-PhpIpamDnsCollectorScheduled.ps1",
-    "Get-PhpIpamDnsCollectorStatus.ps1": ROOT/"collectors/windows/dns/Get-PhpIpamDnsCollectorStatus.ps1",
-    "Uninstall-PhpIpamDnsCollector.ps1": ROOT/"collectors/windows/dns/Uninstall-PhpIpamDnsCollector.ps1",
+    "collectors/windows/dns/Install-PhpIpamDnsCollector.ps1": ROOT/"collectors/windows/dns/Install-PhpIpamDnsCollector.ps1",
+    "collectors/windows/dns/Invoke-PhpIpamDnsWorkerOnce.ps1": ROOT/"collectors/windows/dns/Invoke-PhpIpamDnsWorkerOnce.ps1",
+    "collectors/windows/dns/Invoke-PhpIpamDnsPreview.ps1": ROOT/"collectors/windows/dns/Invoke-PhpIpamDnsPreview.ps1",
+    "collectors/windows/dns/Invoke-PhpIpamDnsCollectorScheduled.ps1": ROOT/"collectors/windows/dns/Invoke-PhpIpamDnsCollectorScheduled.ps1",
+    "collectors/windows/dns/Get-PhpIpamDnsCollectorStatus.ps1": ROOT/"collectors/windows/dns/Get-PhpIpamDnsCollectorStatus.ps1",
+    "collectors/windows/dns/Uninstall-PhpIpamDnsCollector.ps1": ROOT/"collectors/windows/dns/Uninstall-PhpIpamDnsCollector.ps1",
 }
 
 def sha256(data: bytes)->str:
@@ -77,7 +77,7 @@ def main()->None:
     source={name:regular(path) for name,path in PACKAGE.items()}
     manifest={name:{"sha256":sha256(data),"bytes":len(data)} for name,data in source.items()}
     acceptance(Path(args.acceptance_receipt),args.server,manifest)
-    control_token=token()
+    print("DNS9_WINRM_BOOTSTRAP_ACCEPTANCE_RECEIPT_OK=1")
 
     print("DNS9_WINRM_BOOTSTRAP_SERVER="+args.server.lower())
     print("DNS9_WINRM_BOOTSTRAP_PACKAGE_FILES="+str(len(manifest)))
@@ -88,7 +88,7 @@ def main()->None:
     print("DNS9_WINRM_BOOTSTRAP_START_NOW=0")
 
     if not args.apply:
-        control_token=""
+        print("DNS9_WINRM_BOOTSTRAP_TOKEN_READ=0")
         print("DNS9_WINRM_BOOTSTRAP_DRY_RUN=1")
         print("DNS9_WINRM_BOOTSTRAP_WINDOWS_MUTATION=0")
         print("DNS9_WINRM_BOOTSTRAP_PREFLIGHT_OK=1")
@@ -102,6 +102,7 @@ def main()->None:
 
     p=protocol(args.server,args.username,password)
     password=""
+    control_token=None
     nonce=secrets.token_hex(8)
     stage=rf"C:\Windows\Temp\phpipam-dns9-bootstrap-{nonce}"
     installed=False
@@ -131,7 +132,7 @@ $root=[bool](Test-Path -LiteralPath '{INSTALL_ROOT}')
             raise RuntimeError("winrm_collector_already_present")
 
         for name,data in source.items():
-            stage_bytes(p,stage+chr(92)+name,data)
+            stage_bytes(p,stage+chr(92)+Path(name).name,data)
 
         bootstrap=r"""param([Parameter(Mandatory=$true)][string]$Stage)
 Set-StrictMode -Version 2.0
@@ -157,13 +158,16 @@ finally {
         bootstrap_path=stage+r"\bootstrap.ps1"
         stage_bytes(p,bootstrap_path,bootstrap.encode("utf-8"))
 
+        control_token=token()
+        print("DNS9_WINRM_BOOTSTRAP_TOKEN_BOUNDARY_OK=1")
+
         rc,out,err=run(
             p,"powershell.exe",
             ["-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass",
              "-File",bootstrap_path,"-Stage",stage],
             env_vars={"PHPIPAM_DNS9_CONTROL_TOKEN":control_token}
         )
-        control_token=""
+        control_token=None
         if rc!=0:
             raise RuntimeError("remote_install_failed:"+err[:512])
         for marker in [
@@ -179,9 +183,9 @@ finally {
         installed=True
 
         expected_runtime={
-            "Invoke-PhpIpamDnsWorkerOnce.ps1":manifest["Invoke-PhpIpamDnsWorkerOnce.ps1"]["sha256"],
-            "Invoke-PhpIpamDnsPreview.ps1":manifest["Invoke-PhpIpamDnsPreview.ps1"]["sha256"],
-            "Invoke-PhpIpamDnsCollectorScheduled.ps1":manifest["Invoke-PhpIpamDnsCollectorScheduled.ps1"]["sha256"],
+            "Invoke-PhpIpamDnsWorkerOnce.ps1":manifest["collectors/windows/dns/Invoke-PhpIpamDnsWorkerOnce.ps1"]["sha256"],
+            "Invoke-PhpIpamDnsPreview.ps1":manifest["collectors/windows/dns/Invoke-PhpIpamDnsPreview.ps1"]["sha256"],
+            "Invoke-PhpIpamDnsCollectorScheduled.ps1":manifest["collectors/windows/dns/Invoke-PhpIpamDnsCollectorScheduled.ps1"]["sha256"],
         }
         verifier=f"""
 $ErrorActionPreference='Stop'
@@ -216,7 +220,7 @@ $configPath=Join-Path $root 'collector.json'
         remove_tree(p,stage)
         stage_cleaned=True
     except Exception:
-        control_token=""
+        control_token=None
         if installed:
             try:
                 uninstall_path=stage+chr(92)+"Uninstall-PhpIpamDnsCollector.ps1"
