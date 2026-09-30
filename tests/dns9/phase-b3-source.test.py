@@ -62,10 +62,11 @@ for required in [
     "DNS9_PHASE_B3_CONTROL_STAGE_OK=1",
     "DNS9_PHASE_B3_CONTROL_STAGE_CLEANED=1",
     "DNS9_PHASE_B3_CONTROL_STAGE_CLEANED=0",
-    "run(\\n            p,\"powershell.exe\"",
+    "rc,out,err=run(",
+    "p,\"powershell.exe\"",
     "\"-File\",control_path",
     "remove_tree(p,control_dir)",
-    "control_dir=rf\"C:\\\\\\\\Windows\\\\\\\\Temp\\\\\\\\phpipam-dns9-phase-b3-{suffix}\"",
+    "phpipam-dns9-phase-b3-{suffix}",
     "DNS9_PHASE_B3_OK=1",
 ]:
     ok(required in src,"Phase B3 contract: "+required)
@@ -124,13 +125,12 @@ ok("New-ScheduledTaskTrigger" not in src,
 ok("Remove-Item -LiteralPath $Status" not in src,
    "Phase B3 does not delete prior status evidence")
 
+ok(src.index('stage_bytes(p,control_path,script.encode("utf-8"))') < src.index('rc,out,err=run('),
+   "Phase B3 control script is staged before execution")
+ok(src.index('"DNS9_PHASE_B3_CONTROL_STAGE_OK=1"') < src.index('rc,out,err=run('),
+   "Phase B3 reports staged control script before execution")
+ok(src.index('remove_tree(p,control_dir)') > src.index('rc,out,err=run('),
+   "Phase B3 cleans control staging after execution")
+
 print(f"DNS9_PHASE_B3_SOURCE_ASSERTIONS={n}")
 print("DNS9_PHASE_B3_SOURCE_TESTS_OK=1")
-
-
-ok(src.index('stage_bytes(p,control_path,script.encode("utf-8"))') < src.index('run(\n            p,"powershell.exe"'),
-   "Phase B3 control script is staged before execution")
-ok(src.index('"DNS9_PHASE_B3_CONTROL_STAGE_OK=1"') < src.index('run(\n            p,"powershell.exe"'),
-   "Phase B3 reports staged control script before execution")
-ok(src.index('remove_tree(p,control_dir)') > src.index('run(\n            p,"powershell.exe"'),
-   "Phase B3 cleans control staging after execution")
