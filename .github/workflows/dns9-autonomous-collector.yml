@@ -26,6 +26,7 @@ on:
       - 'tests/dns9/winrm-client-source.test.py'
       - 'tools/live/dns9-winrm-client-install.py'
       - 'tests/dns9/winrm-bootstrap-source.test.py'
+      - 'tests/dns9/winrm-stage-chunk.test.py'
       - 'tools/live/dns9-winrm-bootstrap.py'
       - 'tools/live/dns9-winrm-md4-selftest.py'
       - 'tools/live/dns9-winrm-remote-accept.py'
