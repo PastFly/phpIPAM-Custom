@@ -90,8 +90,7 @@ try {
 
     $runner=Join-Path $Root 'Invoke-PhpIpamDnsCollectorScheduled.ps1'
     $action=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "'+$runner+'"')
-    $firstRunDelayMinutes=$(if($EnableTask){1}else{15})
-    $trigger=New-ScheduledTaskTrigger -Once -At ((Get-Date).AddMinutes($firstRunDelayMinutes)) -RepetitionInterval (New-TimeSpan -Minutes $PollIntervalMinutes) -RepetitionDuration (New-TimeSpan -Days 3650)
+    $trigger=New-ScheduledTaskTrigger -Once -At ((Get-Date).AddMinutes(1)) -RepetitionInterval (New-TimeSpan -Minutes $PollIntervalMinutes) -RepetitionDuration (New-TimeSpan -Days 3650)
 
     if($PrincipalMode -eq 'System'){
         $principal=New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
@@ -114,7 +113,6 @@ try {
     Write-Output ('DNS9_AUTONOMOUS_DNS_CREDENTIAL_MODE='+$DnsCredentialMode)
     if($PrincipalMode -eq 'ServiceAccount'){Write-Output ('DNS9_AUTONOMOUS_SERVICE_ACCOUNT='+$ServiceAccount)}
     Write-Output ('DNS9_AUTONOMOUS_INTERVAL_MINUTES='+$PollIntervalMinutes)
-    Write-Output ('DNS9_AUTONOMOUS_FIRST_RUN_DELAY_MINUTES='+$firstRunDelayMinutes)
     Write-Output ('DNS9_AUTONOMOUS_TASK_ENABLED='+([int][bool]$EnableTask))
     Write-Output ('DNS9_AUTONOMOUS_START_NOW='+([int][bool]$StartNow))
     Write-Output 'DNS9_AUTONOMOUS_TOKEN_PRINTED=0'
