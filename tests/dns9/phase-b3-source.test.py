@@ -26,7 +26,16 @@ for required in [
     "CollectorIdentity",
     "pending|0||0|||0",
     "DNS9_PHASE_B3_PILOT_BEFORE=",
-    "DNS9_PHASE_B3_TEMP_TASK_TRIGGER_COUNT=0",
+    "DNS9_PHASE_B3_TEMP_TASK_TRIGGER_COUNT=1",
+    "DNS9_PHASE_B3_TEMP_TASK_TRIGGER_ENABLED=0",
+    "DNS9_PHASE_B3_TEMP_TASK_TRIGGER_FUTURE=1",
+    "temp_task_trigger_future",
+    "dns9_phase_b3_temp_task_trigger_not_future",
+    "dns9_phase_b3_temp_task_trigger_enabled",
+    "dns9_phase_b3_temp_task_trigger_count",
+    "Register-ScheduledTask -TaskName $PilotTask -Action $action -Trigger $trigger",
+    "$trigger.Enabled=$false",
+    "$trigger=New-ScheduledTaskTrigger -Once -At ((Get-Date).AddDays(7))",
     "DNS9_PHASE_B3_SERVER_TIMER_ENABLE=0",
     "DNS9_PHASE_B3_PERMANENT_TASK_ENABLE=0",
     "DNS9_PHASE_B3_DRY_RUN=1",
@@ -120,8 +129,12 @@ ok(sorted(systemctl_calls)==sorted([
 ok("shell=True" not in src and "shell = True" not in src,
    "Phase B3 subprocess calls do not use shell execution")
 
-ok("New-ScheduledTaskTrigger" not in src,
-   "temporary task is triggerless")
+ok("New-ScheduledTaskTrigger -Once -At ((Get-Date).AddDays(7))" in src,
+   "temporary task has one explicit future trigger")
+ok("$trigger.Enabled=$false" in src,
+   "temporary task trigger is explicitly disabled")
+ok("Register-ScheduledTask -TaskName $PilotTask -Action $action -Trigger $trigger" in src,
+   "temporary task registration uses the disabled trigger")
 ok("Remove-Item -LiteralPath $Status" not in src,
    "Phase B3 does not delete prior status evidence")
 
