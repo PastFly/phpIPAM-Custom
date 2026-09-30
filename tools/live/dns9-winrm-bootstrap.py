@@ -105,6 +105,7 @@ def main()->None:
     control_token=None
     nonce=secrets.token_hex(8)
     stage=rf"C:\Windows\Temp\phpipam-dns9-bootstrap-{nonce}"
+    install_invoked=False
     installed=False
     stage_cleaned=False
 
@@ -161,6 +162,7 @@ finally {
         control_token=token()
         print("DNS9_WINRM_BOOTSTRAP_TOKEN_BOUNDARY_OK=1")
 
+        install_invoked=True
         rc,out,err=run(
             p,"powershell.exe",
             ["-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass",
@@ -170,6 +172,7 @@ finally {
         control_token=None
         if rc!=0:
             raise RuntimeError("remote_install_failed:"+err[:512])
+        installed=True
         for marker in [
             "DNS9_AUTONOMOUS_INSTALL_OK=1",
             "DNS9_AUTONOMOUS_PRINCIPAL_MODE=System",
@@ -180,7 +183,6 @@ finally {
         ]:
             if marker not in out:
                 raise RuntimeError("remote_install_marker_missing:"+marker)
-        installed=True
 
         expected_runtime={
             "Invoke-PhpIpamDnsWorkerOnce.ps1":manifest["collectors/windows/dns/Invoke-PhpIpamDnsWorkerOnce.ps1"]["sha256"],
@@ -221,7 +223,7 @@ $configPath=Join-Path $root 'collector.json'
         stage_cleaned=True
     except Exception:
         control_token=None
-        if installed:
+        if install_invoked:
             try:
                 uninstall_path=stage+chr(92)+"Uninstall-PhpIpamDnsCollector.ps1"
                 rollback=f"""
