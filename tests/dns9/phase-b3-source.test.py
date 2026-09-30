@@ -14,7 +14,7 @@ def ok(v,label):
 
 ok(TOOL.is_file(),"Phase B3 tool exists")
 src=TOOL.read_text()
-ast.parse(src)
+tree=ast.parse(src)
 ok(True,"Phase B3 tool Python syntax")
 
 for required in [
@@ -67,8 +67,6 @@ for forbidden in [
     "Disable-ScheduledTask -TaskName $PermanentTask",
     "Start-ScheduledTask -TaskName $PermanentTask",
     "Unregister-ScheduledTask -TaskName $PermanentTask",
-    "systemctl","enable",
-    "systemctl","start",
     "UPDATE custom_dns_",
     "INSERT INTO custom_dns_",
     "DELETE FROM custom_dns_",
@@ -85,6 +83,32 @@ ok(src.index("if not args.apply:") < src.index("getpass.getpass"),
    "dry-run returns before WinRM password prompt")
 ok(src.index("if not args.apply:") < src.index("protocol(args.server"),
    "dry-run returns before WinRM session")
+systemctl_calls=[]
+for node in ast.walk(tree):
+    if not isinstance(node,ast.Call) or not isinstance(node.func,ast.Attribute):
+        continue
+    if node.func.attr!="run" or not node.args:
+        continue
+    argv=node.args[0]
+    if not isinstance(argv,(ast.List,ast.Tuple)):
+        continue
+    values=[]
+    valid=True
+    for item in argv.elts:
+        if not isinstance(item,ast.Constant) or not isinstance(item.value,str):
+            valid=False
+            break
+        values.append(item.value)
+    if valid and values and values[0]=="systemctl":
+        systemctl_calls.append(values)
+
+ok(systemctl_calls==[
+    ["systemctl","is-enabled","phpipam-dns-autonomous.timer"],
+    ["systemctl","is-active","phpipam-dns-autonomous.timer"],
+], "Phase B3 systemctl calls are read-only status checks only")
+ok("shell=True" not in src and "shell = True" not in src,
+   "Phase B3 subprocess calls do not use shell execution")
+
 ok("New-ScheduledTaskTrigger" not in src,
    "temporary task is triggerless")
 ok("Remove-Item -LiteralPath $Status" not in src,
