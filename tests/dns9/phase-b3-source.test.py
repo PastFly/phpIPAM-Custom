@@ -102,10 +102,10 @@ for node in ast.walk(tree):
     if valid and values and values[0]=="systemctl":
         systemctl_calls.append(values)
 
-ok(systemctl_calls==[
+ok(sorted(systemctl_calls)==sorted([
     ["systemctl","is-enabled","phpipam-dns-autonomous.timer"],
     ["systemctl","is-active","phpipam-dns-autonomous.timer"],
-], "Phase B3 systemctl calls are read-only status checks only")
+]), "Phase B3 systemctl calls are read-only status checks only")
 ok("shell=True" not in src and "shell = True" not in src,
    "Phase B3 subprocess calls do not use shell execution")
 
