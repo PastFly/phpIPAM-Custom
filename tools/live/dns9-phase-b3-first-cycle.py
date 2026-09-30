@@ -171,8 +171,6 @@ try {{
         if($actual -cne $expected){{throw 'dns9_phase_b3_runtime_hash_mismatch'}}
     }}
 
-    if(Test-Path -LiteralPath $Status -PathType Leaf){{Remove-Item -LiteralPath $Status -Force}}
-
     $action=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "'+$Runner+'"')
     $principal=New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
     $settings=New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 3) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
@@ -202,7 +200,7 @@ try {{
 
     if(-not (Test-Path -LiteralPath $Status -PathType Leaf)){{throw 'dns9_phase_b3_status_missing'}}
     $status=Get-Content -LiteralPath $Status -Raw | ConvertFrom-Json -ErrorAction Stop
-    if([int64]$status.updated_at -lt $startedEpoch){throw 'dns9_phase_b3_status_stale'}
+    if([int64]$status.updated_at -lt $startedEpoch){{throw 'dns9_phase_b3_status_stale'}}
     $perm=Get-ScheduledTask -TaskName $PermanentTask -ErrorAction Stop
     if([string]$perm.State -ne 'Disabled'){{throw 'dns9_phase_b3_permanent_task_changed'}}
 
