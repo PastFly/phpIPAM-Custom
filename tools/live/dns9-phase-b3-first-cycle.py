@@ -183,6 +183,7 @@ try {{
     if(@($pilot.Triggers).Count -ne 0){{throw 'dns9_phase_b3_temp_task_has_trigger'}}
 
     $startedAt=Get-Date
+    $startedEpoch=[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
     Start-ScheduledTask -TaskName $PilotTask
     $started=$true
     $deadline=(Get-Date).AddSeconds(150)
@@ -201,6 +202,7 @@ try {{
 
     if(-not (Test-Path -LiteralPath $Status -PathType Leaf)){{throw 'dns9_phase_b3_status_missing'}}
     $status=Get-Content -LiteralPath $Status -Raw | ConvertFrom-Json -ErrorAction Stop
+    if([int64]$status.updated_at -lt $startedEpoch){throw 'dns9_phase_b3_status_stale'}
     $perm=Get-ScheduledTask -TaskName $PermanentTask -ErrorAction Stop
     if([string]$perm.State -ne 'Disabled'){{throw 'dns9_phase_b3_permanent_task_changed'}}
 
@@ -214,6 +216,7 @@ try {{
         job_type=$status.job_type
         result_ok=$status.result_ok
         result_code=$status.result_code
+        collector_updated_at=[int64]$status.updated_at
     }} | ConvertTo-Json -Compress | ForEach-Object {{Write-Output ('DNS9_PHASE_B3_REMOTE_JSON='+$_)}}
 }}
 finally {{
