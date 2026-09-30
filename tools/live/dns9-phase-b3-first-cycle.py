@@ -176,11 +176,17 @@ try {{
     $action=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "'+$Runner+'"')
     $principal=New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
     $settings=New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 3) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
-    Register-ScheduledTask -TaskName $PilotTask -Action $action -Principal $principal -Settings $settings | Out-Null
+    $trigger=New-ScheduledTaskTrigger -Once -At ((Get-Date).AddDays(7))
+    $trigger.Enabled=$false
+    Register-ScheduledTask -TaskName $PilotTask -Action $action -Trigger $trigger -Principal $principal -Settings $settings | Out-Null
     $created=$true
 
     $pilot=Get-ScheduledTask -TaskName $PilotTask -ErrorAction Stop
-    if(@($pilot.Triggers).Count -ne 0){{throw 'dns9_phase_b3_temp_task_has_trigger'}}
+    $pilotTriggers=@($pilot.Triggers)
+    if($pilotTriggers.Count -ne 1){{throw 'dns9_phase_b3_temp_task_trigger_count'}}
+    if([bool]$pilotTriggers[0].Enabled){{throw 'dns9_phase_b3_temp_task_trigger_enabled'}}
+    $triggerStart=[DateTime]$pilotTriggers[0].StartBoundary
+    if($triggerStart -lt (Get-Date).AddDays(6)){{throw 'dns9_phase_b3_temp_task_trigger_not_future'}}
 
     $startedAt=Get-Date
     $startedEpoch=[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
