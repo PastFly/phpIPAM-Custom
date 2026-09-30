@@ -216,6 +216,8 @@ try {{
         permanent_task_state=[string]$perm.State
         temp_task_name=$PilotTask
         temp_task_trigger_count=@($pilot.Triggers).Count
+        temp_task_trigger_enabled=[bool]$pilot.Triggers[0].Enabled
+        temp_task_trigger_future=([DateTime]$pilot.Triggers[0].StartBoundary -gt (Get-Date).AddDays(6))
         temp_task_last_result=[int64]$info.LastTaskResult
         collector_state=[string]$status.state
         job_id=$status.job_id
@@ -272,8 +274,12 @@ finally {{
     remote=json_line(out,"DNS9_PHASE_B3_REMOTE_JSON=")
     if remote.get("permanent_task_state")!="Disabled":
         raise RuntimeError("phase_b3_permanent_task_changed")
-    if int(remote.get("temp_task_trigger_count",-1))!=0:
-        raise RuntimeError("phase_b3_temp_task_triggered")
+    if int(remote.get("temp_task_trigger_count",-1))!=1:
+        raise RuntimeError("phase_b3_temp_task_trigger_count")
+    if remote.get("temp_task_trigger_enabled") is not False:
+        raise RuntimeError("phase_b3_temp_task_trigger_enabled")
+    if remote.get("temp_task_trigger_future") is not True:
+        raise RuntimeError("phase_b3_temp_task_trigger_not_future")
     if int(remote.get("temp_task_last_result",-1))!=0:
         raise RuntimeError("phase_b3_temp_task_result")
     if remote.get("collector_state")!="submitted":
