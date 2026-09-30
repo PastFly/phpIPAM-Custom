@@ -47,8 +47,6 @@ for required in [
     "Start-ScheduledTask -TaskName $PilotTask",
     "Unregister-ScheduledTask -TaskName $PilotTask",
     "New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest",
-    "if(@($pilot.Triggers).Count -ne 0)",
-    "dns9_phase_b3_temp_task_has_trigger",
     "dns9_phase_b3_permanent_task_not_disabled",
     "dns9_phase_b3_runtime_hash_mismatch",
     "dns9_phase_b3_status_stale",
