@@ -23,6 +23,8 @@ on:
       - 'tools/live/dns9-production-preflight.py'
       - 'tests/dns9/phase-b-preflight-source.test.py'
       - 'tools/live/dns9-phase-b-preflight.py'
+      - 'tests/dns9/phase-b3-source.test.py'
+      - 'tools/live/dns9-phase-b3-first-cycle.py'
       - 'tests/dns9/winrm-client-source.test.py'
       - 'tools/live/dns9-winrm-client-install.py'
       - 'tests/dns9/winrm-bootstrap-source.test.py'
