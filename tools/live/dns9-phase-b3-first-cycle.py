@@ -10,7 +10,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from dns9_winrm_common import protocol, run_ps, json_line, ps_quote, ensure_ntlm_md4_runtime
+from dns9_winrm_common import protocol, run, stage_bytes, remove_tree, json_line, ps_quote, ensure_ntlm_md4_runtime
 
 BACKUP_ROOT=Path("/var/backups/phpipam-custom")
 DB="phpipam"
@@ -227,12 +227,39 @@ finally {{
     Write-Output ('DNS9_PHASE_B3_TEMP_TASK_STARTED='+([int][bool]$started))
 }}
 """
-    rc,out,err=run_ps(p,script)
-    print(out,end="" if out.endswith("\n") else "\n")
-    if rc!=0:
-        raise RuntimeError("phase_b3_remote_failed:"+err[:512])
-    if "DNS9_PHASE_B3_TEMP_TASK_CLEANED=1" not in out:
-        raise RuntimeError("phase_b3_temp_task_cleanup_failed")
+    control_dir=rf"C:\\Windows\\Temp\\phpipam-dns9-phase-b3-{suffix}"
+    control_path=control_dir+r"\\first-cycle.ps1"
+    remote_error=None
+    out=""
+    err=""
+    try:
+        stage_bytes(p,control_path,script.encode("utf-8"))
+        print("DNS9_PHASE_B3_CONTROL_STAGE_OK=1")
+        rc,out,err=run(
+            p,"powershell.exe",
+            ["-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass",
+             "-File",control_path]
+        )
+        print(out,end="" if out.endswith("\n") else "\n")
+        if rc!=0:
+            remote_error=RuntimeError("phase_b3_remote_failed:"+err[:512])
+        elif "DNS9_PHASE_B3_TEMP_TASK_CLEANED=1" not in out:
+            remote_error=RuntimeError("phase_b3_temp_task_cleanup_failed")
+    except Exception as exc:
+        remote_error=exc
+
+    try:
+        remove_tree(p,control_dir)
+        print("DNS9_PHASE_B3_CONTROL_STAGE_CLEANED=1")
+    except Exception as cleanup_exc:
+        print("DNS9_PHASE_B3_CONTROL_STAGE_CLEANED=0")
+        if remote_error is None:
+            remote_error=RuntimeError("phase_b3_control_stage_cleanup_failed:"+str(cleanup_exc)[:512])
+        else:
+            remote_error=RuntimeError(str(remote_error)+"; phase_b3_control_stage_cleanup_failed:"+str(cleanup_exc)[:256])
+
+    if remote_error is not None:
+        raise remote_error
 
     remote=json_line(out,"DNS9_PHASE_B3_REMOTE_JSON=")
     if remote.get("permanent_task_state")!="Disabled":
