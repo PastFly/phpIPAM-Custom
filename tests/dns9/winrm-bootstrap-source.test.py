@@ -117,9 +117,26 @@ for required in [
     "DNS9_WINRM_BOOTSTRAP_TASK_STARTED=0",
     "DNS9_WINRM_BOOTSTRAP_TOKEN_PRINTED=0",
     "DNS9_WINRM_BOOTSTRAP_MD4_PROVIDER=",
+    "if install_invoked:",
+    "install_invoked=True",
+    "DNS9_WINRM_BOOTSTRAP_TOKEN_BOUNDARY_OK=1",
+    "DNS9_WINRM_BOOTSTRAP_TOKEN_READ=0",
+    "DNS9_WINRM_BOOTSTRAP_ACCEPTANCE_RECEIPT_OK=1",
+    "stage+chr(92)+Path(name).name",
+    "\"collectors/windows/dns/Invoke-PhpIpamDnsWorkerOnce.ps1\"",
+    "\"collectors/windows/dns/Install-PhpIpamDnsCollector.ps1\"",
     "DNS9_WINRM_BOOTSTRAP_OK=1",
 ]:
     ok(required in boot,"WinRM bootstrap contract: "+required)
+
+ok(boot.index('if not args.apply:') < boot.index('control_token=token()'),
+   "dry-run returns before token() read")
+ok(boot.index('stage_bytes(p,bootstrap_path') < boot.index('control_token=token()'),
+   "token read deferred until remote precheck and staging complete")
+ok(boot.index('acceptance(Path(args.acceptance_receipt)') < boot.index('if not args.apply:'),
+   "acceptance receipt validated before dry-run success")
+ok('manifest["Invoke-PhpIpamDnsWorkerOnce.ps1"]' not in boot,
+   "bootstrap manifest does not use basename keys")
 
 for required in [
     "ensure_ntlm_md4_runtime",
