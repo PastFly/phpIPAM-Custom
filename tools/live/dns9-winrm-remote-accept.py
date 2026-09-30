@@ -59,6 +59,7 @@ def main()->None:
     nonce=secrets.token_hex(8)
     stage=rf"C:\Windows\Temp\phpipam-dns9-accept-{nonce}"
     accepted=False
+    stage_cleaned=False
     remote_info=None
     try:
         precheck=f"""
@@ -106,12 +107,17 @@ $root=[bool](Test-Path -LiteralPath '{INSTALL_ROOT}')
                 raise RuntimeError("windows_fixture_marker_missing:"+marker)
 
         accepted=True
-    finally:
+    except Exception:
         try:
             remove_tree(p,stage)
+            stage_cleaned=True
+            print("DNS9_WINRM_ACCEPT_STAGE_CLEANED_AFTER_FAILURE=1")
         except Exception:
-            if accepted:
-                raise
+            print("DNS9_WINRM_ACCEPT_STAGE_CLEANED_AFTER_FAILURE=0")
+        raise
+    else:
+        remove_tree(p,stage)
+        stage_cleaned=True
 
     stamp=time.strftime("%Y%m%d-%H%M%S",time.gmtime())
     receipt_dir=BACKUP_ROOT/("dns9-winrm-accept-"+stamp)
@@ -130,7 +136,7 @@ $root=[bool](Test-Path -LiteralPath '{INSTALL_ROOT}')
         "windows_fixture_token_printed":False,
         "remote_ps_version":str(remote_info.get("ps","")),
         "remote_admin_verified":True,
-        "remote_stage_cleaned":True,
+        "remote_stage_cleaned":stage_cleaned,
         "production_collector_present_before":False,
     }
     receipt_path.write_text(json.dumps(receipt,sort_keys=True,indent=2)+"\n")
