@@ -34,6 +34,14 @@ for required in [
     "env_vars",
     "Get-FileHash -Algorithm SHA256",
     "DNS9_REMOTE_STAGE_CLEAN=1",
+    "remote_stage_verify_failed",
+    "remote_stage_source_too_large",
+    "DNS9_STAGE_CHUNK_OK=1",
+    "DNS9_STAGE_INIT_OK=1",
+    "$env:PHPIPAM_DNS9_STAGE_CHUNK=$null",
+    "env_vars={\"PHPIPAM_DNS9_STAGE_CHUNK\":encoded}",
+    "STAGE_MAX_BYTES=2*1024*1024",
+    "STAGE_CHUNK_RAW_BYTES=3072",
     'ensure_ntlm_md4_runtime()',
     'env["DNS9_OPENSSL_LEGACY_REEXEC"]="1"',
     'env["OPENSSL_CONF"]="/proc/self/fd/"+str(fd)',
@@ -44,6 +52,8 @@ for required in [
     ok(required in common,"common transport contract: "+required)
 
 for forbidden in [
+    "FromBase64String({ps_quote(b64)})",
+    "b64=base64.b64encode(data).decode",
     "send_command_input",
     "stdin_data",
     "proxy=None",
@@ -72,6 +82,9 @@ for required in [
     'name.startswith("collectors/windows/dns/")',
     "DNS9_WINRM_ACCEPT_PACKAGE_FILES=",
     "DNS9_WINRM_ACCEPT_MD4_PROVIDER=",
+    "DNS9_WINRM_ACCEPT_STAGE_CLEANED_AFTER_FAILURE=1",
+    "DNS9_WINRM_ACCEPT_STAGE_CLEANED_AFTER_FAILURE=0",
+    "stage_cleaned=True",
     "DNS9_WINRM_ACCEPT_OK=1",
 ]:
     ok(required in accept,"WinRM accept contract: "+required)
