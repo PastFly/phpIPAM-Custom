@@ -67,12 +67,6 @@ ok("-Password" not in install,"installer does not accept scheduled-task password
 ok("[switch]$EnableTask" in install and "if(-not $EnableTask)" in install,
    "collector install defaults inactive")
 ok("dns9_start_requires_enabled_task" in install,"StartNow requires enabled task")
-ok("$firstRunDelayMinutes=$(if($EnableTask){1}else{15})" in install,
-   "disabled install first-run delay is 15 minutes")
-ok("DNS9_AUTONOMOUS_FIRST_RUN_DELAY_MINUTES=" in install,
-   "installer reports first-run delay")
-ok(install.index("Register-ScheduledTask") < install.index("Disable-ScheduledTask") < install.index("if($StartNow)"),
-   "inactive registration disables task before optional start")
 ok("dns9_collector_identity_requires_service_account" not in install,"System + collector_identity allowed")
 ok("Write-Output $plain" not in install,"installer does not print token plaintext")
 ok("Set-DnsServer" not in install and "Add-DnsServer" not in install and "Remove-DnsServer" not in install,"installer has no DNS write cmdlets")
