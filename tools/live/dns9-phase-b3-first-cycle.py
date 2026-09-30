@@ -227,8 +227,8 @@ finally {{
     Write-Output ('DNS9_PHASE_B3_TEMP_TASK_STARTED='+([int][bool]$started))
 }}
 """
-    control_dir=rf"C:\\Windows\\Temp\\phpipam-dns9-phase-b3-{suffix}"
-    control_path=control_dir+r"\\first-cycle.ps1"
+    control_dir=rf"C:\Windows\Temp\phpipam-dns9-phase-b3-{suffix}"
+    control_path=control_dir+r"\first-cycle.ps1"
     remote_error=None
     out=""
     err=""
