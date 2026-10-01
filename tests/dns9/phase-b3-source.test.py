@@ -27,15 +27,20 @@ for required in [
     "pending|0||0|||0",
     "DNS9_PHASE_B3_PILOT_BEFORE=",
     "DNS9_PHASE_B3_TEMP_TASK_TRIGGER_COUNT=1",
-    "DNS9_PHASE_B3_TEMP_TASK_TRIGGER_ENABLED=0",
+    "DNS9_PHASE_B3_TEMP_TASK_TRIGGER_ENABLED=1",
     "DNS9_PHASE_B3_TEMP_TASK_TRIGGER_FUTURE=1",
+    "DNS9_PHASE_B3_TEMP_TASK_TRIGGER_AUTORUN_DAYS=3650",
+    "DNS9_PHASE_B3_TEMP_TASK_ALLOW_ON_DEMAND=1",
     "temp_task_trigger_future",
-    "dns9_phase_b3_temp_task_trigger_not_future",
-    "dns9_phase_b3_temp_task_trigger_enabled",
+    "temp_task_allow_on_demand",
+    "dns9_phase_b3_temp_task_trigger_not_far_future",
+    "dns9_phase_b3_temp_task_trigger_disabled",
     "dns9_phase_b3_temp_task_trigger_count",
+    "dns9_phase_b3_temp_task_disabled",
+    "dns9_phase_b3_on_demand_disabled",
     "Register-ScheduledTask -TaskName $PilotTask -Action $action -Trigger $trigger",
-    "$trigger.Enabled=$false",
-    "$trigger=New-ScheduledTaskTrigger -Once -At ((Get-Date).AddDays(7))",
+    "$trigger.Enabled=$true",
+    "$trigger=New-ScheduledTaskTrigger -Once -At ((Get-Date).AddDays(3650))",
     "DNS9_PHASE_B3_SERVER_TIMER_ENABLE=0",
     "DNS9_PHASE_B3_PERMANENT_TASK_ENABLE=0",
     "DNS9_PHASE_B3_DRY_RUN=1",
@@ -127,12 +132,18 @@ ok(sorted(systemctl_calls)==sorted([
 ok("shell=True" not in src and "shell = True" not in src,
    "Phase B3 subprocess calls do not use shell execution")
 
-ok("New-ScheduledTaskTrigger -Once -At ((Get-Date).AddDays(7))" in src,
-   "temporary task has one explicit future trigger")
-ok("$trigger.Enabled=$false" in src,
-   "temporary task trigger is explicitly disabled")
+ok("New-ScheduledTaskTrigger -Once -At ((Get-Date).AddDays(3650))" in src,
+   "temporary task has one explicit far-future trigger")
+ok("$trigger.Enabled=$true" in src,
+   "temporary task trigger is explicitly enabled for on-demand runnable task state")
+ok("if([string]$pilot.State -eq 'Disabled')" in src,
+   "temporary task rejects Disabled task state before on-demand start")
+ok("pilot.Settings.AllowStartOnDemand" in src,
+   "temporary task requires AllowStartOnDemand")
 ok("Register-ScheduledTask -TaskName $PilotTask -Action $action -Trigger $trigger" in src,
-   "temporary task registration uses the disabled trigger")
+   "temporary task registration uses the explicit far-future trigger")
+ok("$trigger.Enabled=$false" not in src,
+   "Phase B3 no longer uses disabled trigger that blocked on-demand execution on Server 2016")
 ok("Remove-Item -LiteralPath $Status" not in src,
    "Phase B3 does not delete prior status evidence")
 
