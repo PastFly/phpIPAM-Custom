@@ -115,8 +115,9 @@ def main()->None:
     print("DNS9_PHASE_B3_SERVER="+args.server.lower())
     print("DNS9_PHASE_B3_PERMANENT_TASK_EXPECTED_DISABLED=1")
     print("DNS9_PHASE_B3_TEMP_TASK_TRIGGER_COUNT=1")
-    print("DNS9_PHASE_B3_TEMP_TASK_TRIGGER_ENABLED=0")
+    print("DNS9_PHASE_B3_TEMP_TASK_TRIGGER_ENABLED=1")
     print("DNS9_PHASE_B3_TEMP_TASK_TRIGGER_FUTURE=1")
+    print("DNS9_PHASE_B3_TEMP_TASK_TRIGGER_AUTORUN_DAYS=3650")
     print("DNS9_PHASE_B3_SERVER_TIMER_ENABLE=0")
     print("DNS9_PHASE_B3_PERMANENT_TASK_ENABLE=0")
 
@@ -176,17 +177,23 @@ try {{
     $action=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "'+$Runner+'"')
     $principal=New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
     $settings=New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 3) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
-    $trigger=New-ScheduledTaskTrigger -Once -At ((Get-Date).AddDays(7))
-    $trigger.Enabled=$false
+    $trigger=New-ScheduledTaskTrigger -Once -At ((Get-Date).AddDays(3650))
+    $trigger.Enabled=$true
     Register-ScheduledTask -TaskName $PilotTask -Action $action -Trigger $trigger -Principal $principal -Settings $settings | Out-Null
     $created=$true
 
     $pilot=Get-ScheduledTask -TaskName $PilotTask -ErrorAction Stop
     $pilotTriggers=@($pilot.Triggers)
     if($pilotTriggers.Count -ne 1){{throw 'dns9_phase_b3_temp_task_trigger_count'}}
-    if([bool]$pilotTriggers[0].Enabled){{throw 'dns9_phase_b3_temp_task_trigger_enabled'}}
+    if(-not [bool]$pilotTriggers[0].Enabled){{throw 'dns9_phase_b3_temp_task_trigger_disabled'}}
     $triggerStart=[DateTime]$pilotTriggers[0].StartBoundary
-    if($triggerStart -lt (Get-Date).AddDays(6)){{throw 'dns9_phase_b3_temp_task_trigger_not_future'}}
+    if($triggerStart -lt (Get-Date).AddDays(3600)){{throw 'dns9_phase_b3_temp_task_trigger_not_far_future'}}
+    if([string]$pilot.State -eq 'Disabled'){{throw 'dns9_phase_b3_temp_task_disabled'}}
+    if(-not [bool]$pilot.Settings.AllowStartOnDemand){{throw 'dns9_phase_b3_on_demand_disabled'}}
+    Write-Output ('DNS9_PHASE_B3_TEMP_TASK_PRESTART_STATE='+[string]$pilot.State)
+    Write-Output 'DNS9_PHASE_B3_TEMP_TASK_TRIGGER_ENABLED=1'
+    Write-Output 'DNS9_PHASE_B3_TEMP_TASK_TRIGGER_FAR_FUTURE=1'
+    Write-Output 'DNS9_PHASE_B3_TEMP_TASK_ALLOW_ON_DEMAND=1'
 
     $startedAt=Get-Date
     $startedEpoch=[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
@@ -217,7 +224,8 @@ try {{
         temp_task_name=$PilotTask
         temp_task_trigger_count=@($pilot.Triggers).Count
         temp_task_trigger_enabled=[bool]$pilot.Triggers[0].Enabled
-        temp_task_trigger_future=([DateTime]$pilot.Triggers[0].StartBoundary -gt (Get-Date).AddDays(6))
+        temp_task_trigger_future=([DateTime]$pilot.Triggers[0].StartBoundary -gt (Get-Date).AddDays(3600))
+        temp_task_allow_on_demand=[bool]$pilot.Settings.AllowStartOnDemand
         temp_task_last_result=[int64]$info.LastTaskResult
         collector_state=[string]$status.state
         job_id=$status.job_id
@@ -276,10 +284,12 @@ finally {{
         raise RuntimeError("phase_b3_permanent_task_changed")
     if int(remote.get("temp_task_trigger_count",-1))!=1:
         raise RuntimeError("phase_b3_temp_task_trigger_count")
-    if remote.get("temp_task_trigger_enabled") is not False:
-        raise RuntimeError("phase_b3_temp_task_trigger_enabled")
+    if remote.get("temp_task_trigger_enabled") is not True:
+        raise RuntimeError("phase_b3_temp_task_trigger_disabled")
     if remote.get("temp_task_trigger_future") is not True:
-        raise RuntimeError("phase_b3_temp_task_trigger_not_future")
+        raise RuntimeError("phase_b3_temp_task_trigger_not_far_future")
+    if remote.get("temp_task_allow_on_demand") is not True:
+        raise RuntimeError("phase_b3_on_demand_disabled")
     if int(remote.get("temp_task_last_result",-1))!=0:
         raise RuntimeError("phase_b3_temp_task_result")
     if remote.get("collector_state")!="submitted":
@@ -316,8 +326,10 @@ finally {{
         "permanent_task_state":"Disabled",
         "temporary_task_removed":True,
         "temporary_task_trigger_count":1,
-        "temporary_task_trigger_enabled":False,
+        "temporary_task_trigger_enabled":True,
         "temporary_task_trigger_future":True,
+        "temporary_task_trigger_autorun_days":3650,
+        "temporary_task_allow_on_demand":True,
         "server_timer_enabled":False,
         "server_timer_active":False,
         "dns_write":False,
@@ -329,8 +341,9 @@ finally {{
     print("DNS9_PHASE_B3_SYSTEM_CYCLE_OK=1")
     print("DNS9_PHASE_B3_PERMANENT_TASK_ENABLED=0")
     print("DNS9_PHASE_B3_TEMP_TASK_TRIGGER_COUNT=1")
-    print("DNS9_PHASE_B3_TEMP_TASK_TRIGGER_ENABLED=0")
+    print("DNS9_PHASE_B3_TEMP_TASK_TRIGGER_ENABLED=1")
     print("DNS9_PHASE_B3_TEMP_TASK_TRIGGER_FUTURE=1")
+    print("DNS9_PHASE_B3_TEMP_TASK_ALLOW_ON_DEMAND=1")
     print("DNS9_PHASE_B3_TEMP_TASK_REMOVED=1")
     print("DNS9_PHASE_B3_PILOT_SUCCEEDED=1")
     print("DNS9_PHASE_B3_SERVER_TIMER_ENABLED=0")
