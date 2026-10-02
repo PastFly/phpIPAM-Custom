@@ -189,7 +189,7 @@ try {{
     $triggerStart=[DateTime]$pilotTriggers[0].StartBoundary
     if($triggerStart -lt (Get-Date).AddDays(3600)){{throw 'dns9_phase_b3_temp_task_trigger_not_far_future'}}
     if([string]$pilot.State -eq 'Disabled'){{throw 'dns9_phase_b3_temp_task_disabled'}}
-    if(-not [bool]$pilot.Settings.AllowStartOnDemand){{throw 'dns9_phase_b3_on_demand_disabled'}}
+    if(-not [bool]$pilot.Settings.AllowDemandStart){{throw 'dns9_phase_b3_on_demand_disabled'}}
     Write-Output ('DNS9_PHASE_B3_TEMP_TASK_PRESTART_STATE='+[string]$pilot.State)
     Write-Output 'DNS9_PHASE_B3_TEMP_TASK_TRIGGER_ENABLED=1'
     Write-Output 'DNS9_PHASE_B3_TEMP_TASK_TRIGGER_FAR_FUTURE=1'
@@ -225,7 +225,7 @@ try {{
         temp_task_trigger_count=@($pilot.Triggers).Count
         temp_task_trigger_enabled=[bool]$pilot.Triggers[0].Enabled
         temp_task_trigger_future=([DateTime]$pilot.Triggers[0].StartBoundary -gt (Get-Date).AddDays(3600))
-        temp_task_allow_on_demand=[bool]$pilot.Settings.AllowStartOnDemand
+        temp_task_allow_on_demand=[bool]$pilot.Settings.AllowDemandStart
         temp_task_last_result=[int64]$info.LastTaskResult
         collector_state=[string]$status.state
         job_id=$status.job_id

@@ -138,8 +138,12 @@ ok("$trigger.Enabled=$true" in src,
    "temporary task trigger is explicitly enabled for on-demand runnable task state")
 ok("if([string]$pilot.State -eq 'Disabled')" in src,
    "temporary task rejects Disabled task state before on-demand start")
-ok("pilot.Settings.AllowStartOnDemand" in src,
-   "temporary task requires AllowStartOnDemand")
+ok("pilot.Settings.AllowDemandStart" in src,
+   "temporary task requires CIM AllowDemandStart")
+ok("pilot.Settings.AllowStartOnDemand" not in src,
+   "Phase B3 does not confuse XML AllowStartOnDemand with CIM AllowDemandStart")
+ok("-DisallowDemandStart" not in src,
+   "temporary task settings never disable on-demand execution")
 ok("Register-ScheduledTask -TaskName $PilotTask -Action $action -Trigger $trigger" in src,
    "temporary task registration uses the explicit far-future trigger")
 ok("$trigger.Enabled=$false" not in src,
