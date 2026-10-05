@@ -197,7 +197,9 @@ try {{
 
     $startedAt=Get-Date
     $startedEpoch=[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-    Start-ScheduledTask -TaskName $PilotTask
+    & schtasks.exe /Run /TN $PilotTask | Out-Null
+    if($LASTEXITCODE -ne 0){{throw ('dns9_phase_b3_schtasks_run_failed_'+[string]$LASTEXITCODE)}}
+    Write-Output 'DNS9_PHASE_B3_START_METHOD=schtasks_run'
     $started=$true
     $deadline=(Get-Date).AddSeconds(150)
     $observedRun=$false

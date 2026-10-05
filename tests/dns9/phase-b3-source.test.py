@@ -49,7 +49,9 @@ for required in [
     "DNS9_PHASE_B3_PREFLIGHT_OK=1",
     "phpIPAM Microsoft DNS Collector DNS9 Pilot Once ",
     "Register-ScheduledTask -TaskName $PilotTask",
-    "Start-ScheduledTask -TaskName $PilotTask",
+    "schtasks.exe /Run /TN $PilotTask",
+    "DNS9_PHASE_B3_START_METHOD=schtasks_run",
+    "dns9_phase_b3_schtasks_run_failed_",
     "Unregister-ScheduledTask -TaskName $PilotTask",
     "New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest",
     "dns9_phase_b3_permanent_task_not_disabled",
@@ -144,6 +146,12 @@ ok("pilot.Settings.AllowStartOnDemand" not in src,
    "Phase B3 does not confuse XML AllowStartOnDemand with CIM AllowDemandStart")
 ok("-DisallowDemandStart" not in src,
    "temporary task settings never disable on-demand execution")
+ok("Start-ScheduledTask -TaskName $PilotTask" not in src,
+   "Phase B3 avoids Start-ScheduledTask on production Server 2016")
+ok("& schtasks.exe /Run /TN $PilotTask | Out-Null" in src,
+   "Phase B3 uses schtasks on-demand run path")
+ok("if($LASTEXITCODE -ne 0)" in src,
+   "Phase B3 checks schtasks process exit code")
 ok("Register-ScheduledTask -TaskName $PilotTask -Action $action -Trigger $trigger" in src,
    "temporary task registration uses the explicit far-future trigger")
 ok("$trigger.Enabled=$false" not in src,
