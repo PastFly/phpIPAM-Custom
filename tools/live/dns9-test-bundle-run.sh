@@ -15,6 +15,8 @@ finish() {
   { printf 'TEST_BUNDLE_SHA=%s\n' "$SHA"; printf 'TEST_BUNDLE_STAGE=%s\n' "$STAGE"; printf 'TEST_BUNDLE_RESULT=%s\n' "$result"; printf 'TEST_BUNDLE_LOG=%s\n' "$LOG"; } | tee -a "$LOG" >&3
 }
 trap finish EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 exec > >(tee -a "$LOG" >&3) 2>&1
 [[ "$SHA" =~ ^[0-9a-f]{40}$ ]]
 [[ "$STAGE" == 'b3-readonly-diagnostic+disk-inventory' ]]
