@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import argparse
+import base64
+import gzip
 import getpass
 import json
 import os
@@ -106,7 +108,19 @@ if($null -ne $log -and $log.IsEnabled){{
     operational_events=@($events)
 }} | ConvertTo-Json -Depth 8 -Compress | ForEach-Object {{Write-Output ('DNS9_PHASE_B3_DIAG_JSON='+$_)}}
 """
-    rc,out,err=run_ps(p,script)
+    # Compress the read-only PowerShell source in memory to stay below Windows
+    # process command-line limits. No remote file staging is performed.
+    packed=base64.b64encode(gzip.compress(script.encode("utf-8"),mtime=0)).decode("ascii")
+    loader=(
+        "$b=[Convert]::FromBase64String('"+packed+"');"
+        "$m=New-Object IO.MemoryStream(,$b);"
+        "$g=New-Object IO.Compression.GzipStream($m,[IO.Compression.CompressionMode]::Decompress);"
+        "$r=New-Object IO.StreamReader($g);"
+        "& ([scriptblock]::Create($r.ReadToEnd()))"
+    )
+    if len(base64.b64encode(loader.encode("utf-16le")))>7500:
+        raise RuntimeError("phase_b3_diag_encoded_command_limit")
+    rc,out,err=run_ps(p,loader)
     if rc!=0:
         safe="remote_execution_failed"
         if "command line is too long" in (out+" "+err).lower():
