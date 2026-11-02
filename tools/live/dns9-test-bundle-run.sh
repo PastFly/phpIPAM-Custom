@@ -31,6 +31,7 @@ PY
 python3 tests/dns9/phase-b3-diagnose-source.test.py
 if [[ "$(id -u)" != 0 ]]; then echo 'TEST_BUNDLE_ERROR=root_required'; exit 1; fi
 if [[ "${1:-}" == '--b3-live-once' ]]; then
+  STAGE='b3-controlled-live-once'
   echo 'TEST_BUNDLE_STAGE=b3-controlled-live-once'
   python3 - <<'PY'
 from pathlib import Path
@@ -43,11 +44,8 @@ PY
   python3 tools/live/dns9-phase-b3-first-cycle.py --bootstrap-receipt "$RECEIPT"
   read -r -p 'WinRM domain username: ' DNS9_USER </dev/tty
   [[ -n "$DNS9_USER" ]] || { echo 'DNS9_B3_ERROR=username_missing'; exit 1; }
-  # Durable one-shot lock: a failed controlled attempt is NEVER automatically repeated.
-  GUARD="/var/lib/phpipam-custom/dns9-b3-live-attempt-$SHA"
-  ( set -o noclobber; printf '%s\n' "$SHA" > "$GUARD" ) || { echo 'DNS9_B3_ERROR=attempt_already_recorded'; exit 1; }
-  chmod 600 "$GUARD"
-  echo 'DNS9_B3_ONE_SHOT_GUARD_CREATED=1'
+  # The Python entrypoint obtains the password before creating its one-shot guard.
+  # A previously recorded attempt must not be cleared by this wrapper.
   python3 tools/live/dns9-phase-b3-first-cycle.py --bootstrap-receipt "$RECEIPT" --username "$DNS9_USER" --apply
   echo 'DNS9_B3_CONTROLLED_CYCLE_COMPLETED=1'
   exit 0
