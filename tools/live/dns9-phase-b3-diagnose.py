@@ -122,6 +122,8 @@ if($null -ne $log -and $log.IsEnabled){{
     status_exists=[bool](Test-Path -LiteralPath $Status -PathType Leaf)
     status_mtime_utc=$statusMtime
     status=$statusDoc
+    status_epoch_consistent=[bool]($null -ne $statusDoc -and $null -ne $statusMtime -and [Math]::Abs(([DateTimeOffset]::Parse($statusMtime).ToUnixTimeSeconds()-[int64]$statusDoc.updated_at)) -le 5)
+    status_error_generic=[bool]($null -ne $statusDoc -and $statusDoc.state -eq 'error' -and $statusDoc.result_code -eq 'dns9_runtime_error')
     temporary_task_exists=$temporaryTaskExists
     temporary_task_state=$temporaryTaskState
     temporary_last_run_utc=$temporaryLastRunUtc
