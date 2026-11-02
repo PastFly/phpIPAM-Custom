@@ -101,6 +101,7 @@ def main()->None:
     ap.add_argument("--username")
     ap.add_argument("--server",default=SERVER)
     ap.add_argument("--apply",action="store_true")
+    ap.add_argument("--attempt-sha")
     args=ap.parse_args()
 
     if os.geteuid()!=0:
@@ -143,6 +144,24 @@ def main()->None:
     if not password:
         raise SystemExit("DNS9_PHASE_B3_ERROR=password_empty")
 
+    # Never reserve a live attempt before the interactive credential prompt.
+    # Any prior attempt marker, including one from another bundle SHA, is
+    # ambiguous and must be reviewed rather than silently removed.
+    if args.attempt_sha:
+        if not re.fullmatch(r"[0-9a-f]{40}",args.attempt_sha):
+            raise SystemExit("DNS9_PHASE_B3_ERROR=attempt_sha_invalid")
+        guard_root=Path("/var/lib/phpipam-custom")
+        previous=list(guard_root.glob("dns9-b3-live-attempt-*"))
+        if previous:
+            raise SystemExit("DNS9_PHASE_B3_ERROR=existing_attempt_requires_review")
+        guard=guard_root/("dns9-b3-live-attempt-"+args.attempt_sha)
+        fd=os.open(guard,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+        try:
+            os.write(fd,(args.attempt_sha+"\\n").encode("ascii"))
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        print("DNS9_B3_ONE_SHOT_GUARD_CREATED=1")
     p=protocol(args.server,args.username,password)
     password=""
     suffix=hashlib.sha256((str(time.time_ns())+str(os.getpid())).encode("ascii")).hexdigest()[:12]
