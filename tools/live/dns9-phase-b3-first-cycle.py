@@ -211,13 +211,168 @@ try {{
         if($observedRun -and [string]$pilot.State -ne 'Running'){{break}}
     }} while((Get-Date) -lt $deadline)
 
-    if(-not $observedRun){{throw 'dns9_phase_b3_task_never_started'}}
+    # LastRunTime can lag or be unavailable on this Windows Server 2016
+    # ScheduledTasks stack. Prefer a freshly written, redacted runner receipt.
+    $freshStatus=$false
+    $status=$null
+    if(Test-Path -LiteralPath $Status -PathType Leaf){{
+        $statusItem=Get-Item -LiteralPath $Status -ErrorAction Stop
+        if($statusItem.LastWriteTimeUtc -ge $startedAt.ToUniversalTime().AddSeconds(-2)){{
+            $status=Get-Content -LiteralPath $Status -Raw | ConvertFrom-Json -ErrorAction Stop
+            $freshStatus=([int64]$status.updated_at -ge $startedEpoch)
+        }}
+    }}
+    Write-Output ('DNS9_PHASE_B3_LASTRUN_OBSERVED='+([int][bool]$observedRun))
+    Write-Output ('DNS9_PHASE_B3_FRESH_STATUS_OBSERVED='+([int][bool]$freshStatus))
     if([string]$pilot.State -eq 'Running'){{throw 'dns9_phase_b3_task_timeout'}}
-    if([int64]$info.LastTaskResult -ne 0){{throw ('dns9_phase_b3_task_result_'+[string]$info.LastTaskResult)}}
+    if($freshStatus -and [string]$status.state -eq 'error'){{
+        # Do not expose raw exception text or any credential material.
+        $safeCode=[string]$status.result_code
+        if($safeCode -notmatch '^[a-z0-9_]{1,80}
+    $perm=Get-ScheduledTask -TaskName $PermanentTask -ErrorAction Stop
+    if([string]$perm.State -ne 'Disabled'){{throw 'dns9_phase_b3_permanent_task_changed'}}
 
-    if(-not (Test-Path -LiteralPath $Status -PathType Leaf)){{throw 'dns9_phase_b3_status_missing'}}
-    $status=Get-Content -LiteralPath $Status -Raw | ConvertFrom-Json -ErrorAction Stop
-    if([int64]$status.updated_at -lt $startedEpoch){{throw 'dns9_phase_b3_status_stale'}}
+    [PSCustomObject][ordered]@{{
+        permanent_task_state=[string]$perm.State
+        temp_task_name=$PilotTask
+        temp_task_trigger_count=@($pilot.Triggers).Count
+        temp_task_trigger_enabled=[bool]$pilot.Triggers[0].Enabled
+        temp_task_trigger_future=([DateTime]$pilot.Triggers[0].StartBoundary -gt (Get-Date).AddDays(3600))
+        temp_task_allow_on_demand=[bool]$pilot.Settings.AllowDemandStart
+        temp_task_last_result=[int64]$info.LastTaskResult
+        collector_state=[string]$status.state
+        job_id=$status.job_id
+        job_type=$status.job_type
+        result_ok=$status.result_ok
+        result_code=$status.result_code
+        collector_updated_at=[int64]$status.updated_at
+    }} | ConvertTo-Json -Compress | ForEach-Object {{Write-Output ('DNS9_PHASE_B3_REMOTE_JSON='+$_)}}
+}}
+finally {{
+    if($created){{
+        try{{Unregister-ScheduledTask -TaskName $PilotTask -Confirm:$false -ErrorAction Stop}}catch{{}}
+    }}
+    $left=Get-ScheduledTask -TaskName $PilotTask -ErrorAction SilentlyContinue
+    $cleanupOk=($null -eq $left)
+    Write-Output ('DNS9_PHASE_B3_TEMP_TASK_CLEANED='+([int][bool]$cleanupOk))
+    Write-Output ('DNS9_PHASE_B3_TEMP_TASK_STARTED='+([int][bool]$started))
+}}
+"""
+    control_dir=rf"C:\Windows\Temp\phpipam-dns9-phase-b3-{suffix}"
+    control_path=control_dir+r"\first-cycle.ps1"
+    remote_error=None
+    out=""
+    err=""
+    try:
+        stage_bytes(p,control_path,script.encode("utf-8"))
+        print("DNS9_PHASE_B3_CONTROL_STAGE_OK=1")
+        rc,out,err=run(
+            p,"powershell.exe",
+            ["-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass",
+             "-File",control_path]
+        )
+        print(out,end="" if out.endswith("\n") else "\n")
+        if rc!=0:
+            remote_error=RuntimeError("phase_b3_remote_failed:"+err[:512])
+        elif "DNS9_PHASE_B3_TEMP_TASK_CLEANED=1" not in out:
+            remote_error=RuntimeError("phase_b3_temp_task_cleanup_failed")
+    except Exception as exc:
+        remote_error=exc
+
+    try:
+        remove_tree(p,control_dir)
+        print("DNS9_PHASE_B3_CONTROL_STAGE_CLEANED=1")
+    except Exception as cleanup_exc:
+        print("DNS9_PHASE_B3_CONTROL_STAGE_CLEANED=0")
+        if remote_error is None:
+            remote_error=RuntimeError("phase_b3_control_stage_cleanup_failed:"+str(cleanup_exc)[:512])
+        else:
+            remote_error=RuntimeError(str(remote_error)+"; phase_b3_control_stage_cleanup_failed:"+str(cleanup_exc)[:256])
+
+    if remote_error is not None:
+        raise remote_error
+
+    remote=json_line(out,"DNS9_PHASE_B3_REMOTE_JSON=")
+    if remote.get("permanent_task_state")!="Disabled":
+        raise RuntimeError("phase_b3_permanent_task_changed")
+    if int(remote.get("temp_task_trigger_count",-1))!=1:
+        raise RuntimeError("phase_b3_temp_task_trigger_count")
+    if remote.get("temp_task_trigger_enabled") is not True:
+        raise RuntimeError("phase_b3_temp_task_trigger_disabled")
+    if remote.get("temp_task_trigger_future") is not True:
+        raise RuntimeError("phase_b3_temp_task_trigger_not_far_future")
+    if remote.get("temp_task_allow_on_demand") is not True:
+        raise RuntimeError("phase_b3_on_demand_disabled")
+    if int(remote.get("temp_task_last_result",-1))!=0:
+        raise RuntimeError("phase_b3_temp_task_result")
+    if remote.get("collector_state")!="submitted":
+        raise RuntimeError("phase_b3_collector_state")
+    if remote.get("job_id")!=PILOT_JOB_ID or remote.get("job_type")!="test_connection":
+        raise RuntimeError("phase_b3_job_identity")
+    if remote.get("result_ok") is not True or remote.get("result_code")!="ok":
+        raise RuntimeError("phase_b3_job_result")
+
+    after=job_state()
+    print("DNS9_PHASE_B3_PILOT_AFTER="+after)
+    parts=after.split("|")
+    if len(parts)!=7:
+        raise RuntimeError("phase_b3_job_state_shape")
+    if parts[0]!="succeeded" or parts[1]!="1" or parts[2]!="" or parts[3]=="0" or parts[4]!="ok" or parts[5]!="" or parts[6]=="0":
+        raise RuntimeError("phase_b3_job_state_invalid")
+    if timer_enabled() or timer_active():
+        raise RuntimeError("phase_b3_server_timer_changed")
+
+    stamp=time.strftime("%Y%m%d-%H%M%S",time.gmtime())
+    receipt_dir=BACKUP_ROOT/("dns9-phase-b3-first-cycle-"+stamp)
+    receipt_dir.mkdir(parents=True,mode=0o700,exist_ok=False)
+    receipt_path=receipt_dir/"receipt.json"
+    result={
+        "stage":"first_cycle_succeeded",
+        "created_at":int(time.time()),
+        "server":args.server.lower(),
+        "pilot_job_id":PILOT_JOB_ID,
+        "pilot_job_type":"test_connection",
+        "pilot_job_state":"succeeded",
+        "pilot_attempt_count":1,
+        "pilot_result_code":"ok",
+        "credential_delivered":True,
+        "permanent_task_state":"Disabled",
+        "temporary_task_removed":True,
+        "temporary_task_trigger_count":1,
+        "temporary_task_trigger_enabled":True,
+        "temporary_task_trigger_future":True,
+        "temporary_task_trigger_autorun_days":3650,
+        "temporary_task_allow_on_demand":True,
+        "server_timer_enabled":False,
+        "server_timer_active":False,
+        "dns_write":False,
+    }
+    receipt_path.write_text(json.dumps(result,sort_keys=True,indent=2)+"\n")
+    os.chmod(receipt_path,0o600)
+
+    print("DNS9_PHASE_B3_WINRM_AUTH_OK=1")
+    print("DNS9_PHASE_B3_SYSTEM_CYCLE_OK=1")
+    print("DNS9_PHASE_B3_PERMANENT_TASK_ENABLED=0")
+    print("DNS9_PHASE_B3_TEMP_TASK_TRIGGER_COUNT=1")
+    print("DNS9_PHASE_B3_TEMP_TASK_TRIGGER_ENABLED=1")
+    print("DNS9_PHASE_B3_TEMP_TASK_TRIGGER_FUTURE=1")
+    print("DNS9_PHASE_B3_TEMP_TASK_ALLOW_ON_DEMAND=1")
+    print("DNS9_PHASE_B3_TEMP_TASK_REMOVED=1")
+    print("DNS9_PHASE_B3_PILOT_SUCCEEDED=1")
+    print("DNS9_PHASE_B3_SERVER_TIMER_ENABLED=0")
+    print("DNS9_PHASE_B3_SERVER_TIMER_ACTIVE=0")
+    print("DNS9_PHASE_B3_DNS_WRITE=0")
+    print("DNS9_PHASE_B3_RECEIPT="+str(receipt_path))
+    print("DNS9_PHASE_B3_OK=1")
+
+if __name__=="__main__":
+    main()
+){{$safeCode='invalid_code'}}
+        throw ('dns9_phase_b3_collector_error_'+$safeCode)
+    }}
+    if(-not $observedRun -and -not $freshStatus){{throw 'dns9_phase_b3_task_start_unconfirmed'}}
+    if([int64]$info.LastTaskResult -ne 0){{throw ('dns9_phase_b3_task_result_'+[string]$info.LastTaskResult)}}
+    if(-not $freshStatus){{throw 'dns9_phase_b3_status_missing_or_stale'}}
     $perm=Get-ScheduledTask -TaskName $PermanentTask -ErrorAction Stop
     if([string]$perm.State -ne 'Disabled'){{throw 'dns9_phase_b3_permanent_task_changed'}}
 
