@@ -28,6 +28,28 @@ print('TEST_BUNDLE_PYTHON_COMPILE=PASS')
 PY
 python3 tests/dns9/phase-b3-diagnose-source.test.py
 if [[ "$(id -u)" != 0 ]]; then echo 'TEST_BUNDLE_ERROR=root_required'; exit 1; fi
+echo 'TEST_BUNDLE_SERVER_POSTSTATE_BEGIN'
+DB_ROW="$(mariadb --batch --skip-column-names phpipam <<'SQL'
+SELECT CONCAT(state,'|',attempt_count,'|',
+ IF(lease_id IS NULL OR lease_id='',0,1),'|',
+ IF(credential_delivered_at IS NULL,0,1),'|',
+ IF(result_code IS NULL OR result_code='',0,1),'|',
+ IF(result_payload IS NULL OR OCTET_LENGTH(result_payload)=0,0,1),'|',
+ IF(finished_at IS NULL,0,1))
+FROM custom_dns_control_jobs
+WHERE id='a4ee3e5987dd15495d7e2419e853d9c8';
+SQL
+)"
+echo "DNS9_PILOT_POSTSTATE=$DB_ROW"
+[[ "$DB_ROW" == 'pending|0|0|0|0|0|0' ]] || { echo 'TEST_BUNDLE_ERROR=pilot_not_pristine'; exit 1; }
+if systemctl is-enabled --quiet phpipam-dns-autonomous.timer; then
+  echo 'TEST_BUNDLE_ERROR=timer_enabled'; exit 1
+fi
+if systemctl is-active --quiet phpipam-dns-autonomous.timer; then
+  echo 'TEST_BUNDLE_ERROR=timer_active'; exit 1
+fi
+echo 'DNS9_SERVER_TIMER=disabled_inactive'
+echo 'TEST_BUNDLE_SERVER_POSTSTATE_END'
 echo 'TEST_BUNDLE_DISK_INVENTORY_BEGIN'
 for arg in '/' '/var' '/var/lib' '/var/log' '/usr' '/opt' '/home' '/var/cache'; do
   echo "DISK_SECTION=$arg"
@@ -46,6 +68,29 @@ read -r -p 'WinRM diagnostic username: ' DNS9_USER </dev/tty
 [[ -n "$DNS9_USER" ]] || { echo 'TEST_BUNDLE_ERROR=username_required'; exit 1; }
 python3 tools/live/dns9-phase-b3-diagnose.py --username "$DNS9_USER" --suffix 4aafbf3f8edc
 echo 'TEST_BUNDLE_DNS9_DIAGNOSTIC_END'
+echo 'TEST_BUNDLE_SERVER_POSTSTATE_BEGIN'
+DB_ROW="$(mariadb --batch --skip-column-names phpipam <<'SQL'
+SELECT CONCAT(state,'|',attempt_count,'|',
+ IF(lease_id IS NULL OR lease_id='',0,1),'|',
+ IF(credential_delivered_at IS NULL,0,1),'|',
+ IF(result_code IS NULL OR result_code='',0,1),'|',
+ IF(result_payload IS NULL OR OCTET_LENGTH(result_payload)=0,0,1),'|',
+ IF(finished_at IS NULL,0,1))
+FROM custom_dns_control_jobs
+WHERE id='a4ee3e5987dd15495d7e2419e853d9c8';
+SQL
+)"
+echo "DNS9_PILOT_POSTSTATE=$DB_ROW"
+[[ "$DB_ROW" == 'pending|0|0|0|0|0|0' ]] || { echo 'TEST_BUNDLE_ERROR=pilot_not_pristine'; exit 1; }
+if systemctl is-enabled --quiet phpipam-dns-autonomous.timer; then
+  echo 'TEST_BUNDLE_ERROR=timer_enabled'; exit 1
+fi
+if systemctl is-active --quiet phpipam-dns-autonomous.timer; then
+  echo 'TEST_BUNDLE_ERROR=timer_active'; exit 1
+fi
+echo 'DNS9_SERVER_TIMER=disabled_inactive'
+echo 'TEST_BUNDLE_SERVER_POSTSTATE_END'
+
 echo 'TEST_BUNDLE_REMOTE_MUTATION=0'
 echo 'TEST_BUNDLE_DB_MUTATION=0'
 echo 'TEST_BUNDLE_DNS_WRITE=0'
