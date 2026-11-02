@@ -278,11 +278,11 @@ finally {{
         )
         print(out,end="" if out.endswith("\n") else "\n")
         if rc!=0:
-            remote_error=RuntimeError("phase_b3_remote_failed:"+err[:512])
+            remote_error=RuntimeError("phase_b3_remote_failed_redacted")
         elif "DNS9_PHASE_B3_TEMP_TASK_CLEANED=1" not in out:
             remote_error=RuntimeError("phase_b3_temp_task_cleanup_failed")
     except Exception as exc:
-        remote_error=exc
+        remote_error=RuntimeError("phase_b3_transport_failed_redacted")
 
     try:
         remove_tree(p,control_dir)
@@ -290,9 +290,9 @@ finally {{
     except Exception as cleanup_exc:
         print("DNS9_PHASE_B3_CONTROL_STAGE_CLEANED=0")
         if remote_error is None:
-            remote_error=RuntimeError("phase_b3_control_stage_cleanup_failed:"+str(cleanup_exc)[:512])
+            remote_error=RuntimeError("phase_b3_control_stage_cleanup_failed_redacted")
         else:
-            remote_error=RuntimeError(str(remote_error)+"; phase_b3_control_stage_cleanup_failed:"+str(cleanup_exc)[:256])
+            remote_error=RuntimeError(str(remote_error)+"; phase_b3_control_stage_cleanup_failed_redacted")
 
     if remote_error is not None:
         raise remote_error
