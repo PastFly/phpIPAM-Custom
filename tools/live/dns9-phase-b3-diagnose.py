@@ -102,7 +102,7 @@ if($null -ne $log -and $log.IsEnabled){{
 """
     rc,out,err=run_ps(p,script)
     if rc!=0:
-        raise RuntimeError("phase_b3_diag_remote_failed:"+err[:512])
+        raise RuntimeError("phase_b3_diag_remote_failed")
     doc=json_line(out,"DNS9_PHASE_B3_DIAG_JSON=")
     print("DNS9_PHASE_B3_DIAG_JSON="+json.dumps(doc,sort_keys=True,separators=(',',':')))
     print("DNS9_PHASE_B3_DIAG_REMOTE_MUTATION=0")
