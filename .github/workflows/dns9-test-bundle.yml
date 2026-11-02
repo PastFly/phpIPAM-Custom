@@ -1,0 +1,63 @@
+name: DNS9 exact-SHA read-only test bundle
+
+on:
+  push:
+    branches:
+      - feature/microsoft-dns-autonomous-collector
+    paths:
+      - 'tools/live/dns9-build-test-bundle.sh'
+      - 'tools/live/dns9-test-bundle-run.sh'
+      - 'tools/live/dns9-phase-b3-diagnose.py'
+      - 'tools/live/dns9_winrm_common.py'
+      - 'tests/dns9/phase-b3-diagnose-source.test.py'
+      - '.github/workflows/dns9-test-bundle.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Validate read-only diagnostic source
+        run: python3 tests/dns9/phase-b3-diagnose-source.test.py
+      - name: Build exact-SHA bundle
+        run: bash tools/live/dns9-build-test-bundle.sh
+      - name: Verify archive and execute source portion of runner
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/dns9-bundle-check
+          tar -xzf dist/phpipam-dns9-test-"${GITHUB_SHA:0:12}".tar.gz -C /tmp/dns9-bundle-check
+          cd /tmp/dns9-bundle-check
+          test "$(cat EXPECTED_SHA)" = "$GITHUB_SHA"
+          sha256sum --status -c SHA256SUMS
+          python3 tests/dns9/phase-b3-diagnose-source.test.py
+          bash -n tools/live/dns9-test-bundle-run.sh
+      - name: Upload CI artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dns9-test-${{ github.sha }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish immutable exact SHA release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/microsoft-dns-autonomous-collector'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="dns9-test-${GITHUB_SHA}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release already exists; not replacing assets"
+            exit 0
+          fi
+          gh release create "$TAG" dist/* \
+            --target "$GITHUB_SHA" \
+            --title "DNS9 read-only test ${GITHUB_SHA:0:12}" \
+            --notes "Read-only B3 scheduler diagnostic and disk inventory. Exact source SHA: $GITHUB_SHA. Do not execute live B3 apply." \
+            --prerelease
