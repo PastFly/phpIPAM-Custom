@@ -64,6 +64,30 @@ if(Test-Path -LiteralPath $Status -PathType Leaf){{
 $log=Get-WinEvent -ListLog 'Microsoft-Windows-TaskScheduler/Operational' -ErrorAction SilentlyContinue
 $events=@()
 $candidate=@()
+$oldest=$null
+$newest=$null
+$logRecordCount=$null
+$temporaryTaskExists=$false
+$temporaryTaskState=$null
+$temporaryLastRunUtc=$null
+$temporaryLastResult=$null
+try {{
+    $temp=Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop
+    $temporaryTaskExists=$true
+    $temporaryTaskState=[string]$temp.State
+    $tempInfo=Get-ScheduledTaskInfo -TaskName $TaskName -ErrorAction Stop
+    $temporaryLastRunUtc=$tempInfo.LastRunTime.ToUniversalTime().ToString('o')
+    $temporaryLastResult=[int64]$tempInfo.LastTaskResult
+}} catch {{}}
+if($null -ne $log){{
+    $logRecordCount=[int64]$log.RecordCount
+    $latestRecords=@(Get-WinEvent -LogName 'Microsoft-Windows-TaskScheduler/Operational' -MaxEvents 1 -ErrorAction SilentlyContinue)
+    if($latestRecords.Count -gt 0){{$newest=$latestRecords[0].TimeCreated.ToUniversalTime().ToString('o')}}
+    if($logRecordCount -gt 0){{
+        $earliestRecords=@(Get-WinEvent -LogName 'Microsoft-Windows-TaskScheduler/Operational' -Oldest -MaxEvents 1 -ErrorAction SilentlyContinue)
+        if($earliestRecords.Count -gt 0){{$oldest=$earliestRecords[0].TimeCreated.ToUniversalTime().ToString('o')}}
+    }}
+}}
 if($null -ne $log -and $log.IsEnabled){{
     $start=[datetime]'2026-10-27T07:45:00Z'
     $end=[datetime]'2026-10-27T08:20:00Z'
@@ -98,6 +122,13 @@ if($null -ne $log -and $log.IsEnabled){{
     status_exists=[bool](Test-Path -LiteralPath $Status -PathType Leaf)
     status_mtime_utc=$statusMtime
     status=$statusDoc
+    temporary_task_exists=$temporaryTaskExists
+    temporary_task_state=$temporaryTaskState
+    temporary_last_run_utc=$temporaryLastRunUtc
+    temporary_last_result=$temporaryLastResult
+    operational_record_count=$logRecordCount
+    operational_oldest_event_utc=$oldest
+    operational_newest_event_utc=$newest
     operational_log_present=[bool]($null -ne $log)
     operational_log_enabled=[bool]($null -ne $log -and $log.IsEnabled)
     diagnostic_window_start_utc='2026-10-27T07:45:00Z'
