@@ -21,7 +21,7 @@ for required in [
     "--username","--suffix","WinRM diagnostic password:",
     "Microsoft-Windows-TaskScheduler/Operational",
     "Get-WinEvent -ListLog","Get-WinEvent -FilterHashtable",
-    "status.json","permanent_task_state","permanent_allow_demand_start",
+    "status.json","status_epoch_consistent","status_error_generic","permanent_task_state","permanent_allow_demand_start",
     "operational_event_count","operational_events",
     "DNS9_PHASE_B3_DIAG_REMOTE_MUTATION=0",
     "DNS9_PHASE_B3_DIAG_DB_MUTATION=0",
