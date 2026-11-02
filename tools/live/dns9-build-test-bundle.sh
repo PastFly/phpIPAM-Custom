@@ -17,6 +17,7 @@ for file in \
   tools/live/dns9-phase-b3-diagnose.py \
   tools/live/dns9_winrm_common.py \
   tests/dns9/phase-b3-diagnose-source.test.py \
+  tools/live/dns9-phase-b3-first-cycle.py \
   tools/live/dns9-test-bundle-run.sh; do
   cp "$file" "$STAGE/$file"
 done
@@ -44,7 +45,7 @@ tail -n +"$PAYLOAD_LINE" "$0" | tar -xz -C "$TMP"
 cd "$TMP"
 sha256sum --status -c SHA256SUMS || { echo 'TEST_BUNDLE_ERROR=checksum_invalid'; exit 1; }
 exec 4>&1
-bash tools/live/dns9-test-bundle-run.sh
+bash tools/live/dns9-test-bundle-run.sh "$@"
 exit $?
 __ARCHIVE_BELOW__
 HEADER
