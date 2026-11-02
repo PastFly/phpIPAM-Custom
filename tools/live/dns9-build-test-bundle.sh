@@ -30,7 +30,7 @@ printf '%s\n' 'b3-readonly-diagnostic+disk-inventory' > "$STAGE/STAGE"
 PACKAGE="$OUT/phpipam-dns9-test-$SHORT.tar.gz"
 tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner \
   -C "$STAGE" -czf "$PACKAGE" .
-sha256sum "$PACKAGE" > "$PACKAGE.sha256"
+(cd "$OUT" && sha256sum "$(basename "$PACKAGE")" > "$(basename "$PACKAGE").sha256")
 RUN="$OUT/phpipam-dns9-test-$SHORT.run"
 cat > "$RUN" <<'HEADER'
 #!/usr/bin/env bash
@@ -50,6 +50,6 @@ __ARCHIVE_BELOW__
 HEADER
 cat "$PACKAGE" >> "$RUN"
 chmod 700 "$RUN"
-sha256sum "$RUN" > "$RUN.sha256"
+(cd "$OUT" && sha256sum "$(basename "$RUN")" > "$(basename "$RUN").sha256")
 echo "TEST_PACKAGE=$RUN"
 echo "TEST_PACKAGE_SHA=$SHA"
