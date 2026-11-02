@@ -229,6 +229,12 @@ try {{
         # Do not expose raw exception text or any credential material.
         $safeCode=[string]$status.result_code
         if($safeCode -notmatch '^[a-z0-9_]{{1,80}}$'){{$safeCode='invalid_code'}}
+        throw ('dns9_phase_b3_collector_error_'+$safeCode)
+    }}
+    if(-not $observedRun -and -not $freshStatus){{throw 'dns9_phase_b3_task_start_unconfirmed'}}
+    if([int64]$info.LastTaskResult -ne 0){{throw ('dns9_phase_b3_task_result_'+[string]$info.LastTaskResult)}}
+    if(-not $freshStatus){{throw 'dns9_phase_b3_status_missing_or_stale'}}
+    $perm=Get-ScheduledTask -TaskName $PermanentTask -ErrorAction Stop
     if([string]$perm.State -ne 'Disabled'){{throw 'dns9_phase_b3_permanent_task_changed'}}
 
     [PSCustomObject][ordered]@{{
