@@ -46,7 +46,7 @@ PY
   [[ -n "$DNS9_USER" ]] || { echo 'DNS9_B3_ERROR=username_missing'; exit 1; }
   # The Python entrypoint obtains the password before creating its one-shot guard.
   # A previously recorded attempt must not be cleared by this wrapper.
-  python3 tools/live/dns9-phase-b3-first-cycle.py --bootstrap-receipt "$RECEIPT" --username "$DNS9_USER" --apply
+  python3 tools/live/dns9-phase-b3-first-cycle.py --bootstrap-receipt "$RECEIPT" --username "$DNS9_USER" --attempt-sha "$SHA" --apply
   echo 'DNS9_B3_CONTROLLED_CYCLE_COMPLETED=1'
   exit 0
 fi
