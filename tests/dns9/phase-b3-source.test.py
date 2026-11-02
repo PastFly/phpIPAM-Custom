@@ -170,5 +170,11 @@ ok(src.index('"DNS9_PHASE_B3_CONTROL_STAGE_OK=1"') < src.index('rc,out,err=run('
 ok(src.index('remove_tree(p,control_dir)') > src.index('rc,out,err=run('),
    "Phase B3 cleans control staging after execution")
 
+ok("ap.add_argument(\"--attempt-sha\")" in src,
+   "live attempt guard binds to exact SHA")
+ok(src.index('password=getpass.getpass') < src.index('fd=os.open(guard,'),
+   "attempt guard is created only after password prompt")
+ok("existing_attempt_requires_review" in src,
+   "old unresolved attempts are never silently cleared")
 print(f"DNS9_PHASE_B3_SOURCE_ASSERTIONS={n}")
 print("DNS9_PHASE_B3_SOURCE_TESTS_OK=1")
