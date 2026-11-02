@@ -56,7 +56,10 @@ for required in [
     "New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest",
     "dns9_phase_b3_permanent_task_not_disabled",
     "dns9_phase_b3_runtime_hash_mismatch",
-    "dns9_phase_b3_status_stale",
+    "dns9_phase_b3_status_missing_or_stale",
+    "dns9_phase_b3_task_start_unconfirmed",
+    "dns9_phase_b3_collector_error_",
+    "DNS9_PHASE_B3_FRESH_STATUS_OBSERVED=",
     "DNS9_PHASE_B3_TEMP_TASK_CLEANED=",
     "DNS9_PHASE_B3_REMOTE_JSON=",
     "collector_state",
@@ -156,6 +159,7 @@ ok("Register-ScheduledTask -TaskName $PilotTask -Action $action -Trigger $trigge
    "temporary task registration uses the explicit far-future trigger")
 ok("$trigger.Enabled=$false" not in src,
    "Phase B3 no longer uses disabled trigger that blocked on-demand execution on Server 2016")
+ok(src.index("if($freshStatus -and [string]$status.state -eq 'error')") < src.index("if(-not $observedRun -and -not $freshStatus)"), "fresh error precedes LastRunTime guard")
 ok("Remove-Item -LiteralPath $Status" not in src,
    "Phase B3 does not delete prior status evidence")
 
