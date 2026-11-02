@@ -31,5 +31,25 @@ PACKAGE="$OUT/phpipam-dns9-test-$SHORT.tar.gz"
 tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner \
   -C "$STAGE" -czf "$PACKAGE" .
 sha256sum "$PACKAGE" > "$PACKAGE.sha256"
-echo "TEST_PACKAGE=$PACKAGE"
+RUN="$OUT/phpipam-dns9-test-$SHORT.run"
+cat > "$RUN" <<'HEADER'
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+TMP="$(mktemp -d /tmp/phpipam-dns9-bundle.XXXXXXXX)"
+trap 'rm -rf "$TMP"' EXIT
+PAYLOAD_LINE="$(awk '/^__ARCHIVE_BELOW__$/ {print NR+1;exit}' "$0")"
+[[ "$PAYLOAD_LINE" =~ ^[0-9]+$ ]] || { echo 'TEST_BUNDLE_ERROR=archive_marker_missing'; exit 1; }
+tail -n +"$PAYLOAD_LINE" "$0" | tar -xz -C "$TMP"
+cd "$TMP"
+sha256sum --status -c SHA256SUMS || { echo 'TEST_BUNDLE_ERROR=checksum_invalid'; exit 1; }
+exec 4>&1
+bash tools/live/dns9-test-bundle-run.sh
+exit $?
+__ARCHIVE_BELOW__
+HEADER
+cat "$PACKAGE" >> "$RUN"
+chmod 700 "$RUN"
+sha256sum "$RUN" > "$RUN.sha256"
+echo "TEST_PACKAGE=$RUN"
 echo "TEST_PACKAGE_SHA=$SHA"
