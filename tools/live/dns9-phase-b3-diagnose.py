@@ -62,8 +62,9 @@ if(Test-Path -LiteralPath $Status -PathType Leaf){{
 $log=Get-WinEvent -ListLog 'Microsoft-Windows-TaskScheduler/Operational' -ErrorAction SilentlyContinue
 $events=@()
 if($null -ne $log -and $log.IsEnabled){{
-    $start=(Get-Date).AddDays(-7)
-    $candidate=@(Get-WinEvent -FilterHashtable @{{LogName='Microsoft-Windows-TaskScheduler/Operational';StartTime=$start}} -ErrorAction SilentlyContinue)
+    $start=[DateTime]::SpecifyKind([DateTime]'2026-10-27T07:45:00',[DateTimeKind]::Utc).ToLocalTime()
+    $end=[DateTime]::SpecifyKind([DateTime]'2026-10-27T08:20:00',[DateTimeKind]::Utc).ToLocalTime()
+    $candidate=@(Get-WinEvent -FilterHashtable @{{LogName='Microsoft-Windows-TaskScheduler/Operational';StartTime=$start;EndTime=$end}} -MaxEvents 2000 -ErrorAction SilentlyContinue)
     foreach($evt in $candidate){{
         $matched=$false
         foreach($prop in @($evt.Properties)){{
@@ -96,6 +97,9 @@ if($null -ne $log -and $log.IsEnabled){{
     status=$statusDoc
     operational_log_present=[bool]($null -ne $log)
     operational_log_enabled=[bool]($null -ne $log -and $log.IsEnabled)
+    diagnostic_window_start_utc='2026-10-27T07:45:00Z'
+    diagnostic_window_end_utc='2026-10-27T08:20:00Z'
+    operational_candidate_count=@($candidate).Count
     operational_event_count=@($events).Count
     operational_events=@($events)
 }} | ConvertTo-Json -Depth 8 -Compress | ForEach-Object {{Write-Output ('DNS9_PHASE_B3_DIAG_JSON='+$_)}}
