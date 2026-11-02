@@ -228,8 +228,7 @@ try {{
     if($freshStatus -and [string]$status.state -eq 'error'){{
         # Do not expose raw exception text or any credential material.
         $safeCode=[string]$status.result_code
-        if($safeCode -notmatch '^[a-z0-9_]{1,80}
-    $perm=Get-ScheduledTask -TaskName $PermanentTask -ErrorAction Stop
+        if($safeCode -notmatch '^[a-z0-9_]{{1,80}}$'){{$safeCode='invalid_code'}}
     if([string]$perm.State -ne 'Disabled'){{throw 'dns9_phase_b3_permanent_task_changed'}}
 
     [PSCustomObject][ordered]@{{
