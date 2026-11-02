@@ -38,6 +38,16 @@ jobs:
           sha256sum --status -c SHA256SUMS
           python3 tests/dns9/phase-b3-diagnose-source.test.py
           bash -n tools/live/dns9-test-bundle-run.sh
+          cd "$GITHUB_WORKSPACE"
+          RUN="dist/phpipam-dns9-test-${GITHUB_SHA:0:12}.run"
+          test -f "$RUN"
+          chmod +x "$RUN"
+          MARK="$(awk '/^__ARCHIVE_BELOW__$/ {print NR+1;exit}' "$RUN")"
+          test -n "$MARK"
+          mkdir -p /tmp/dns9-run-check
+          tail -n +"$MARK" "$RUN" | tar -xz -C /tmp/dns9-run-check
+          (cd /tmp/dns9-run-check && sha256sum --status -c SHA256SUMS)
+          cmp /tmp/dns9-run-check/EXPECTED_SHA /tmp/dns9-bundle-check/EXPECTED_SHA
       - name: Upload CI artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
