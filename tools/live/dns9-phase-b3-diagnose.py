@@ -63,8 +63,8 @@ $log=Get-WinEvent -ListLog 'Microsoft-Windows-TaskScheduler/Operational' -ErrorA
 $events=@()
 $candidate=@()
 if($null -ne $log -and $log.IsEnabled){{
-    $start=[DateTime]::SpecifyKind([DateTime]'2026-10-27T07:45:00',[DateTimeKind]::Utc).ToLocalTime()
-    $end=[DateTime]::SpecifyKind([DateTime]'2026-10-27T08:20:00',[DateTimeKind]::Utc).ToLocalTime()
+    $start=[datetime]'2026-10-27T07:45:00Z'
+    $end=[datetime]'2026-10-27T08:20:00Z'
     $candidate=@(Get-WinEvent -FilterHashtable @{{LogName='Microsoft-Windows-TaskScheduler/Operational';StartTime=$start;EndTime=$end}} -MaxEvents 2000 -ErrorAction SilentlyContinue)
     foreach($evt in $candidate){{
         $matched=$false
@@ -108,7 +108,14 @@ if($null -ne $log -and $log.IsEnabled){{
 """
     rc,out,err=run_ps(p,script)
     if rc!=0:
-        raise RuntimeError("phase_b3_diag_remote_failed")
+        safe="remote_execution_failed"
+        if "command line is too long" in (out+" "+err).lower():
+            safe="encoded_command_too_long"
+        elif "access is denied" in (out+" "+err).lower():
+            safe="remote_access_denied"
+        elif "cannot find" in (out+" "+err).lower():
+            safe="remote_resource_missing"
+        raise RuntimeError("phase_b3_diag_"+safe)
     doc=json_line(out,"DNS9_PHASE_B3_DIAG_JSON=")
     print("DNS9_PHASE_B3_DIAG_JSON="+json.dumps(doc,sort_keys=True,separators=(',',':')))
     print("DNS9_PHASE_B3_DIAG_REMOTE_MUTATION=0")
