@@ -79,7 +79,7 @@ if($null -ne $log -and $log.IsEnabled){{
                 id=[int]$evt.Id
                 time=$evt.TimeCreated.ToUniversalTime().ToString('o')
                 level=[string]$evt.LevelDisplayName
-                message=([string]$evt.Message -replace '[\r\n]+',' ')
+                event_record_id=[long]$evt.RecordId
             }}
             if($events.Count -ge 30){{break}}
         }}
