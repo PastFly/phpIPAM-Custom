@@ -8,6 +8,7 @@ on:
       - 'tools/live/dns9-build-test-bundle.sh'
       - 'tools/live/dns9-test-bundle-run.sh'
       - 'tools/live/dns9-phase-b3-diagnose.py'
+      - 'tools/live/dns9-phase-b3-first-cycle.py'
       - 'tools/live/dns9_winrm_common.py'
       - 'tests/dns9/phase-b3-diagnose-source.test.py'
       - '.github/workflows/dns9-test-bundle.yml'
@@ -38,6 +39,7 @@ jobs:
           sha256sum --status -c SHA256SUMS
           python3 tests/dns9/phase-b3-diagnose-source.test.py
           bash -n tools/live/dns9-test-bundle-run.sh
+          python3 -c "import pathlib; p=pathlib.Path('tools/live/dns9-phase-b3-first-cycle.py'); compile(p.read_text(),str(p),'exec')"
           cd "$GITHUB_WORKSPACE"
           RUN="dist/phpipam-dns9-test-${GITHUB_SHA:0:12}.run"
           test -f "$RUN"
