@@ -4,19 +4,19 @@ $repository=(Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $Root=Join-Path $env:TEMP ('dns9-activation-fixture-'+[Guid]::NewGuid().ToString('N'))
 $PermanentName='phpIPAM Microsoft DNS Collector'
 $ExpectedJobId='3af8e09411c0e94a17ed19d3f0872359'
-$script:FixtureDisabled=$true
-$script:FixtureActiveProcess=$false
+$global:Dns9FixtureDisabled=$true
+$global:Dns9FixtureActiveProcess=$false
 function Get-ScheduledTask {
     param($TaskName,$ErrorAction)
     $action=[PSCustomObject]@{Execute='powershell.exe';Arguments=('-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "'+(Join-Path $Root 'Invoke-PhpIpamDnsCollectorScheduled.ps1')+'"')}
     $trigger=[PSCustomObject]@{Enabled=$true;StartBoundary=(Get-Date).AddMinutes(-5).ToString('s');Repetition=[PSCustomObject]@{Interval='PT1M';Duration='P3650D'}}
-    return [PSCustomObject]@{TaskName=$PermanentName;State=$(if($script:FixtureDisabled){'Disabled'}else{'Ready'});
+    return [PSCustomObject]@{TaskName=$PermanentName;State=$(if($global:Dns9FixtureDisabled){'Disabled'}else{'Ready'});
         Principal=[PSCustomObject]@{UserId='SYSTEM';LogonType='ServiceAccount'};Actions=@($action);Triggers=@($trigger);
         Settings=[PSCustomObject]@{StartWhenAvailable=$true;MultipleInstances='IgnoreNew';ExecutionTimeLimit='PT3M'}}
 }
 function Get-CimInstance {
     param($ClassName,$ErrorAction)
-    if($script:FixtureActiveProcess){return [PSCustomObject]@{Name='powershell.exe';CommandLine='Invoke-PhpIpamDnsCollectorScheduled.ps1'}}
+    if($global:Dns9FixtureActiveProcess){return [PSCustomObject]@{Name='powershell.exe';CommandLine='Invoke-PhpIpamDnsCollectorScheduled.ps1'}}
     return @()
 }
 try {
@@ -42,11 +42,12 @@ try {
     if(-not $doc.permanent_disabled -or -not $doc.principal_system -or -not $doc.action_expected -or -not $doc.files_match -or -not $doc.config_expected -or -not $doc.token_blob_present -or
        -not $doc.status_expected -or -not $doc.repetition_active -or $doc.interval_seconds -ne 60 -or
        $doc.execution_limit_seconds -ne 180 -or $doc.collector_process_count -ne 0){throw ('activation_preflight_success_invalid:'+(ConvertTo-Json $doc -Compress))}
-    $script:FixtureDisabled=$false; $script:FixtureActiveProcess=$true
+    $global:Dns9FixtureDisabled=$false; $global:Dns9FixtureActiveProcess=$true
     $line=@(& $path | Where-Object {$_ -like 'DNS9_ACTIVATION_REMOTE_JSON=*'})
     $doc=$line[0].Substring('DNS9_ACTIVATION_REMOTE_JSON='.Length)|ConvertFrom-Json
     if($doc.permanent_disabled -or $doc.collector_process_count -ne 1){throw 'activation_preflight_unsafe_state_not_detected'}
     Write-Output 'DNS9_ACTIVATION_WINDOWS_FIXTURE_OK=1'
 } finally {
     if(Test-Path -LiteralPath $Root){Remove-Item -LiteralPath $Root -Recurse -Force}
+    Remove-Variable -Name Dns9FixtureDisabled,Dns9FixtureActiveProcess -Scope Global -ErrorAction SilentlyContinue
 }
