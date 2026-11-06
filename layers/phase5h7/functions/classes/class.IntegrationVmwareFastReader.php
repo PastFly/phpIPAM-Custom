@@ -80,12 +80,15 @@ final class IntegrationVmwareFastReader
         self::validateRoster($roster, $now);
         $result['roster_published_at'] = $roster['published_at'] ?? null;
         $result['roster_age_seconds'] = self::age($result['roster_published_at'], $now);
-        $membership = $result['roster_age_seconds'] !== null && $result['roster_age_seconds'] <= $maxRosterAge
-            ? IntegrationVmwareRosterReconciler::membership($roster, $kind, $id) : 'unknown';
-        $result['membership_state'] = $membership;
         if (is_array($roster['authoritative'] ?? null)) {
             $result['membership_confirmed_at'] = $roster['authoritative']['confirmed_at'];
         }
+        // Publishing an incomplete or pending observation does not refresh the authoritative roster.
+        $confirmationAge = self::age($result['membership_confirmed_at'], $now);
+        $membership = $result['roster_age_seconds'] !== null && $result['roster_age_seconds'] <= $maxRosterAge &&
+            $confirmationAge !== null && $confirmationAge <= $maxRosterAge
+            ? IntegrationVmwareRosterReconciler::membership($roster, $kind, $id) : 'unknown';
+        $result['membership_state'] = $membership;
         if ($membership !== 'present') return $result;
 
         self::projectProperties($result, $properties, $kind, $id, $now, $maxPropertyAge);
@@ -122,7 +125,7 @@ final class IntegrationVmwareFastReader
             self::validateOptionalTime($collected, $now);
             self::validateOptionalTime($lastAttempt, $now);
             $age = self::age($collected, $now);
-            if ($state === 'fresh' && ($age === null || $age > $maxAge)) $state = 'stale';
+            if ($state === 'fresh' && ($record['object_state'] === 'stale' || $age === null || $age > $maxAge)) $state = 'stale';
             if ($state === 'unavailable' && (($entry['value'] ?? null) !== null)) {
                 throw new RuntimeException('fast_reader_property_field_invalid');
             }

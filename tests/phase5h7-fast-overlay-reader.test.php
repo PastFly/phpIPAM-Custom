@@ -4,6 +4,7 @@ final class IntegrationVmwareFastStore {
     public function read(string $domain): ?array { return $this->domains[$domain] ?? null; }
 }
 require_once __DIR__ . '/../layers/phase5h2/functions/classes/class.IntegrationVmwareRosterReconciler.php';
+require_once __DIR__ . '/../layers/phase5h2/functions/classes/class.IntegrationVmwareFastDomain.php';
 require_once __DIR__ . '/../layers/phase5h7/functions/classes/class.IntegrationVmwareFastReader.php';
 require_once __DIR__ . '/../layers/phase5h7/functions/classes/class.IntegrationVmwareFastMetricCompat.php';
 require_once __DIR__ . '/../layers/phase5h7/functions/classes/class.IntegrationVmwareFastOverlayReader.php';
@@ -118,6 +119,64 @@ $statusCalls=0; $statusQuery=static function(...$args) use (&$statusCalls,$statu
 $statusOverlay=new IntegrationVmwareFastOverlayReader($statusQuery,$fast,$guard,true,$clock);
 ov($statusOverlay->query('status')===$statusBase && $statusCalls===1,'unsupported view not exact pass-through');
 ov($baseCalls>=10,'base query not primary source');
+
+// Producer-to-reader/overlay regression: publication cannot refresh old membership.
+$regressionStart = $n;
+$regressionFailures = [];
+$checkRegression = static function (bool $condition, string $label) use (&$regressionFailures, &$n): void {
+    ++$n;
+    if (!$condition) $regressionFailures[] = $label;
+};
+$emptyRoster = ['vm'=>[], 'host'=>[], 'datastore'=>[]];
+$presentRoster = ['vm'=>['vm-1'], 'host'=>[], 'datastore'=>[]];
+$oldAbsent = IntegrationVmwareRosterReconciler::observe(null, $emptyRoster, true, $now-610);
+$oldAbsent = IntegrationVmwareRosterReconciler::observe($oldAbsent, $emptyRoster, true, $now-600);
+$incomplete = IntegrationVmwareRosterReconciler::observe($oldAbsent, $presentRoster, false, $now);
+$pending = IntegrationVmwareRosterReconciler::observe($oldAbsent, $presentRoster, true, $now);
+foreach (['incomplete'=>$incomplete, 'pending'=>$pending] as $label=>$observed) {
+    $store->domains['roster']=$observed;
+    $projection=$fast->object('vm','vm-1',$now);
+    $checkRegression($projection['membership_state']==='unknown', $label.'_old_confirmation');
+    try { $observedResult=$overlay->query('vm','vm-1'); }
+    catch (Throwable $e) { $observedResult=null; }
+    $checkRegression(is_array($observedResult) && $observedResult['data']['name']==='old-name' &&
+        $observedResult['phase5h_overlay']['state']==='membership_unknown', $label.'_base_fallback');
+}
+// A fresh confirmation at the limit remains authoritative; one second older does not.
+$boundary = IntegrationVmwareRosterReconciler::observe(null, $emptyRoster, true, $now-301);
+$boundary = IntegrationVmwareRosterReconciler::observe($boundary, $emptyRoster, true, $now-300);
+$boundary = IntegrationVmwareRosterReconciler::observe($boundary, $presentRoster, false, $now);
+$checkRegression($fast::project($boundary, null, null, 'vm', 'vm-1', $now)['membership_state']==='absent_confirmed', 'confirmation_limit_inclusive');
+$checkRegression($fast::project($boundary, null, null, 'vm', 'vm-1', $now+1)['membership_state']==='unknown', 'confirmation_limit_expired');
+$freshAbsent = IntegrationVmwareRosterReconciler::observe($oldAbsent, $emptyRoster, true, $now-1);
+$freshAbsent = IntegrationVmwareRosterReconciler::observe($freshAbsent, $emptyRoster, true, $now);
+$store->domains['roster']=$freshAbsent;
+try { $overlay->query('vm','vm-1'); $absentRejected=false; }
+catch (RuntimeException $e) { $absentRejected=$e->getMessage()==='mirror_object_not_found'; }
+$checkRegression($absentRejected, 'fresh_confirmed_absence');
+
+// An unobserved producer record retains history but cannot replace the base card.
+$batch = ['schema'=>1, 'authoritative_membership'=>false, 'objects'=>[
+    'vm-1'=>['kind'=>'vm', 'id'=>'vm-1', 'state'=>'returned', 'collected_at'=>$now-10,
+        'values'=>['name'=>'retained-fast-name'], 'property_states'=>['name'=>'available']]
+]];
+$produced = IntegrationVmwareFastDomain::mergeProperties(null, $batch, $now-10);
+$batch['objects']['vm-1']=['kind'=>'vm', 'id'=>'vm-1', 'state'=>'unobserved'];
+$produced = IntegrationVmwareFastDomain::mergeProperties($produced, $batch, $now);
+$store->domains['roster']=$roster; $store->domains['properties']=$produced;
+$projection=$fast->object('vm','vm-1',$now);
+$checkRegression($projection['property_object_state']==='stale' && $projection['properties']['name']['state']==='stale', 'unobserved_field_stale');
+$observedResult=$overlay->query('vm','vm-1');
+$checkRegression($observedResult['data']['name']==='old-name' && $observedResult['data']['detail']['vm']['name']==='old-name', 'unobserved_base_fallback');
+$batch['objects']['vm-1']=['kind'=>'vm', 'id'=>'vm-1', 'state'=>'returned', 'collected_at'=>$now,
+    'values'=>['name'=>'fresh-fast-name'], 'property_states'=>['name'=>'available']];
+$store->domains['properties']=IntegrationVmwareFastDomain::mergeProperties($produced, $batch, $now);
+$checkRegression($overlay->query('vm','vm-1')['data']['name']==='fresh-fast-name', 'observed_recovery');
+echo 'PHASE5H7_FRESHNESS_ASSERTIONS='.($n-$regressionStart)."\n";
+if ($regressionFailures !== []) {
+    echo 'PHASE5H7_FRESHNESS_FAILED='.implode(',', $regressionFailures)."\n";
+    exit(1);
+}
 
 echo 'PHASE5H7_FAST_OVERLAY_ASSERTIONS='.$n."\n";
 echo "PHASE5H7_PHASE5G_ROLLBACK_PARITY_OK\n";
