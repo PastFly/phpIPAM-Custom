@@ -78,3 +78,6 @@ jobs:
           $tokens = $null; $errors = $null
           [void][System.Management.Automation.Language.Parser]::ParseInput($match.Groups[1].Value, [ref]$tokens, [ref]$errors)
           if (@($errors).Count -ne 0) { throw 'transport probe PowerShell parse failed' }
+      - name: Verify runner TLS and restoration
+        shell: powershell
+        run: .\tests\dns9\runner-tls.test.ps1

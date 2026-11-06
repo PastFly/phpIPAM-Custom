@@ -46,7 +46,7 @@ The installation directory has inheritance removed. Access is restricted to:
 - local Administrators;
 - optionally the configured gMSA/service account.
 
-The runner decrypts the DPAPI blob only in memory, converts it to SecureString for the existing one-shot worker, and clears byte arrays afterward. The token is never printed into task output or status.
+The runner decrypts the DPAPI blob only in memory, converts it to SecureString for the existing one-shot worker, and clears byte arrays afterward. The token is never printed into task output or status. It selects TLS 1.2 for the worker's HTTPS requests and restores the previous process setting on exit, including failures.
 
 ## Task identity
 

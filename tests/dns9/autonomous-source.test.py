@@ -80,6 +80,8 @@ for required in [
     "Invoke-PhpIpamDnsWorkerOnce.ps1",
     "DefaultWebProxy=[Net.GlobalProxySelection]::GetEmptyWebProxy()",
     "DefaultWebProxy=$oldProxy",
+    "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12",
+    "[Net.ServicePointManager]::SecurityProtocol=$oldSecurityProtocol",
     "status.json",
     "overlap_skipped",
 ]:

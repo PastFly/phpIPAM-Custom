@@ -77,6 +77,8 @@ $entropy=$null
 $secure=$null
 $oldProxy=$null
 $proxyChanged=$false
+$oldSecurityProtocol=$null
+$securityProtocolChanged=$false
 
 try {
     try {
@@ -108,6 +110,11 @@ try {
     [Net.WebRequest]::DefaultWebProxy=[Net.GlobalProxySelection]::GetEmptyWebProxy()
     $proxyChanged=$true
 
+    # Windows Server 2016 may default to protocols the phpIPAM endpoint rejects.
+    $oldSecurityProtocol=[Net.ServicePointManager]::SecurityProtocol
+    [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
+    $securityProtocolChanged=$true
+
     $result=@(& $WorkerPath -PhpIpamBaseUri $base -ControlToken $secure -HttpTimeoutSeconds $httpTimeout -DnsTimeoutSeconds $dnsTimeout)
     if($result.Count -ne 1){throw 'dns9_worker_result_invalid'}
     $r=$result[0]
@@ -134,6 +141,7 @@ catch {
     throw $code
 }
 finally {
+    if($securityProtocolChanged){[Net.ServicePointManager]::SecurityProtocol=$oldSecurityProtocol}
     if($proxyChanged){[Net.WebRequest]::DefaultWebProxy=$oldProxy}
     $oldProxy=$null
     $proxyChanged=$false
