@@ -29,6 +29,11 @@ for file in \
   tools/live/dns9-b4-list-zones.py \
   tests/dns9/b4-list-zones.test.py \
   tools/live/dns9-ui-deploy.py \
+  tools/live/dns9-scheduler-deploy.py \
+  tests/dns9/scheduler-deploy.test.py \
+  tests/dns9/autonomous-scheduler.test.php \
+  layers/dns9/functions/classes/class.IntegrationDnsAutonomousScheduler.php \
+  layers/dns9/functions/scripts/dns-autonomous-scheduler.php \
   tools/live/dns9-ui-smoke.php \
   tests/dns9/ui-deploy.test.py \
   tests/dns9/ui-smoke.test.php \

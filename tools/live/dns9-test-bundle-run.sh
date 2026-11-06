@@ -30,6 +30,16 @@ print('TEST_BUNDLE_PYTHON_COMPILE=PASS')
 PY
 python3 tests/dns9/phase-b3-diagnose-source.test.py
 if [[ "$(id -u)" != 0 ]]; then echo 'TEST_BUNDLE_ERROR=root_required'; exit 1; fi
+if [[ "${1:-}" == '--scheduler-fix-deploy' && $# -eq 1 ]]; then
+  STAGE='guarded-scheduler-fix-deploy'
+  python3 tests/dns9/scheduler-deploy.test.py
+  python3 tests/dns9/pdo-hotfix.test.py
+  php -l tools/live/dns9-ui-smoke.php
+  php tests/dns9/ui-smoke.test.php
+  php tests/dns9/autonomous-scheduler.test.php
+  python3 tools/live/dns9-scheduler-deploy.py
+  exit 0
+fi
 if [[ "${1:-}" == '--zone-ui-deploy' && $# -eq 1 ]]; then
   STAGE='guarded-zone-ui-deploy'
   python3 tests/dns9/ui-deploy.test.py

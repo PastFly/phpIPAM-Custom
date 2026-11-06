@@ -18,6 +18,7 @@ require $root.'/layers/dns3/functions/classes/class.IntegrationDnsCollectorContr
 require $root.'/layers/dns3/functions/classes/class.IntegrationDnsCollectorControlService.php';
 require $root.'/layers/dns3/functions/classes/class.IntegrationDnsCollectorControlPhpIpamRepository.php';
 require $root.'/layers/dns4/functions/classes/class.IntegrationDnsCollectorMachineService.php';
+require $root.'/layers/dns9/functions/classes/class.IntegrationDnsAutonomousScheduler.php';
 
 function dns3pdo(string $dsn): PDO {
     return new PDO(
@@ -239,5 +240,38 @@ $repo->transaction(function() use($repo,$now) {
     $repo->audit(['action'=>'fixture','object_id'=>str_repeat('e',32),'actor_id'=>17,'created_at'=>$now]);
 });
 ok3sql((int)$pdo->query('SELECT COUNT(*) FROM custom_dns_control_events')->fetchColumn()===10000,'security audit retention bounded');
+
+// Exercise pressure cleanup and rollback in the isolated real MariaDB fixture.
+$pdo->exec('DELETE FROM custom_dns_control_events');
+$baseJob=$repo->transaction(function() use($repo,$listJob) {
+    foreach($repo->jobs() as $job) if($job['id']===$listJob['id']) return $job;
+    throw new RuntimeException('fixture_job_missing');
+});
+$repo->transaction(function() use($repo,$baseJob,$now) {
+    for($i=0;$i<384;$i++) {
+        $job=$baseJob;
+        $job['id']=str_pad(dechex($i+1),32,'0',STR_PAD_LEFT);
+        $job['state']='succeeded'; $job['result_code']='ok'; $job['result_payload']=null;
+        $job['lease_id']=null; $job['lease_expires_at']=null; $job['attempt_count']=1;
+        $job['created_at']=$now-8000+$i; $job['expires_at']=$job['created_at']+300;
+        $job['finished_at']=$job['created_at']+1; $job['updated_at']=$job['finished_at']; $job['updated_by']=0;
+        $repo->putJob($job);
+        $repo->audit(['action'=>'autonomous_job_queued','object_id'=>$job['id'],'actor_id'=>0,'created_at'=>$job['created_at']]);
+    }
+});
+$scheduler=new IntegrationDnsAutonomousScheduler($repo,static fn(): int=>$now);
+$ctx=['id'=>$connectionId,'enabled'=>false,'interval_seconds'=>300,'revision'=>5,'binding_epoch'=>7,
+    'credential_mode'=>'collector_identity','credential_version'=>null];
+$beforeCount=(int)$pdo->query('SELECT COUNT(*) FROM custom_dns_control_jobs')->fetchColumn();
+$pdo->exec("CREATE TRIGGER dns3_fixture_fail_prune BEFORE INSERT ON custom_dns_control_events FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='fixture_rejection'");
+try {$scheduler->run([$ctx]); throw new RuntimeException('prune_failure_missing');}
+catch (PDOException $e) {ok3sql($e->getCode()==='45000','pressure audit failure propagated');}
+ok3sql((int)$pdo->query('SELECT COUNT(*) FROM custom_dns_control_jobs')->fetchColumn()===$beforeCount,'pressure cleanup rolls back on audit failure');
+$pdo->exec('DROP TRIGGER dns3_fixture_fail_prune');
+$trim=$scheduler->run([$ctx]);
+ok3sql($trim['pressure_pruned']>0,'real database trims verified autonomous jobs');
+$q=$pdo->prepare('SELECT COUNT(*) FROM custom_dns_control_jobs WHERE id=?'); $q->execute([$listJob['id']]);
+ok3sql((int)$q->fetchColumn()===1,'real database retains manual job under pressure');
+ok3sql((int)$pdo->query("SELECT COUNT(*) FROM custom_dns_control_events WHERE action='autonomous_job_pruned'")->fetchColumn()===$trim['pressure_pruned'],'real database audits pressure cleanup');
 
 echo "DNS3_MYSQL_ASSERTIONS=$n\nDNS3_MYSQL_TESTS_OK=1\n";

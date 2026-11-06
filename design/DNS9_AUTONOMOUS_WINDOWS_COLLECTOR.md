@@ -1,5 +1,11 @@
 # DNS9 — autonomous Windows DNS collector
 
+## Queue capacity and history
+
+The job table is bounded to 512 rows. At 384 rows, the scheduler may remove oldest terminal `list_zones` jobs after at least one hour only when a matching `autonomous_job_queued` audit event with system actor proves their origin. It retains the newest terminal and newest successful zone result per connection, and never pressure-prunes pending, running, manual or unknown-origin jobs. Every pressure deletion is audited in the same transaction. Existing 24-hour terminal retention still applies independently.
+
+If capacity remains exhausted, the scheduler preserves existing work, reports `skipped_capacity` and exits unsuccessfully so the service failure is observable. This is a bounded failure mode, not a guarantee that arbitrary numbers of fast connections fit. The dashboard warns that older automatic results may be removed sooner under pressure. This source policy requires a separately reviewed deployment; it does not enable a task or timer.
+
 ## Goal
 
 The operator must not open SRV-DC01 and run PowerShell for routine DNS collection.
