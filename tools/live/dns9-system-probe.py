@@ -66,7 +66,8 @@ def check_other_probe():
         try: args=(proc/'cmdline').read_bytes().split(b'\0')
         except FileNotFoundError: continue
         except OSError as exc: raise RuntimeError('local_process_uncertain') from exc
-        if any(Path(os.fsdecode(x)).name=='dns9-system-probe.py' for x in args if x): raise RuntimeError('probe_process_exists')
+        if any(Path(os.fsdecode(x)).name in {'dns9-system-probe.py','dns9-b3-auto-once.py'} for x in args if x):
+            raise RuntimeError('probe_process_exists')
 
 def local_preflight(b3,post):
     check_endpoint_source(); check_other_probe()
