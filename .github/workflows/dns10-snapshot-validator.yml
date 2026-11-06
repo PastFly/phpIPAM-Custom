@@ -26,12 +26,15 @@ jobs:
           php -l layers/dns10/functions/classes/class.IntegrationDnsZoneSnapshotValidator.php
           php -l layers/dns10/functions/classes/class.IntegrationDnsZonePublicationPolicy.php
           php -l layers/dns10/functions/classes/class.IntegrationDnsZoneUploadHttpController.php
+          php -l layers/dns10/functions/classes/class.IntegrationDnsZoneUploadToken.php
           php -l tests/dns10/snapshot-validator.test.php
           php -l tests/dns10/publication-policy.test.php
           php -l tests/dns10/upload-http.test.php
+          php -l tests/dns10/upload-token.test.php
           php tests/dns10/snapshot-validator.test.php
           php tests/dns10/publication-policy.test.php
           php tests/dns10/upload-http.test.php
+          php tests/dns10/upload-token.test.php
 
   mariadb-schema:
     runs-on: ubuntu-24.04

@@ -3,6 +3,7 @@ declare(strict_types=1);
 $path=dirname(__DIR__,2).'/layers/dns10/functions/classes/class.IntegrationDnsZoneUploadHttpController.php';
 if (!is_file($path)) throw new RuntimeException('snapshot_upload_controller_missing');
 require $path;
+require dirname(__DIR__,2).'/layers/dns10/functions/classes/class.IntegrationDnsZoneUploadToken.php';
 
 $n=0;
 function httpCheck10(bool $value,string $label): void {global $n;++$n;if(!$value)throw new RuntimeException($label);}
@@ -68,5 +69,21 @@ httpCheck10($response['status']===503 && !str_contains(json_encode($response),'f
 $broken=new IntegrationDnsZoneUploadHttpController(static function(): object {throw new RuntimeException('secret exception text');});
 $response=$broken->handle($request);
 httpCheck10($response['status']===503 && !str_contains(json_encode($response),'secret exception text'),'unexpected factory error redacted');
+$issued=IntegrationDnsZoneUploadToken::issue();
+$cryptoService=new class($issued['token_id'],$issued['token_digest']) {
+    public function __construct(private string $id,private string $digest) {}
+    public function authenticateUpload(#[SensitiveParameter] string $token): void {
+        if (!IntegrationDnsZoneUploadToken::verify($token,$this->id,$this->digest)) throw new DomainException('upload_auth_failed');
+    }
+    public function publishUpload(#[SensitiveParameter] string $token,array $data,string $digest,int $bytes): array {
+        $this->authenticateUpload($token);return ['decision'=>'publish'];
+    }
+};
+$cryptoController=new IntegrationDnsZoneUploadHttpController(static fn()=> $cryptoService);
+$cryptoRequest=array_replace($request,['authorization'=>'Bearer '.$issued['token']]);
+httpCheck10($cryptoController->handle($cryptoRequest)['status']===200,'controller accepts purpose-separated verified token');
+$parts=explode('.',$issued['token']);$parts[2][0]=$parts[2][0]==='A'?'B':'A';
+$cryptoRequest['authorization']='Bearer '.implode('.',$parts);
+httpCheck10($cryptoController->handle($cryptoRequest)['status']===401,'controller rejects incorrect secret before parsing');
 echo 'DNS10_UPLOAD_HTTP_ASSERTIONS='.$n."\n";
 echo "DNS10_UPLOAD_HTTP_TEST_OK=1\n";
