@@ -7,6 +7,7 @@ on:
       - 'layers/phase5g2/functions/classes/class.IntegrationVmwareInventoryNative.php'
       - 'layers/phase5g3/app/integrations/vmware/phase5g3-status.js'
       - 'tools/phase5g6-ui-status-hotfix.py'
+      - 'tools/live/phase5g6-status-utc3-hotfix.sh'
       - 'tests/phase5g6-ui-status-hotfix.test.py'
       - 'tests/phase5g2-native.test.php'
       - 'tests/phase5g3-status-browser.test.js'
@@ -33,13 +34,37 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Syntax and transactional hotfix fixture
+      - name: Syntax and UTC+3 inline live-hotfix boundary
         run: |
           set -euo pipefail
           php -l layers/phase5g2/functions/classes/class.IntegrationVmwareInventoryNative.php
           node --check layers/phase5g3/app/integrations/vmware/phase5g3-status.js
           python3 -m py_compile tools/phase5g6-ui-status-hotfix.py
-          sudo python3 -B tests/phase5g6-ui-status-hotfix.test.py
+          bash -n tools/live/phase5g6-status-utc3-hotfix.sh
+          test "$(git hash-object layers/phase5g3/app/integrations/vmware/phase5g3-status.js)" = '1435e6c09692c37a951376b43b39b528b4429f4a'
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('tools/live/phase5g6-status-utc3-hotfix.sh').read_text()
+          for required in [
+              "SOURCE='8a5564424453dbff45f62dc9c025e2b5999afeed'",
+              "OLD_BLOB='45c0c5004f9416e6e34016b0fa3effcaf3c058ff'",
+              "NEW_BLOB='1435e6c09692c37a951376b43b39b528b4429f4a'",
+              'PHASE5G6_UTC3_INLINE_PATCH_OK=1','vmware-ui-status-inline-',
+              'PHASE5G6_UTC3_INLINE_LAYOUT_OK=1','PHASE5G6_UTC3_INLINE_HISTORY_WORDING_OK=1',
+              'PHASE5G6_UTC3_INLINE_INSTALL_OK=1'
+          ]:
+              assert required in text, required
+          for forbidden in ['systemctl stop','systemctl disable','base64']:
+              assert forbidden not in text, forbidden
+          js=Path('layers/phase5g3/app/integrations/vmware/phase5g3-status.js').read_text()
+          assert '(value + 10800) * 1000' in js
+          assert "' UTC+3'" in js
+          assert "position: 'static'" in js and "flexBasis: '100%'" in js
+          assert "width: '100%'" in js and "maxWidth: '720px'" in js
+          assert "zIndex" not in js
+          assert "Предыдущая ошибка: " in js
+          print('PHASE5G6_UTC3_INLINE_LIVE_LAUNCHER_BOUNDARY_OK')
+          PY
       - name: Native local rendering and status browser regressions
         run: |
           set -euo pipefail

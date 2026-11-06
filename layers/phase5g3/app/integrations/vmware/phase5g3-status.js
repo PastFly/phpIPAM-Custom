@@ -7,7 +7,7 @@
         var $form = $('#phase5e-workspace-form');
         if (!$form.length) return;
         var $panel = $('<div id="phase5g3-status" class="small" role="status" aria-live="polite">').css({
-            display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', position: 'relative', margin: '0 0 8px'
+            display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', margin: '0 0 8px'
         }).insertBefore($form);
         var $title = $('<strong class="phase5g3-status-title">').appendTo($panel);
         var $progress = $('<progress max="100" value="0" aria-label="Прогресс синхронизации">').css({
@@ -16,9 +16,11 @@
         var $info = $('<button type="button" class="btn btn-default btn-xs phase5g3-status-info" aria-expanded="false" aria-label="Подробности синхронизации">!</button>').css({
             width: '22px', height: '22px', padding: '0', lineHeight: '20px', borderRadius: '50%', fontWeight: 'bold'
         }).appendTo($panel);
+        // Details expand as a normal flex row below the compact status. They must never float over
+        // the VMware workspace or cover the Details column on narrower screens.
         var $popover = $('<div class="panel panel-default phase5g3-status-popover" role="dialog" aria-label="Подробности синхронизации">').css({
-            position: 'absolute', right: '0', top: '100%', marginTop: '4px', zIndex: 1060,
-            width: '420px', maxWidth: 'calc(100vw - 32px)', display: 'none'
+            position: 'static', flexBasis: '100%', width: '100%', maxWidth: '720px',
+            marginTop: '4px', marginBottom: '0', display: 'none'
         }).appendTo($panel);
         var $popoverBody = $('<div class="panel-body">').appendTo($popover);
         var $detail = $('<div class="small text-muted phase5g3-status-detail">').appendTo($popoverBody);
@@ -34,7 +36,8 @@
         function active() { return !closed && win.document.visibilityState !== 'hidden'; }
         function date(value) {
             if (!Number.isFinite(value) || value <= 0) return 'ещё не завершена';
-            var d = new Date(value * 1000); return isNaN(d.getTime()) ? 'неизвестно' : d.toISOString().replace('T', ' ').replace('.000Z', ' UTC');
+            var d = new Date((value + 10800) * 1000);
+            return isNaN(d.getTime()) ? 'неизвестно' : d.toISOString().replace('T', ' ').replace('.000Z', ' UTC+3');
         }
         function abort() { serial++; if (timer !== null) win.clearTimeout(timer); timer = null; if (flight) flight.abort(); flight = null; }
         function schedule() { if (active() && !stopped) timer = win.setTimeout(poll, 30000); }
@@ -61,7 +64,10 @@
             if (hasTotal && data.state === 'collecting') message += ' Обработано ' + Math.max(0, count) + ' из ' + total + '.';
             if (data.stale && !initializing) message += ' Показаны ранее собранные данные.';
             if (data.worker_silent) message += ' Давно нет сигнала от фоновой службы; проверьте её состояние.';
-            if (data.last_error) message += ' Ошибка: ' + (errors[data.last_error] || 'сбой фоновой службы') + '.';
+            if (data.last_error) {
+                message += (data.state === 'collecting' ? ' Предыдущая ошибка: ' : ' Ошибка: ') +
+                    (errors[data.last_error] || 'сбой фоновой службы') + '.';
+            }
             if (data.retry_at) message += ' Следующая попытка не раньше ' + date(data.retry_at) + '.';
             $detail.text(message + ' Открытие страницы не запускает сбор.');
             var metrics = data.telemetry || {};
