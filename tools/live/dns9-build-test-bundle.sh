@@ -28,6 +28,13 @@ for file in \
   tools/live/dns9-b3-after-pdo.py \
   tools/live/dns9-b4-list-zones.py \
   tests/dns9/b4-list-zones.test.py \
+  tools/live/dns9-ui-deploy.py \
+  tools/live/dns9-ui-smoke.php \
+  tests/dns9/ui-deploy.test.py \
+  tests/dns9/ui-smoke.test.php \
+  layers/dns9/functions/classes/class.IntegrationDnsAutonomousAdminService.php \
+  layers/dns1/functions/classes/class.IntegrationDnsAdminView.php \
+  layers/dns1/app/admin/integrations/dns/config.js \
   tests/dns9/b3-after-pdo.test.py \
   tools/live/dns9-queue-cli.php \
   tests/dns9/b3-auto-once.test.py \

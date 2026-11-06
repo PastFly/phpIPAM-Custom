@@ -38,6 +38,7 @@ python3 tests/dns9/runner-tls-upgrade.test.py
 python3 tests/dns9/b3-auto-once.test.py
 python3 tests/dns9/b3-after-pdo.test.py
 python3 tests/dns9/b4-list-zones.test.py
+python3 tests/dns9/ui-deploy.test.py
 python3 tests/dns9/b3-retry-guard.test.py
 python3 tests/dns9/system-probe.test.py
 python3 tests/dns9/pdo-hotfix.test.py
@@ -58,11 +59,13 @@ php -l layers/dns1/app/admin/integrations/dns-config-action.php
 php -l layers/dns1/app/admin/integrations/dns-config-panel.php
 php -l tools/live/dns9-queue-cli.php
 php -l tools/live/dns9-cold-db-check.php
+php -l tools/live/dns9-ui-smoke.php
 
 php tests/dns9/autonomous-scheduler.test.php
 php tests/dns9/autonomous-admin.test.php
 php tests/dns9/queue-cli.test.php
 php tests/dns9/lazy-database.test.php
+php tests/dns9/ui-smoke.test.php
 
 if command -v node >/dev/null 2>&1; then
     node --check layers/dns1/app/admin/integrations/dns/config.js
