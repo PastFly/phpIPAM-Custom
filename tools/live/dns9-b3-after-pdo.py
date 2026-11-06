@@ -23,6 +23,7 @@ PDO_SHA='bacb28acddea0ad098d395439451c4c96f611298'
 PDO_NONCE='80697634d6b24321'
 PREVIOUS_JOB='1c7ed02c3f6ca1d2a6a525e56481d243'
 EARLIER_JOB='3bf6ee81197e2be7ff5452bc0b4b84c7'
+INTERMEDIATE_JOB='9b3fb202a44c964c1a1951c39e12fa9f'
 RECEIPT=BACKUP/'dns9-runner-tls-upgrade-a8d0fe00e1034084'/'receipt.json'
 USER='rbank\\kadaev.admin'
 
@@ -35,7 +36,7 @@ def check_queue_safety(b3):
 SELECT COUNT(*) FROM custom_dns_control_jobs
 WHERE (state IN ('succeeded','failed','expired','obsolete') AND COALESCE(finished_at,updated_at)<=UNIX_TIMESTAMP()+300-86400)
  OR (state='pending' AND expires_at<UNIX_TIMESTAMP()+300 AND
-     (collector_id<>'{b3.PILOT_COLLECTOR_ID}' OR connection_id<>'{b3.PILOT_CONNECTION_ID}' OR job_type<>'test_connection'))
+     (id NOT IN ('{b3.PILOT_JOB_ID}','{INTERMEDIATE_JOB}','{EARLIER_JOB}','{PREVIOUS_JOB}') OR collector_id<>'{b3.PILOT_COLLECTOR_ID}' OR connection_id<>'{b3.PILOT_CONNECTION_ID}' OR job_type<>'test_connection'))
  OR (state='running' AND (lease_expires_at IS NULL OR lease_expires_at<UNIX_TIMESTAMP()+300));
 """)
     if result!='0':raise RuntimeError('unrelated_queue_or_pruning_risk')
@@ -129,12 +130,12 @@ def private_plan(b3,sha,actor):
     st=BACKUP.lstat()
     if not stat.S_ISDIR(st.st_mode) or st.st_uid!=0 or st.st_gid!=0 or st.st_mode&0o022:raise RuntimeError('backup_root_invalid')
     directory=BACKUP/('dns9-b3-after-pdo-'+secrets.token_hex(8));directory.mkdir(mode=0o700)
-    rows=b3.sql(f"SELECT * FROM custom_dns_control_jobs WHERE id IN ('{EARLIER_JOB}','{PREVIOUS_JOB}') ORDER BY id;")
+    rows=b3.sql(f"SELECT * FROM custom_dns_control_jobs WHERE id IN ('{INTERMEDIATE_JOB}','{EARLIER_JOB}','{PREVIOUS_JOB}') ORDER BY id;")
     lines=rows.splitlines()
-    if len(lines)!=2 or {line.split('\t',1)[0] for line in lines}!={EARLIER_JOB,PREVIOUS_JOB}:raise RuntimeError('previous_job_backup_invalid')
+    if len(lines)!=3 or {line.split('\t',1)[0] for line in lines}!={INTERMEDIATE_JOB,EARLIER_JOB,PREVIOUS_JOB}:raise RuntimeError('previous_job_backup_invalid')
     data=rows.encode()
     plan={'stage':'prepared_before_followup_reservation','source_sha':sha,'previous_job':PREVIOUS_JOB,
-          'earlier_job':EARLIER_JOB,'previous_jobs_sha256':hashlib.sha256(data).hexdigest(),
+          'earlier_job':EARLIER_JOB,'intermediate_job':INTERMEDIATE_JOB,'previous_jobs_sha256':hashlib.sha256(data).hexdigest(),
           'actor_id':actor,'pdo_backup':str(PDO_BACKUP),'created_at':int(time.time())}
     for path,content in ((directory/'previous-jobs.tsv',data),(directory/'plan.json',(json.dumps(plan,sort_keys=True,indent=2)+'\n').encode())):
         fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
@@ -185,8 +186,8 @@ def main():
         b3.main(password_override=password,job_override=job['job_id'],reserved_followup=True)
     finally:password='';sys.argv=old_args
     b3.validate_followup(GUARDS,sha)
-    preserved=b3.one(f"SELECT COUNT(*) FROM custom_dns_control_jobs WHERE id IN ('{b3.PILOT_JOB_ID}','{EARLIER_JOB}','{PREVIOUS_JOB}');")
-    if preserved!='3':raise RuntimeError('previous_jobs_missing')
+    preserved=b3.one(f"SELECT COUNT(*) FROM custom_dns_control_jobs WHERE id IN ('{b3.PILOT_JOB_ID}','{INTERMEDIATE_JOB}','{EARLIER_JOB}','{PREVIOUS_JOB}');")
+    if preserved!='4':raise RuntimeError('previous_jobs_missing')
     print('DNS9_AFTER_PDO_PREVIOUS_JOBS_PRESERVED=1')
     print('DNS9_AFTER_PDO_ALL_GUARDS_RETAINED=1')
     print('DNS9_AFTER_PDO_OK=1')
