@@ -172,7 +172,7 @@ ok(src.index('remove_tree(p,control_dir)') > src.index('rc,out,err=run('),
 
 ok("ap.add_argument(\"--attempt-sha\")" in src,
    "live attempt guard binds to exact SHA")
-ok(src.index('password=getpass.getpass') < src.index('fd=os.open(guard,'),
+ok(src.index('password=getpass.getpass') < src.index('reserve_attempt(Path('),
    "attempt guard is created only after password prompt")
 ok("existing_attempt_requires_review" in src,
    "old unresolved attempts are never silently cleared")
