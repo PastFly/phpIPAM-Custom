@@ -194,7 +194,18 @@ final class IntegrationDnsCollectorControlService
                 'jobs'=>array_map([self::class,'publicJob'],$jobs)
             ];
             if ($includeZoneResults) {
-                $snapshot['zone_results']=array_values(array_filter(array_map([self::class,'zoneResult'],$jobs),static fn($x)=>$x!==null));
+                // Decode at most the newest successful payload per connection. Old
+                // jobs remain in the queue for retention, and decoding all of them
+                // can multiply memory use for frequently collected zones.
+                $newest=[];
+                foreach ($jobs as $job) {
+                    if (($job['job_type']??null)!=='list_zones' || ($job['state']??null)!=='succeeded' ||
+                        ($job['result_code']??null)!=='ok' || !is_string($job['connection_id']??null)) continue;
+                    $key=$job['connection_id']; $previous=$newest[$key]??null;
+                    if ($previous===null || [(int)($job['created_at']??0),(string)($job['id']??'')] >
+                        [(int)($previous['created_at']??0),(string)($previous['id']??'')]) $newest[$key]=$job;
+                }
+                $snapshot['zone_results']=array_values(array_filter(array_map([self::class,'zoneResult'],$newest),static fn($x)=>$x!==null));
             }
             return $snapshot;
         });
