@@ -36,16 +36,22 @@ try {
     $tokens=$null; $errors=$null
     [void][System.Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)
     if(@($errors).Count -ne 0){throw 'activation_preflight_parse_failed'}
-    $lines=@(& $path); $line=@($lines | Where-Object {$_ -like 'DNS9_ACTIVATION_REMOTE_JSON=*'})
-    if($line.Count -ne 1){throw 'activation_preflight_output_missing'}
-    $doc=$line[0].Substring('DNS9_ACTIVATION_REMOTE_JSON='.Length)|ConvertFrom-Json
-    if(-not $doc.permanent_disabled -or -not $doc.principal_system -or -not $doc.action_expected -or -not $doc.files_match -or -not $doc.config_expected -or -not $doc.token_blob_present -or
-       -not $doc.status_expected -or -not $doc.repetition_active -or $doc.interval_seconds -ne 60 -or
-       $doc.execution_limit_seconds -ne 180 -or $doc.collector_process_count -ne 0){throw ('activation_preflight_success_invalid:'+(ConvertTo-Json $doc -Compress))}
+    $parts=[regex]::Split((Get-Content -LiteralPath $path -Raw),[regex]::Escape('# DNS9_PREFLIGHT_SPLIT'))
+    if($parts.Count -ne 2){throw 'activation_preflight_split_invalid'}
+    $taskLine=@(& ([scriptblock]::Create($parts[0])) | Where-Object {$_ -like 'DNS9_ACTIVATION_TASK_JSON=*'})
+    $healthLine=@(& ([scriptblock]::Create($parts[1])) | Where-Object {$_ -like 'DNS9_ACTIVATION_HEALTH_JSON=*'})
+    if($taskLine.Count -ne 1 -or $healthLine.Count -ne 1){throw 'activation_preflight_output_missing'}
+    $taskDoc=$taskLine[0].Substring('DNS9_ACTIVATION_TASK_JSON='.Length)|ConvertFrom-Json
+    $healthDoc=$healthLine[0].Substring('DNS9_ACTIVATION_HEALTH_JSON='.Length)|ConvertFrom-Json
+    if(-not $taskDoc.permanent_disabled -or -not $taskDoc.principal_system -or -not $taskDoc.action_expected -or -not $healthDoc.files_match -or -not $healthDoc.config_expected -or -not $healthDoc.token_blob_present -or
+       -not $healthDoc.status_expected -or -not $taskDoc.repetition_active -or $taskDoc.interval_seconds -ne 60 -or
+       $taskDoc.execution_limit_seconds -ne 180 -or $healthDoc.collector_process_count -ne 0){throw 'activation_preflight_success_invalid'}
     $global:Dns9FixtureDisabled=$false; $global:Dns9FixtureActiveProcess=$true
-    $line=@(& $path | Where-Object {$_ -like 'DNS9_ACTIVATION_REMOTE_JSON=*'})
-    $doc=$line[0].Substring('DNS9_ACTIVATION_REMOTE_JSON='.Length)|ConvertFrom-Json
-    if($doc.permanent_disabled -or $doc.collector_process_count -ne 1){throw 'activation_preflight_unsafe_state_not_detected'}
+    $taskLine=@(& ([scriptblock]::Create($parts[0])) | Where-Object {$_ -like 'DNS9_ACTIVATION_TASK_JSON=*'})
+    $healthLine=@(& ([scriptblock]::Create($parts[1])) | Where-Object {$_ -like 'DNS9_ACTIVATION_HEALTH_JSON=*'})
+    $taskDoc=$taskLine[0].Substring('DNS9_ACTIVATION_TASK_JSON='.Length)|ConvertFrom-Json
+    $healthDoc=$healthLine[0].Substring('DNS9_ACTIVATION_HEALTH_JSON='.Length)|ConvertFrom-Json
+    if($taskDoc.permanent_disabled -or $healthDoc.collector_process_count -ne 1){throw 'activation_preflight_unsafe_state_not_detected'}
     Write-Output 'DNS9_ACTIVATION_WINDOWS_FIXTURE_OK=1'
 } finally {
     if(Test-Path -LiteralPath $Root){Remove-Item -LiteralPath $Root -Recurse -Force}

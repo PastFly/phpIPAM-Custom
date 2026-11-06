@@ -108,23 +108,37 @@ def local_preflight(b3,b4,pdo,ui,fix,post):
     actor=b4.run_cli('--b4-preflight')['actor_id']
     return actor
 
-def remote_preflight(b3,password):
-    receipt=b3.receipt(Path('/var/backups/phpipam-custom/dns9-runner-tls-upgrade-a8d0fe00e1034084/receipt.json'),SERVER)
-    hashes=b3.expected_runtime_hashes(receipt)
+def remote_loaders(source,hashes):
+    parts=source.split('# DNS9_PREFLIGHT_SPLIT')
+    if len(parts)!=2: raise RuntimeError('remote_preflight_source_invalid')
     prefix='$Root='+ps_quote(r'C:\ProgramData\phpIPAM\DnsCollector')+'\n'
     prefix+='$PermanentName='+ps_quote('phpIPAM Microsoft DNS Collector')+'\n'
     prefix+='$ExpectedJobId='+ps_quote('3af8e09411c0e94a17ed19d3f0872359')+'\n'
     prefix+='$ExpectedHashes=ConvertFrom-Json -InputObject '+ps_quote(json.dumps(hashes,sort_keys=True,separators=(',',':')))+'\n'
-    script=prefix+(ROOT/'tools/live/dns9-activation-preflight.ps1').read_text()
-    packed=base64.b64encode(gzip.compress(script.encode(),mtime=0)).decode()
-    loader=("$b=[Convert]::FromBase64String('"+packed+"');$m=New-Object IO.MemoryStream(,$b);"
-        "$g=New-Object IO.Compression.GzipStream($m,[IO.Compression.CompressionMode]::Decompress);"
-        "$r=New-Object IO.StreamReader($g);& ([scriptblock]::Create($r.ReadToEnd()))")
-    if len(base64.b64encode(loader.encode('utf-16le')))>7500: raise RuntimeError('remote_preflight_too_long')
+    loaders=[]
+    for part in parts:
+        packed=base64.b64encode(gzip.compress((prefix+part).encode(),mtime=0)).decode()
+        loader=("$b=[Convert]::FromBase64String('"+packed+"');$m=New-Object IO.MemoryStream(,$b);"
+            "$g=New-Object IO.Compression.GzipStream($m,[IO.Compression.CompressionMode]::Decompress);"
+            "$r=New-Object IO.StreamReader($g);& ([scriptblock]::Create($r.ReadToEnd()))")
+        if len(base64.b64encode(loader.encode('utf-16le')))>7500: raise RuntimeError('remote_preflight_too_long')
+        loaders.append(loader)
+    return loaders
+
+def remote_preflight(b3,password):
+    receipt=b3.receipt(Path('/var/backups/phpipam-custom/dns9-runner-tls-upgrade-a8d0fe00e1034084/receipt.json'),SERVER)
+    hashes=b3.expected_runtime_hashes(receipt)
+    loaders=remote_loaders((ROOT/'tools/live/dns9-activation-preflight.ps1').read_text(),hashes)
     remote=protocol(SERVER,USER,password)
-    rc,out,_=run_ps(remote,loader)
-    if rc!=0: raise RuntimeError('remote_preflight_failed')
-    doc=json_line(out,'DNS9_ACTIVATION_REMOTE_JSON=')
+    parts=[]
+    for loader,marker in zip(loaders,('DNS9_ACTIVATION_TASK_JSON=','DNS9_ACTIVATION_HEALTH_JSON=')):
+        rc,out,_=run_ps(remote,loader)
+        if rc!=0: raise RuntimeError('remote_preflight_failed')
+        value=json_line(out,marker)
+        if not isinstance(value,dict): raise RuntimeError('remote_preflight_failed')
+        parts.append(value)
+    if set(parts[0])&set(parts[1]): raise RuntimeError('remote_preflight_failed')
+    doc={**parts[0],**parts[1]}
     validate_remote(doc,int(time.time()))
     return doc
 

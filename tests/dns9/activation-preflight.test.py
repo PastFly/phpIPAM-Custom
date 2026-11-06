@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import importlib.util
+import base64
+import hashlib
 import pathlib
 import sys
 import unittest
@@ -34,5 +36,14 @@ class ActivationPreflightTests(unittest.TestCase):
                 'register-scheduledtask','unregister-scheduledtask','set-scheduledtask',
                 'remove-item','set-content','new-item','invoke-webrequest'):
             with self.subTest(command=forbidden): self.assertNotIn(forbidden,source)
+
+    def test_winrm_loaders_fit_windows_command_boundary(self):
+        source=(ROOT/'tools/live/dns9-activation-preflight.ps1').read_text()
+        names=('Invoke-PhpIpamDnsWorkerOnce.ps1','Invoke-PhpIpamDnsPreview.ps1','Invoke-PhpIpamDnsCollectorScheduled.ps1')
+        hashes={name:hashlib.sha256(name.encode()).hexdigest() for name in names}
+        loaders=activation.remote_loaders(source,hashes)
+        self.assertEqual(len(loaders),2)
+        for loader in loaders:
+            self.assertLessEqual(len(base64.b64encode(loader.encode('utf-16le'))),7500)
 
 if __name__=='__main__': unittest.main()
