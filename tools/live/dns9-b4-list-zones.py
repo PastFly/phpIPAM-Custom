@@ -28,7 +28,7 @@ def validate_payload(data):
     for zone in value['zones']:
         if not isinstance(zone,dict) or set(zone)!={'name','zone_type','ds_integrated','reverse_lookup'}:
             raise ValueError('payload_invalid')
-        if not isinstance(zone['name'],str) or not zone['name'] or len(zone['name'].encode())>255:
+        if not isinstance(zone['name'],str) or len(zone['name'].encode())>255:
             raise ValueError('payload_invalid')
         if not isinstance(zone['zone_type'],str) or len(zone['zone_type'].encode())>32:
             raise ValueError('payload_invalid')

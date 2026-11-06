@@ -21,6 +21,9 @@ class ListZonesTests(unittest.TestCase):
         zones=[{'name':'example.local','zone_type':'Primary','ds_integrated':True,'reverse_lookup':False}]
         self.assertEqual(b4.validate_payload(json.dumps({'zones':zones}).encode()),1)
         self.assertEqual(b4.validate_payload(b'{"zones":[]}'),0)
+        # The server normalizes a root zone named "." by stripping its trailing dot.
+        zones[0]['name']=''
+        self.assertEqual(b4.validate_payload(json.dumps({'zones':zones}).encode()),1)
         for bad in [b'{}', b'{"zones":[{"name":"x"}]}', b'{"zones":[],"extra":1}', b'x'*65537]:
             with self.subTest(payload=bad[:60]), self.assertRaises(ValueError): b4.validate_payload(bad)
 
