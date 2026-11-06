@@ -32,6 +32,25 @@ final class IntegrationDnsAdminView
         return $state.$suffix;
     }
 
+    private static function zoneResult(?array $result): string
+    {
+        if ($result===null || !is_array($result['zones']??null)) return '';
+        $zones=$result['zones'];
+        $finished=(int)($result['finished_at']??0);
+        $html='<details class="dns-zone-results"><summary>Полученные зоны: '.count($zones).'</summary>';
+        if ($finished>0) $html.='<p>Получено: '.self::h(gmdate('Y-m-d H:i:s',$finished)).' UTC</p>';
+        $html.='<p class="text-muted">Последний успешный результат для текущего подключения и сборщика. Результат может быть удалён спустя 24 часа.</p>';
+        if (!$zones) return $html.'<p>Зоны не найдены.</p></details>';
+        $html.='<div class="table-responsive"><table class="table table-striped table-condensed"><thead><tr>'.
+            '<th scope="col">Зона</th><th scope="col">Тип</th><th scope="col">В Active Directory</th><th scope="col">Обратная зона</th></tr></thead><tbody>';
+        foreach ($zones as $zone) {
+            $html.='<tr><td>'.self::h($zone['name']===''?'.':$zone['name']).'</td>'.
+                '<td>'.self::h($zone['zone_type']).'</td><td>'.($zone['ds_integrated']?'Да':'Нет').'</td>'.
+                '<td>'.($zone['reverse_lookup']?'Да':'Нет').'</td></tr>';
+        }
+        return $html.'</tbody></table></div></details>';
+    }
+
     private function profile(?array $p): string
     {
         $affected=array_column($p['connections']??[],'id');
@@ -118,6 +137,7 @@ final class IntegrationDnsAdminView
             '<strong>Проверка доступа:</strong> '.self::h(self::jobLabel($runtime['test_connection']??null)).'<br>'.
             '<strong>Получение зон:</strong> '.self::h(self::jobLabel($runtime['list_zones']??null)).
             '</div>';
+        $html.=self::zoneResult($runtime['zone_result']??null);
 
         $html.='<div class="form-group"><label>Назначенный Windows-сборщик '.
             '<select class="form-control input-sm" name="collector_assignment"><option value="">Выберите сборщик</option>';

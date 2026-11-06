@@ -9,6 +9,7 @@ require_once $root.'/layers/dns3/functions/classes/class.IntegrationDnsCollector
 require_once $root.'/layers/dns3/functions/classes/class.IntegrationDnsCollectorControlService.php';
 require_once $root.'/layers/dns9/functions/classes/class.IntegrationDnsAutonomousAdminService.php';
 require_once $root.'/layers/dns1/functions/classes/class.IntegrationDnsAdminController.php';
+require_once $root.'/layers/dns1/functions/classes/class.IntegrationDnsAdminView.php';
 require_once $root.'/tests/dns1/memory-repository.php';
 require_once $root.'/tests/dns3/control-memory-repository.php';
 
@@ -85,6 +86,42 @@ ok9a($state['collector_control_available']===true,'control available');
 $runtime=$state['connection_runtime'][$connection['id']];
 ok9a($runtime['assigned']===true && $runtime['collector_id']===$collectorId,'runtime maps collector');
 ok9a($runtime['test_connection']===null && $runtime['list_zones']===null,'runtime initially empty');
+
+$zonesJob=$service->queueControlJob($connection['id'],'list_zones',1);
+$zonesId=$zonesJob['id'];
+$controlRepo->jobs[$zonesId]['state']='succeeded';
+$controlRepo->jobs[$zonesId]['result_code']='ok';
+$controlRepo->jobs[$zonesId]['finished_at']=$clock;
+$controlRepo->jobs[$zonesId]['result_payload']=json_encode(['zones'=>[
+    ['name'=>'example.invalid','zone_type'=>'Primary','ds_integrated'=>true,'reverse_lookup'=>false],
+    ['name'=>'<script>bad</script>','zone_type'=>'Primary','ds_integrated'=>false,'reverse_lookup'=>true]
+]],JSON_THROW_ON_ERROR);
+$state=$service->snapshot();
+$zoneResult=$state['connection_runtime'][$connection['id']]['zone_result']??null;
+ok9a(is_array($zoneResult) && count($zoneResult['zones'])===2 && $zoneResult['id']===$zonesId,'zone result visible for matching source');
+ok9a(!str_contains(json_encode($control->snapshot(),JSON_THROW_ON_ERROR),'example.invalid'),'normal control snapshot omits zone payload');
+$nextId=str_repeat('f',32);
+$controlRepo->jobs[$nextId]=$controlRepo->jobs[$zonesId];
+$controlRepo->jobs[$nextId]['id']=$nextId;
+$controlRepo->jobs[$nextId]['state']='pending';
+$controlRepo->jobs[$nextId]['created_at']=$clock+1;
+$newState=$service->snapshot()['connection_runtime'][$connection['id']];
+ok9a($newState['list_zones']['id']===$nextId && $newState['zone_result']['id']===$zonesId,'pending refresh keeps last successful result');
+unset($controlRepo->jobs[$nextId]);
+$html=(new IntegrationDnsAdminView())->render($state,'fixture');
+ok9a(str_contains($html,'example.invalid') && str_contains($html,'&lt;script&gt;bad&lt;/script&gt;') && !str_contains($html,'<script>bad</script>'),'zone display escapes untrusted values');
+$controlRepo->jobs[$zonesId]['binding_epoch']++;
+ok9a(($service->snapshot()['connection_runtime'][$connection['id']]['zone_result']??null)===null,'stale binding does not surface zones');
+$controlRepo->jobs[$zonesId]['binding_epoch']--;
+$controlRepo->jobs[$zonesId]['assignment_revision']++;
+ok9a(($service->snapshot()['connection_runtime'][$connection['id']]['zone_result']??null)===null,'stale collector assignment does not surface zones');
+$controlRepo->jobs[$zonesId]['assignment_revision']--;
+$controlRepo->jobs[$zonesId]['credential_version']++;
+ok9a(($service->snapshot()['connection_runtime'][$connection['id']]['zone_result']??null)===null,'stale credentials do not surface zones');
+$controlRepo->jobs[$zonesId]['credential_version']--;
+$controlRepo->jobs[$zonesId]['result_payload']='{"zones":[{"name":"bad","password":"must-not-show"}]}';
+ok9a(!str_contains(json_encode($service->snapshot(),JSON_THROW_ON_ERROR),'must-not-show'),'malformed result is not disclosed');
+unset($controlRepo->jobs[$zonesId]);
 
 $testJob=$service->queueControlJob($connection['id'],'test_connection',1);
 ok9a($testJob['state']==='pending' && $testJob['job_type']==='test_connection','test job queued');

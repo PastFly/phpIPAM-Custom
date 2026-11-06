@@ -63,11 +63,37 @@ final class IntegrationDnsAutonomousAdminService
         return [$collectors,$assignments,$latest];
     }
 
+    private static function currentZoneResult(array $connection,?array $assignment,?array $collector,array $profiles,array $results): ?array
+    {
+        if ($assignment===null || $collector===null || ($collector['revoked']??true)!==false) return null;
+        $credentialVersion=null;
+        if (($connection['credential_mode']??null)==='profile') {
+            $profile=$profiles[$connection['profile_id']??'']??null;
+            if ($profile===null || ($profile['password_set']??false)!==true) return null;
+            $credentialVersion=$profile['secret_version']??null;
+            if (!is_int($credentialVersion) || $credentialVersion<1) return null;
+        } elseif (($connection['credential_mode']??null)!=='collector_identity') return null;
+        $latest=null;
+        foreach ($results as $job) {
+            if (!is_array($job) || ($job['connection_id']??null)!==$connection['id'] ||
+                ($job['collector_id']??null)!==$collector['id'] ||
+                ($job['assignment_revision']??null)!==$assignment['revision'] ||
+                ($job['configuration_revision']??null)!==$connection['revision'] ||
+                ($job['binding_epoch']??null)!==$connection['binding_epoch'] ||
+                ($job['credential_version']??null)!==$credentialVersion) continue;
+            if ($latest===null || [(int)($job['created_at']??0),(string)($job['id']??'')] >
+                [(int)($latest['created_at']??0),(string)($latest['id']??'')]) $latest=$job;
+        }
+        return $latest;
+    }
+
     public function snapshot(): array
     {
         $state=$this->config->snapshot();
-        $control=$this->control->snapshot();
+        $control=$this->control->snapshot(true);
         [$collectors,$assignments,$latest]=$this->controlIndex($control);
+        $profiles=[];
+        foreach ($state['profiles'] as $profile) $profiles[$profile['id']]=$profile;
 
         $runtime=[];
         foreach($state['connections'] as $connection) {
@@ -82,6 +108,7 @@ final class IntegrationDnsAutonomousAdminService
                 'collector_revoked'=>$collector['revoked']??null,
                 'test_connection'=>$latest[$id.'|test_connection']??null,
                 'list_zones'=>$latest[$id.'|list_zones']??null,
+                'zone_result'=>self::currentZoneResult($connection,$assignment,$collector,$profiles,$control['zone_results']??[]),
             ];
         }
 

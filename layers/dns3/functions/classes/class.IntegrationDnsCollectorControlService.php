@@ -163,14 +163,40 @@ final class IntegrationDnsCollectorControlService
         }
     }
 
-    public function snapshot(): array
+    private static function zoneResult(array $job): ?array
     {
-        return $this->repo->transaction(function() {
-            return [
+        if (($job['job_type']??null)!=='list_zones' || ($job['state']??null)!=='succeeded' ||
+            ($job['result_code']??null)!=='ok' || !is_string($job['result_payload']??null) ||
+            strlen($job['result_payload'])>65536) return null;
+        try { $payload=json_decode($job['result_payload'],true,32,JSON_THROW_ON_ERROR); }
+        catch (JsonException $e) { return null; }
+        if (!is_array($payload) || array_keys($payload)!==['zones'] ||
+            !is_array($payload['zones']) || !array_is_list($payload['zones']) || count($payload['zones'])>1024) return null;
+        $zones=[];
+        foreach ($payload['zones'] as $zone) {
+            if (!is_array($zone) || count($zone)!==4 || array_diff(array_keys($zone),['name','zone_type','ds_integrated','reverse_lookup']) ||
+                !is_string($zone['name']??null) || strlen($zone['name'])>255 ||
+                !is_string($zone['zone_type']??null) || strlen($zone['zone_type'])>32 ||
+                !is_bool($zone['ds_integrated']??null) || !is_bool($zone['reverse_lookup']??null)) return null;
+            $zones[]=['name'=>$zone['name'],'zone_type'=>$zone['zone_type'],
+                'ds_integrated'=>$zone['ds_integrated'],'reverse_lookup'=>$zone['reverse_lookup']];
+        }
+        return self::publicJob($job)+['zones'=>$zones];
+    }
+
+    public function snapshot(bool $includeZoneResults=false): array
+    {
+        return $this->repo->transaction(function() use($includeZoneResults) {
+            $jobs=$this->repo->jobs();
+            $snapshot=[
                 'collectors'=>array_map([self::class,'publicCollector'],$this->repo->collectors()),
                 'assignments'=>array_map([self::class,'publicAssignment'],$this->repo->assignments()),
-                'jobs'=>array_map([self::class,'publicJob'],$this->repo->jobs())
+                'jobs'=>array_map([self::class,'publicJob'],$jobs)
             ];
+            if ($includeZoneResults) {
+                $snapshot['zone_results']=array_values(array_filter(array_map([self::class,'zoneResult'],$jobs),static fn($x)=>$x!==null));
+            }
+            return $snapshot;
         });
     }
 
