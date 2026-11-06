@@ -58,6 +58,7 @@ php -l tools/live/dns9-queue-cli.php
 php tests/dns9/autonomous-scheduler.test.php
 php tests/dns9/autonomous-admin.test.php
 php tests/dns9/queue-cli.test.php
+php tests/dns9/lazy-database.test.php
 
 if command -v node >/dev/null 2>&1; then
     node --check layers/dns1/app/admin/integrations/dns/config.js
