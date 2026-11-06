@@ -41,7 +41,7 @@ try {
     $doc=$line[0].Substring('DNS9_ACTIVATION_REMOTE_JSON='.Length)|ConvertFrom-Json
     if(-not $doc.permanent_disabled -or -not $doc.principal_system -or -not $doc.action_expected -or -not $doc.files_match -or -not $doc.config_expected -or -not $doc.token_blob_present -or
        -not $doc.status_expected -or -not $doc.repetition_active -or $doc.interval_seconds -ne 60 -or
-       $doc.execution_limit_seconds -ne 180 -or $doc.collector_process_count -ne 0){throw 'activation_preflight_success_invalid'}
+       $doc.execution_limit_seconds -ne 180 -or $doc.collector_process_count -ne 0){throw ('activation_preflight_success_invalid:'+(ConvertTo-Json $doc -Compress))}
     $script:FixtureDisabled=$false; $script:FixtureActiveProcess=$true
     $line=@(& $path | Where-Object {$_ -like 'DNS9_ACTIVATION_REMOTE_JSON=*'})
     $doc=$line[0].Substring('DNS9_ACTIVATION_REMOTE_JSON='.Length)|ConvertFrom-Json
