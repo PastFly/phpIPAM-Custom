@@ -46,7 +46,9 @@ final class IntegrationDnsZoneUploadHttpController
         } catch (DomainException $e) {
             $code=$e->getMessage();
             if ($code==='upload_auth_failed') return self::response(401,['ok'=>false,'error'=>$code]);
-            if (in_array($code,['snapshot_out_of_order','snapshot_sequence_conflict'],true)) return self::response(409,['ok'=>false,'error'=>$code]);
+            if (in_array($code,['snapshot_out_of_order','snapshot_sequence_conflict','snapshot_unavailable','snapshot_job_invalid'],true)) {
+                return self::response(409,['ok'=>false,'error'=>$code]);
+            }
             if ($code==='snapshot_invalid') return self::response(400,['ok'=>false,'error'=>$code]);
             return self::response(503,['ok'=>false,'error'=>'upload_unavailable']);
         } catch (Throwable $_) {

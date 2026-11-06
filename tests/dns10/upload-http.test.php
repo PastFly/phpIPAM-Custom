@@ -59,7 +59,8 @@ httpCheck10($fixture->received['document']===['dataset'=>'fixture','records'=>[]
 httpCheck10(($response['headers']['Cache-Control']??'')==='no-store' && ($response['headers']['X-Content-Type-Options']??'')==='nosniff','response is not cached or sniffed');
 $fixture->result=['decision'=>'replay'];
 httpCheck10($controller->handle($request)['body']===['ok'=>true,'decision'=>'replay'],'replay acknowledged');
-foreach ([['snapshot_out_of_order',409],['snapshot_sequence_conflict',409],['snapshot_invalid',400],['upload_auth_failed',401],['secret exception text',503]] as [$code,$status]) {
+foreach ([['snapshot_out_of_order',409],['snapshot_sequence_conflict',409],['snapshot_unavailable',409],['snapshot_job_invalid',409],
+          ['snapshot_invalid',400],['upload_auth_failed',401],['secret exception text',503]] as [$code,$status]) {
     $fixture->publishError=$code;$response=$controller->handle($request);
     httpCheck10($response['status']===$status && !str_contains(json_encode($response),$token) && !str_contains(json_encode($response),'secret exception text'),'error response does not leak sensitive data');
 }
