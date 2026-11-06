@@ -104,7 +104,7 @@ def main():
         check_local_processes()
         if b3.job_state()!='pending|0||0|||0': raise RuntimeError('pilot_not_pristine')
         if b3.timer_enabled() or b3.timer_active(): raise RuntimeError('timer_not_disabled_inactive')
-        b3.pilot_ttl()
+        b3.legacy_pilot_expired()
     local_preflight()
     proc=subprocess.run([sys.executable,str(base/'dns9-phase-b3-diagnose.py'),
                          '--username',USERNAME,'--suffix','4aafbf3f8edc'],

@@ -37,42 +37,75 @@ def one(query: str)->str:
         raise RuntimeError("database_row_count_invalid")
     return rows[0]
 
-def job_state()->str:
+def checked_job_id(job_id: str)->str:
+    if not re.fullmatch(r"[0-9a-f]{32}",job_id):
+        raise ValueError('job_id_invalid')
+    return job_id
+
+def job_state(job_id: str=PILOT_JOB_ID)->str:
+    job_id=checked_job_id(job_id)
     return one(f"""
 SELECT CONCAT(
- state,'|',attempt_count,'|',IFNULL(lease_id,''),'|',
- IFNULL(credential_delivered_at,0),'|',IFNULL(result_code,''),'|',
- IFNULL(result_payload,''),'|',IFNULL(finished_at,0)
+ state,'|',attempt_count,'|',IF(lease_id IS NULL OR lease_id='','','set'),'|',
+ IFNULL(credential_delivered_at,0),'|',
+ CASE WHEN result_code IS NULL OR result_code='' THEN '' WHEN result_code='ok' THEN 'ok' ELSE 'other' END,'|',
+ IF(result_payload IS NULL OR OCTET_LENGTH(result_payload)=0,'','nonempty'),'|',IFNULL(finished_at,0)
 )
-FROM custom_dns_control_jobs WHERE id='{PILOT_JOB_ID}';
+FROM custom_dns_control_jobs WHERE id='{job_id}';
 """)
 
-def pilot_ttl()->int:
+def pilot_details(job_id: str)->tuple[int,int]:
+    job_id=checked_job_id(job_id)
     row=one(f"""
 SELECT CONCAT(j.job_type,'|',j.collector_id,'|',j.connection_id,'|',
  CAST(j.expires_at AS SIGNED)-CAST(UNIX_TIMESTAMP() AS SIGNED),'|',
  (SELECT COUNT(*) FROM custom_dns_control_jobs q
-  WHERE q.collector_id=j.collector_id AND q.state IN ('pending','running')))
+  WHERE q.collector_id=j.collector_id AND
+   (q.state='running' OR (q.state='pending' AND q.expires_at>=UNIX_TIMESTAMP()))))
 FROM custom_dns_control_jobs j
 JOIN custom_dns_collector_assignments a ON a.connection_id=j.connection_id
 JOIN custom_dns_connections c ON c.id=j.connection_id
 JOIN custom_dns_collectors k ON k.id=j.collector_id
-WHERE j.id='{PILOT_JOB_ID}' AND a.collector_id=j.collector_id
+WHERE j.id='{job_id}' AND a.collector_id=j.collector_id
  AND a.revision=j.assignment_revision AND c.revision=j.configuration_revision
  AND c.binding_epoch=j.binding_epoch AND c.credential_mode='collector_identity'
  AND c.server='{SERVER}' AND j.credential_version IS NULL AND k.revoked=0;
 """)
     parts=row.split('|')
-    if len(parts)!=5 or parts[:3]!=['test_connection',PILOT_COLLECTOR_ID,PILOT_CONNECTION_ID] or parts[4]!='1':
-        raise RuntimeError('pilot_identity_or_queue_invalid')
+    if len(parts)!=5 or parts[:3]!=['test_connection',PILOT_COLLECTOR_ID,PILOT_CONNECTION_ID]:
+        raise RuntimeError('pilot_identity_invalid')
     try:
         ttl=int(parts[3])
+        active_count=int(parts[4])
     except ValueError as exc:
-        raise RuntimeError('pilot_expiry_invalid') from exc
+        raise RuntimeError('pilot_expiry_or_queue_invalid') from exc
+    return ttl,active_count
+
+def pilot_ttl(job_id: str=PILOT_JOB_ID)->int:
+    ttl,active_count=pilot_details(job_id)
     print('DNS9_PHASE_B3_PILOT_TTL_SECONDS='+str(ttl))
+    if active_count!=1:
+        raise RuntimeError('pilot_queue_invalid')
     if ttl<180:
         raise RuntimeError('pilot_expired_or_ttl_insufficient')
     return ttl
+
+def legacy_pilot_expired()->int:
+    ttl,active_count=pilot_details(PILOT_JOB_ID)
+    print('DNS9_B3_OLD_PILOT_TTL_SECONDS='+str(ttl))
+    if ttl>=0 or active_count!=0:
+        raise RuntimeError('old_pilot_or_active_queue_unexpected')
+    return ttl
+
+def fresh_job_id()->str:
+    job_id=one(f"""
+SELECT id FROM custom_dns_control_jobs
+WHERE id<>'{PILOT_JOB_ID}' AND collector_id='{PILOT_COLLECTOR_ID}'
+ AND connection_id='{PILOT_CONNECTION_ID}' AND job_type='test_connection'
+ AND state='pending' AND attempt_count=0 AND lease_id IS NULL
+ AND expires_at>=UNIX_TIMESTAMP()+180;
+""")
+    return checked_job_id(job_id)
 
 def timer_enabled()->bool:
     result=subprocess.run(
@@ -163,6 +196,7 @@ def main()->None:
     ap.add_argument("--server",default=SERVER)
     ap.add_argument("--apply",action="store_true")
     ap.add_argument("--attempt-sha")
+    ap.add_argument("--fresh-job",action="store_true")
     args=ap.parse_args()
 
     if os.geteuid()!=0:
@@ -183,7 +217,9 @@ def main()->None:
     print("DNS9_PHASE_B3_SERVER_TIMER_ENABLE=0")
     print("DNS9_PHASE_B3_PERMANENT_TASK_ENABLE=0")
 
-    before=job_state()
+    job_id=fresh_job_id() if args.fresh_job else PILOT_JOB_ID
+    print("DNS9_PHASE_B3_TARGET_JOB_ID="+job_id)
+    before=job_state(job_id)
     print("DNS9_PHASE_B3_PILOT_BEFORE="+before)
     if before!="pending|0||0|||0":
         raise SystemExit("DNS9_PHASE_B3_ERROR=pilot_job_not_pristine")
@@ -203,14 +239,14 @@ def main()->None:
         raise SystemExit("DNS9_PHASE_B3_ERROR=username_required")
     if not args.attempt_sha or not re.fullmatch(r"[0-9a-f]{40}",args.attempt_sha):
         raise SystemExit("DNS9_PHASE_B3_ERROR=attempt_sha_invalid")
-    pilot_ttl()
+    pilot_ttl(job_id)
     password=getpass.getpass("WinRM bootstrap password: ")
     if not password:
         raise SystemExit("DNS9_PHASE_B3_ERROR=password_empty")
 
-    if job_state()!="pending|0||0|||0" or timer_enabled() or timer_active():
+    if job_state(job_id)!="pending|0||0|||0" or timer_enabled() or timer_active():
         raise SystemExit("DNS9_PHASE_B3_ERROR=preflight_changed")
-    pilot_ttl()
+    pilot_ttl(job_id)
 
     # Never reserve a live attempt before the interactive credential prompt.
     # Any prior attempt marker, including one from another bundle SHA, is
@@ -302,7 +338,11 @@ try {{
     if($freshStatus -and [string]$status.state -eq 'error'){{
         # Do not expose raw exception text or any credential material.
         $safeCode=[string]$status.result_code
-        if($safeCode -notmatch '^[a-z0-9_]{{1,80}}$'){{$safeCode='invalid_code'}}
+        $safeCodes=@('dns9_runtime_error','dns9_token_blob_invalid','dns9_token_invalid','dns9_worker_result_invalid',
+          'dns_worker_base_uri_invalid','dns_worker_endpoint_invalid','dns_worker_preview_missing','dns_worker_token_invalid',
+          'dns_worker_poll_invalid','dns_worker_work_invalid','dns_worker_credential_invalid','dns_worker_preview_invalid','dns_worker_result_submit_failed')
+        if($safeCode -notin $safeCodes){{$safeCode='invalid_code'}}
+        Write-Output ('DNS9_PHASE_B3_COLLECTOR_ERROR='+$safeCode)
         throw ('dns9_phase_b3_collector_error_'+$safeCode)
     }}
     if(-not $observedRun -and -not $freshStatus){{throw 'dns9_phase_b3_task_start_unconfirmed'}}
@@ -386,12 +426,12 @@ finally {{
         raise RuntimeError("phase_b3_temp_task_result")
     if remote.get("collector_state")!="submitted":
         raise RuntimeError("phase_b3_collector_state")
-    if remote.get("job_id")!=PILOT_JOB_ID or remote.get("job_type")!="test_connection":
+    if remote.get("job_id")!=job_id or remote.get("job_type")!="test_connection":
         raise RuntimeError("phase_b3_job_identity")
     if remote.get("result_ok") is not True or remote.get("result_code")!="ok":
         raise RuntimeError("phase_b3_job_result")
 
-    after=job_state()
+    after=job_state(job_id)
     print("DNS9_PHASE_B3_PILOT_AFTER="+after)
     parts=after.split("|")
     if len(parts)!=7:
@@ -409,7 +449,7 @@ finally {{
         "stage":"first_cycle_succeeded",
         "created_at":int(time.time()),
         "server":args.server.lower(),
-        "pilot_job_id":PILOT_JOB_ID,
+        "pilot_job_id":job_id,
         "pilot_job_type":"test_connection",
         "pilot_job_state":"succeeded",
         "pilot_attempt_count":1,

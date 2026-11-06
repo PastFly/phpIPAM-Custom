@@ -98,12 +98,10 @@ print('DNS9_B3_LIVE_SOURCE_COMPILE=PASS')
 PY
   RECEIPT='/var/backups/phpipam-custom/dns9-winrm-bootstrap-20260930-122257/receipt.json'
   [[ -f "$RECEIPT" ]] || { echo 'DNS9_B3_ERROR=receipt_missing'; exit 1; }
-  python3 tools/live/dns9-phase-b3-first-cycle.py --bootstrap-receipt "$RECEIPT"
-  read -r -p 'WinRM domain username: ' DNS9_USER </dev/tty
-  [[ -n "$DNS9_USER" ]] || { echo 'DNS9_B3_ERROR=username_missing'; exit 1; }
+  DNS9_USER='rbank\kadaev.admin'
   # The Python entrypoint obtains the password before creating its one-shot guard.
   # A previously recorded attempt must not be cleared by this wrapper.
-  python3 tools/live/dns9-phase-b3-first-cycle.py --bootstrap-receipt "$RECEIPT" --username "$DNS9_USER" --attempt-sha "$SHA" --apply
+  python3 tools/live/dns9-phase-b3-first-cycle.py --bootstrap-receipt "$RECEIPT" --username "$DNS9_USER" --fresh-job --attempt-sha "$SHA" --apply
   echo 'DNS9_B3_CONTROLLED_CYCLE_COMPLETED=1'
   exit 0
 fi
