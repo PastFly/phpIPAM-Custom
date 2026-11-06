@@ -81,6 +81,11 @@ foreach([
     $o=$controller->handle(req5($raw)); ok5($o['status']===400 && $constructed===$before,'action shape rejected before service construction');
 }
 
+$fake='dnsctl1.'.str_repeat('0',32).'.'.str_repeat('A',43);
+$o=$controller->handle(req5('{"action":"diagnostic_unsupported"}','POST',true,'application/json','Bearer '.$fake));
+ok5($o['status']===400 && $o['body']['error']==='action_not_supported' && $constructed===$before,
+    'system diagnostic action cannot reach service or database');
+
 foreach([
     'collector_auth_failed'=>401,
     'lease_invalid'=>409,

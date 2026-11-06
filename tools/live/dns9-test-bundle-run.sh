@@ -30,6 +30,12 @@ print('TEST_BUNDLE_PYTHON_COMPILE=PASS')
 PY
 python3 tests/dns9/phase-b3-diagnose-source.test.py
 if [[ "$(id -u)" != 0 ]]; then echo 'TEST_BUNDLE_ERROR=root_required'; exit 1; fi
+if [[ "${1:-}" == '--b3-system-probe' && $# -eq 1 ]]; then
+  STAGE='b3-system-isolated-probe'
+  python3 tests/dns9/system-probe.test.py
+  python3 tools/live/dns9-system-probe.py
+  exit 0
+fi
 if [[ "${1:-}" == '--b3-auto-once' && $# -eq 1 ]]; then
   STAGE='b3-controlled-auto-once'
   python3 tests/dns9/b3-auto-once.test.py

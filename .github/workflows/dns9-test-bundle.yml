@@ -21,6 +21,10 @@ on:
       - 'tests/dns9/b3-auto-once.test.py'
       - 'tests/dns9/b3-retry-guard.test.py'
       - 'tests/dns9/queue-cli.test.php'
+      - 'tools/live/dns9-system-probe.py'
+      - 'tools/live/dns9-system-probe.ps1'
+      - 'tools/live/dns9-system-probe-control.ps1'
+      - 'tests/dns9/system-probe.test.py'
       - 'tools/live/dns9_winrm_common.py'
       - 'tests/dns9/phase-b3-diagnose-source.test.py'
       - '.github/workflows/dns9-test-bundle.yml'
@@ -44,6 +48,7 @@ jobs:
           python3 tests/dns9/runner-tls-upgrade.test.py
           python3 tests/dns9/b3-auto-once.test.py
           python3 tests/dns9/b3-retry-guard.test.py
+          python3 tests/dns9/system-probe.test.py
           php -l tools/live/dns9-queue-cli.php
           php tests/dns9/queue-cli.test.php
       - name: Build exact-SHA bundle
@@ -61,6 +66,7 @@ jobs:
           python3 tests/dns9/runner-tls-upgrade.test.py
           python3 tests/dns9/b3-auto-once.test.py
           python3 tests/dns9/b3-retry-guard.test.py
+          python3 tests/dns9/system-probe.test.py
           php -l tools/live/dns9-queue-cli.php
           php tests/dns9/queue-cli.test.php
           bash -n tools/live/dns9-test-bundle-run.sh

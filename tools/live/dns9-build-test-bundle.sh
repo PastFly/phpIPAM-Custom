@@ -29,6 +29,12 @@ for file in \
   tests/dns9/b3-auto-once.test.py \
   tests/dns9/b3-retry-guard.test.py \
   tests/dns9/queue-cli.test.php \
+  tools/live/dns9-system-probe.py \
+  tools/live/dns9-system-probe.ps1 \
+  tools/live/dns9-system-probe-control.ps1 \
+  tests/dns9/system-probe.test.py \
+  layers/dns5/functions/classes/class.IntegrationDnsCollectorMachineHttpController.php \
+  layers/dns5/app/integrations/dns/machine-control.php \
   tests/dns3/control-memory-repository.php \
   layers/dns1/functions/classes/class.IntegrationDnsConfigRepository.php \
   layers/dns1/functions/classes/class.IntegrationDnsPhpIpamConfigRepository.php \

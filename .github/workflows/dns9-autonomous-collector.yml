@@ -96,3 +96,9 @@ jobs:
       - name: Exercise B3 control and safe cleanup
         shell: powershell
         run: .\tests\dns9\phase-b3-control.test.ps1
+      - name: Exercise isolated SYSTEM diagnostic
+        shell: powershell
+        run: .\tests\dns9\system-probe.test.ps1
+      - name: Exercise diagnostic task cleanup
+        shell: powershell
+        run: .\tests\dns9\system-probe-control.test.ps1
