@@ -106,6 +106,28 @@ $oldCount=count($repo->jobs);
 $machine->poll($token);
 ok4(count($repo->jobs)<$oldCount,'old terminal jobs pruned during poll');
 
+$future=$admin->queueJob($connectionId,'test_connection',17);
+$repo->jobs[$future['id']]['job_type']='collect_selected_zones';
+$repo->jobs[$future['id']]['created_at']=$clock-1;
+$known=$admin->queueJob($connectionId,'list_zones',17);
+$knownWork=$machine->poll($token);
+ok4(is_array($knownWork) && $knownWork['id']===$known['id'],'old poll skips unsupported type and leases supported work');
+ok4($repo->jobs[$future['id']]['state']==='pending' && $repo->jobs[$future['id']]['attempt_count']===0,'unsupported job is not leased');
+$machine->submitResult($token,$known['id'],$knownWork['lease_id'],['ok'=>true,'error_code'=>null,'zones'=>[]]);
+$futureLease=str_repeat('e',32);
+$repo->jobs[$future['id']]['state']='running';$repo->jobs[$future['id']]['attempt_count']=1;
+$repo->jobs[$future['id']]['lease_id']=$futureLease;$repo->jobs[$future['id']]['lease_expires_at']=$clock+120;
+reject4(fn()=> $machine->submitResult($token,$future['id'],$futureLease,['ok'=>true,'error_code'=>null,'zones'=>[]]),'result_invalid');
+ok4($repo->jobs[$future['id']]['state']==='running','old result handler cannot complete unsupported job');
+$repo->assignments[$connectionId]['revision']=2;
+reject4(fn()=> $machine->submitResult($token,$future['id'],$futureLease,['ok'=>true,'error_code'=>null,'zones'=>[]]),'result_invalid');
+ok4($repo->jobs[$future['id']]['state']==='running','old result handler does not obsolete unsupported job');
+$repo->assignments[$connectionId]['revision']=1;
+$repo->jobs[$future['id']]['state']='pending';$repo->jobs[$future['id']]['lease_id']=null;
+$repo->jobs[$future['id']]['lease_expires_at']=null;$repo->jobs[$future['id']]['expires_at']=$clock-1;
+ok4($machine->poll($token)===null && $repo->jobs[$future['id']]['state']==='pending','old poll does not expire unsupported jobs');
+unset($repo->jobs[$future['id']]);
+
 $contexts[$connectionId]['revision']=7;
 $job=$admin->queueJob($connectionId,'list_zones',17);
 $repo->assignments[$connectionId]['revision']=2;
