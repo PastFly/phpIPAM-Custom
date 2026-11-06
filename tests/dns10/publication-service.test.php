@@ -106,6 +106,15 @@ serviceReject10(fn()=>upload10($s,$t['token'],$d),'snapshot_disk_floor');
 serviceCheck10($r->generations===[],'disk failure preserves data');
 
 [$r,$t,$d,$clock]=serviceFixture10();$space=1024*1024*1024;$s=service10($r,$clock,$space);
+$r->afterInsert=static function() use (&$clock): void {$clock+=121;};
+serviceReject10(fn()=>upload10($s,$t['token'],$d),'snapshot_job_invalid');
+serviceCheck10($r->generations===[] && $r->jobs[$d['job_id']]['state']==='running','lease expiry during storage rolls back publication');
+[$r,$t,$d,$clock]=serviceFixture10();$space=1024*1024*1024;$s=service10($r,$clock,$space);
+$r->afterInsert=static function() use (&$space): void {$space=512*1024*1024-1;};
+serviceReject10(fn()=>upload10($s,$t['token'],$d),'snapshot_disk_floor');
+serviceCheck10($r->generations===[] && $r->jobs[$d['job_id']]['state']==='running','disk floor crossed during storage rolls back');
+
+[$r,$t,$d,$clock]=serviceFixture10();$space=1024*1024*1024;$s=service10($r,$clock,$space);
 $r->heads[$d['dataset_id']]=['current'=>str_repeat('f',32),'previous'=>null];
 serviceReject10(fn()=>upload10($s,$t['token'],$d),'snapshot_unavailable');
 serviceCheck10($r->generations===[] && $r->heads[$d['dataset_id']]['current']===str_repeat('f',32),'missing head generation does not get overwritten');

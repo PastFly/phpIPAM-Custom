@@ -6,6 +6,9 @@ if (PHP_SAPI!=='cli') {http_response_code(404);exit;}
 $root=dirname(__DIR__,2);
 $migration=$root.'/database/dns10/001-zone-snapshots.sql';
 if (!is_file($migration)) throw new RuntimeException('snapshot_schema_missing');
+$workMigration=$root.'/database/dns10/002-upload-work.sql';
+$adapterPath=$root.'/layers/dns10/functions/classes/class.IntegrationDnsZonePublicationPhpIpamRepository.php';
+if (!is_file($workMigration) || !is_file($adapterPath)) throw new RuntimeException('snapshot_repository_missing');
 $dsn=getenv('DNS10_TEST_DSN');
 if (!$dsn || !in_array('mysql',PDO::getAvailableDrivers(),true)) {echo "DNS10_MYSQL_NOT_RUN=1\n";exit(77);}
 if (!preg_match('/^mysql:host=127\\.0\\.0\\.1;port=[0-9]{1,5};dbname=phpipam_dns10_test;charset=utf8mb4$/D',$dsn)) {
@@ -24,7 +27,11 @@ function mysqlReject10(callable $fn,string $label): void {
 }
 $pdo->exec(file_get_contents($root.'/database/dns1/001-configuration.sql'));
 $pdo->exec(file_get_contents($root.'/database/dns3/001-collector-control.sql'));
+$pdo->exec(file_get_contents($root.'/database/dns4/001-machine-job-lifecycle.sql'));
+$pdo->exec(file_get_contents($root.'/database/dns6/001-credential-delivery-marker.sql'));
+$pdo->exec(file_get_contents($root.'/database/dns9/001-autonomous-enable.sql'));
 $pdo->exec(file_get_contents($migration));
+$pdo->exec(file_get_contents($workMigration));
 
 $sourceA=str_repeat('a',32);$sourceB=str_repeat('b',32);$collector=str_repeat('c',32);
 $datasetA=str_repeat('d',32);$datasetB=str_repeat('e',32);
@@ -85,5 +92,134 @@ $pdo->commit();
 mysqlCheck10((int)$pdo->query("SELECT COUNT(*) FROM custom_dns_zone_records WHERE generation_id='".$g1."'")->fetchColumn()===0,'unreferenced pruned generation records cascade');
 $q->execute([$datasetA]);$after=$q->fetch(PDO::FETCH_ASSOC);
 mysqlCheck10($after['current_generation_id']===$g3 && $after['previous_generation_id']===$g2,'two newest generations preserved');
+
+foreach ([
+    $root.'/layers/dns10/functions/classes/class.IntegrationDnsZonePublicationRepository.php',
+    $root.'/layers/dns10/functions/classes/class.IntegrationDnsZoneUploadToken.php',
+    $root.'/layers/dns10/functions/classes/class.IntegrationDnsZoneSnapshotValidator.php',
+    $root.'/layers/dns10/functions/classes/class.IntegrationDnsZonePublicationPolicy.php',
+    $adapterPath,$root.'/layers/dns10/functions/classes/class.IntegrationDnsZonePublicationService.php'
+] as $class) require $class;
+final class Dns10LazyPdoFixture {
+    public ?PDO $pdo=null;public int $connections=0;public ?int $failAt=null;public int $writes=0;
+    public function __construct(private string $dsn) {}
+    public function isConnected(): bool {return $this->pdo!==null;}
+    public function connect(): void {$this->pdo=new PDO($this->dsn,getenv('DNS10_TEST_USER'),getenv('DNS10_TEST_PASSWORD'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_EMULATE_PREPARES=>false]);++$this->connections;}
+    public function beginTransaction(): bool {$this->writes=0;return $this->pdo->beginTransaction();}
+    public function commit(): bool {return $this->pdo->commit();}
+    public function rollBack(): bool {return $this->pdo->inTransaction()?$this->pdo->rollBack():false;}
+    public function getObjectsQuery($table,$sql=null,$values=[],$class='stdClass'): array {
+        $q=$this->pdo->prepare($sql);$q->execute((array)$values);return $q->fetchAll(PDO::FETCH_OBJ);
+    }
+    public function runQuery($sql,$values=[]): bool {
+        ++$this->writes;if($this->failAt===$this->writes)throw new DomainException('injected_failure');
+        $q=$this->pdo->prepare($sql);return $q->execute((array)$values);
+    }
+}
+function mysqlDomainReject10(callable $fn,string $code): void {
+    try {$fn();} catch(DomainException $e) {mysqlCheck10($e->getMessage()===$code,'domain '.$code);return;}
+    throw new RuntimeException('not_rejected: '.$code);
+}
+$pdo->prepare('UPDATE custom_dns_connections SET enabled=1,status=? WHERE id=?')->execute(['active',$sourceA]);
+$pdo->prepare('UPDATE custom_dns_zone_datasets SET selected=1 WHERE id=?')->execute([$datasetA]);
+$pdo->prepare('INSERT INTO custom_dns_collector_assignments (connection_id,collector_id,revision,assigned_at,assigned_by) VALUES (?,?,?,?,?)')->execute([$sourceA,$collector,1,100,1]);
+$issued=IntegrationDnsZoneUploadToken::issue();
+$pdo->prepare('INSERT INTO custom_dns_zone_upload_tokens (id,connection_id,collector_id,assignment_revision,token_digest,revoked,created_at,created_by,updated_at,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?)')
+    ->execute([$issued['token_id'],$sourceA,$collector,1,$issued['token_digest'],0,100,1,100,1]);
+$clock=2000000000;$space=1024*1024*1024;
+$jobInsert=$pdo->prepare('INSERT INTO custom_dns_control_jobs (id,collector_id,connection_id,assignment_revision,job_type,state,configuration_revision,binding_epoch,credential_version,lease_id,lease_expires_at,attempt_count,credential_delivered_at,result_code,result_payload,finished_at,created_at,expires_at,updated_at,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+$bindingInsert=$pdo->prepare('INSERT INTO custom_dns_zone_job_datasets (job_id,connection_id,dataset_id,dataset_revision) VALUES (?,?,?,?)');
+$makeJob=static function(string $id,string $lease) use($jobInsert,$bindingInsert,$collector,$sourceA,$datasetA,$clock): void {
+    $jobInsert->execute([$id,$collector,$sourceA,1,'collect_selected_zones','running',1,1,null,$lease,$clock+120,1,$clock,null,null,null,$clock,$clock+300,$clock,0]);
+    $bindingInsert->execute([$id,$sourceA,$datasetA,1]);
+};
+$jid=str_repeat('6',32);$lease=str_repeat('7',32);
+$jobInsert->execute([$jid,$collector,$sourceA,1,'collect_selected_zones','running',1,1,null,$lease,$clock+120,1,$clock,null,null,null,$clock,$clock+300,$clock,0]);
+mysqlReject10(fn()=> $bindingInsert->execute([$jid,$sourceA,$datasetB,1]),'job cannot target another source dataset');
+$bindingInsert->execute([$jid,$sourceA,$datasetA,1]);
+$doc=['schema_version'=>1,'source_id'=>$sourceA,'dataset_id'=>$datasetA,'collector_id'=>$collector,'job_id'=>$jid,'lease_id'=>$lease,
+    'zone'=>'example.test.','virtualization_instance'=>'default','zone_scope'=>'default','configuration_revision'=>1,'binding_epoch'=>1,
+    'dataset_revision'=>1,'assignment_revision'=>1,'credential_version'=>null,'run_id'=>'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+    'sequence'=>4,'started_at'=>$clock-10,'finished_at'=>$clock,'supported_types'=>['A','AAAA','CNAME','PTR'],'complete'=>true,'record_count'=>1,
+    'records'=>[['owner'=>'host.example.test.','display_owner'=>'host','type'=>'A','record_class'=>'IN','rdata'=>'192.0.2.1',
+                'display_rdata'=>'192.0.2.1','ttl_seconds'=>300,'source_aging_timestamp'=>null]]];
+$raw=json_encode($doc,JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
+$db=new Dns10LazyPdoFixture($dsn);$repo=new IntegrationDnsZonePublicationPhpIpamRepository($db);
+$service=new IntegrationDnsZonePublicationService($repo,static function() use(&$clock): int{return $clock;},static function() use(&$space): int{return $space;});
+$service->authenticateUpload($issued['token']);
+mysqlCheck10($db->connections===1 && $db->isConnected() && !$db->pdo->inTransaction(),'lazy database initialized and authentication transaction closed');
+mysqlCheck10($service->publishUpload($issued['token'],$doc,hash('sha256',$raw),strlen($raw))===['decision'=>'publish'],'real authenticated transaction publishes');
+$q->execute([$datasetA]);$headBefore=$q->fetch(PDO::FETCH_ASSOC);
+mysqlCheck10($headBefore['previous_generation_id']===$g3 && $headBefore['current_generation_id']!==$g3,'new head retains previous current');
+mysqlCheck10((int)$pdo->query("SELECT COUNT(*) FROM custom_dns_zone_generations WHERE dataset_id='".$datasetA."'")->fetchColumn()===2,'only two generations remain');
+$jobRead=$pdo->prepare('SELECT state,lease_id,finished_at FROM custom_dns_control_jobs WHERE id=?');$jobRead->execute([$jid]);$finished=$jobRead->fetch(PDO::FETCH_ASSOC);
+mysqlCheck10($finished['state']==='succeeded' && $finished['lease_id']===null && (int)$finished['finished_at']===$clock,'job completed and lease cleared');
+mysqlCheck10((int)$pdo->query('SELECT COUNT(*) FROM custom_dns_zone_sync_events')->fetchColumn()===1,'bounded sync audit inserted');
+$clock+=3600;
+mysqlCheck10($service->publishUpload($issued['token'],$doc,hash('sha256',$raw),strlen($raw))===['decision'=>'replay'],'identical retry after job completion');
+$q->execute([$datasetA]);mysqlCheck10($q->fetch(PDO::FETCH_ASSOC)===$headBefore,'replay leaves head unchanged');
+mysqlCheck10((int)$pdo->query('SELECT COUNT(*) FROM custom_dns_zone_sync_events')->fetchColumn()===1,'replay does not add audit event');
+$clock-=3600;
+$jid2=str_repeat('8',32);$lease2=str_repeat('9',32);$makeJob($jid2,$lease2);
+$doc2=$doc;$doc2['job_id']=$jid2;$doc2['lease_id']=$lease2;$doc2['sequence']=5;$doc2['run_id']='aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeef';
+$raw2=json_encode($doc2,JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
+for($failure=1;$failure<=6;++$failure) {
+    $db->failAt=$failure;
+    mysqlDomainReject10(fn()=> $service->publishUpload($issued['token'],$doc2,hash('sha256',$raw2),strlen($raw2)),'injected_failure');
+    $q->execute([$datasetA]);$afterFailure=$q->fetch(PDO::FETCH_ASSOC);
+    $jobRead->execute([$jid2]);$stillRunning=$jobRead->fetch(PDO::FETCH_ASSOC);
+    mysqlCheck10($afterFailure===$headBefore && $stillRunning['state']==='running' && $stillRunning['lease_id']===$lease2,'each injected write failure rolls back');
+    mysqlCheck10((int)$pdo->query("SELECT COUNT(*) FROM custom_dns_zone_generations WHERE dataset_id='".$datasetA."'")->fetchColumn()===2 &&
+        (int)$pdo->query('SELECT COUNT(*) FROM custom_dns_zone_sync_events')->fetchColumn()===1,'rollback preserves generations and audit');
+}
+$db->failAt=null;
+$pdo->prepare('UPDATE custom_dns_zone_upload_tokens SET revoked=1 WHERE id=?')->execute([$issued['token_id']]);
+mysqlDomainReject10(fn()=> $service->publishUpload($issued['token'],$doc2,hash('sha256',$raw2),strlen($raw2)),'upload_auth_failed');
+$pdo->prepare('UPDATE custom_dns_zone_upload_tokens SET revoked=0 WHERE id=?')->execute([$issued['token_id']]);
+$pdo->prepare('UPDATE custom_dns_collector_assignments SET revision=2 WHERE connection_id=?')->execute([$sourceA]);
+mysqlDomainReject10(fn()=> $service->publishUpload($issued['token'],$doc2,hash('sha256',$raw2),strlen($raw2)),'upload_auth_failed');
+$pdo->prepare('UPDATE custom_dns_collector_assignments SET revision=1 WHERE connection_id=?')->execute([$sourceA]);
+$pdo->prepare('UPDATE custom_dns_zone_datasets SET selected=0 WHERE id=?')->execute([$datasetA]);
+mysqlDomainReject10(fn()=> $service->publishUpload($issued['token'],$doc2,hash('sha256',$raw2),strlen($raw2)),'snapshot_unavailable');
+$pdo->prepare('UPDATE custom_dns_zone_datasets SET selected=1 WHERE id=?')->execute([$datasetA]);
+mysqlCheck10($service->publishUpload($issued['token'],$doc2,hash('sha256',$raw2),strlen($raw2))===['decision'=>'publish'],'new authorized generation publishes after rollback tests');
+$jid3=str_repeat('a',32);$lease3=str_repeat('b',32);$makeJob($jid3,$lease3);
+$doc3=$doc2;$doc3['job_id']=$jid3;$doc3['lease_id']=$lease3;$doc3['sequence']=6;
+$doc3['run_id']='aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeee01';$doc3['record_count']=205;$doc3['records']=[];
+for($i=0;$i<205;++$i) {$recordRow=$doc['records'][0];$recordRow['owner']='host'.$i.'.example.test.';$doc3['records'][]=$recordRow;}
+$raw3=json_encode($doc3,JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
+mysqlCheck10($service->publishUpload($issued['token'],$doc3,hash('sha256',$raw3),strlen($raw3))===['decision'=>'publish'],'multi-batch records publish');
+$q->execute([$datasetA]);$multiHead=$q->fetch(PDO::FETCH_ASSOC);
+$countRecords=$pdo->prepare('SELECT COUNT(*) FROM custom_dns_zone_records WHERE generation_id=?');$countRecords->execute([$multiHead['current_generation_id']]);
+mysqlCheck10((int)$countRecords->fetchColumn()===205,'all multi-batch records retained');
+$jid4=str_repeat('c',32);$lease4=str_repeat('d',32);$makeJob($jid4,$lease4);
+$emptyDoc=$doc3;$emptyDoc['job_id']=$jid4;$emptyDoc['lease_id']=$lease4;$emptyDoc['sequence']=7;
+$emptyDoc['run_id']='aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeee02';$emptyDoc['record_count']=0;$emptyDoc['records']=[];
+$emptyRaw=json_encode($emptyDoc,JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
+mysqlCheck10($service->publishUpload($issued['token'],$emptyDoc,hash('sha256',$emptyRaw),strlen($emptyRaw))===['decision'=>'publish'],'complete empty snapshot publishes');
+$q->execute([$datasetA]);$emptyHead=$q->fetch(PDO::FETCH_ASSOC);$countRecords->execute([$emptyHead['current_generation_id']]);
+mysqlCheck10((int)$countRecords->fetchColumn()===0 && $emptyHead['previous_generation_id']===$multiHead['current_generation_id'],'empty current preserves prior full snapshot');
+$oldest=(int)$pdo->query('SELECT MIN(event_id) FROM custom_dns_zone_sync_events')->fetchColumn();
+$eventCount=(int)$pdo->query('SELECT COUNT(*) FROM custom_dns_zone_sync_events')->fetchColumn();
+$eventInsert=$pdo->prepare("INSERT INTO custom_dns_zone_sync_events (dataset_id,job_id,action,actor_id,created_at) VALUES (?,?,'snapshot_published',0,?)");
+for($i=$eventCount;$i<1000;++$i) $eventInsert->execute([$datasetA,$jid,100+$i]);
+$jid5=str_repeat('e',32);$lease5=str_repeat('f',32);$makeJob($jid5,$lease5);
+$boundedDoc=$emptyDoc;$boundedDoc['job_id']=$jid5;$boundedDoc['lease_id']=$lease5;$boundedDoc['sequence']=8;
+$boundedDoc['run_id']='aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeee03';
+$boundedRaw=json_encode($boundedDoc,JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
+mysqlCheck10($service->publishUpload($issued['token'],$boundedDoc,hash('sha256',$boundedRaw),strlen($boundedRaw))===['decision'=>'publish'],'publication at sync event limit');
+mysqlCheck10((int)$pdo->query('SELECT COUNT(*) FROM custom_dns_zone_sync_events')->fetchColumn()===1000 &&
+    (int)$pdo->query('SELECT COUNT(*) FROM custom_dns_zone_sync_events WHERE event_id='.(int)$oldest)->fetchColumn()===0,
+    'only oldest integration sync event pruned at bound');
+
+$otherPdo=new PDO($dsn,getenv('DNS10_TEST_USER'),getenv('DNS10_TEST_PASSWORD'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+$otherPdo->exec('SET innodb_lock_wait_timeout=1');
+$repo->transaction(function() use($otherPdo): void {
+    $otherPdo->beginTransaction();$blocked=false;
+    try {$otherPdo->query('SELECT id FROM custom_dns_config_guard WHERE id=1 FOR UPDATE');}
+    catch(PDOException $e) {$blocked=(int)($e->errorInfo[1]??0)===1205;}
+    finally {if($otherPdo->inTransaction())$otherPdo->rollBack();}
+    mysqlCheck10($blocked,'shared guard excludes concurrent configuration transaction');
+});
 echo 'DNS10_MYSQL_ASSERTIONS='.$n."\n";
 echo "DNS10_MYSQL_TEST_OK=1\n";

@@ -8,6 +8,9 @@ on:
       - 'database/dns10/**'
       - 'database/dns1/**'
       - 'database/dns3/**'
+      - 'database/dns4/**'
+      - 'database/dns6/**'
+      - 'database/dns9/**'
       - 'design/DNS10_ZONE_SNAPSHOT_VALIDATION.md'
       - '.github/workflows/dns10-snapshot-validator.yml'
   workflow_dispatch:
@@ -29,6 +32,7 @@ jobs:
           php -l layers/dns10/functions/classes/class.IntegrationDnsZoneUploadToken.php
           php -l layers/dns10/functions/classes/class.IntegrationDnsZonePublicationRepository.php
           php -l layers/dns10/functions/classes/class.IntegrationDnsZonePublicationService.php
+          php -l layers/dns10/functions/classes/class.IntegrationDnsZonePublicationPhpIpamRepository.php
           php -l tests/dns10/snapshot-validator.test.php
           php -l tests/dns10/publication-policy.test.php
           php -l tests/dns10/upload-http.test.php

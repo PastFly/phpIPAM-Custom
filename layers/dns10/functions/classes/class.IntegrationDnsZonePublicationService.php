@@ -144,7 +144,14 @@ final class IntegrationDnsZonePublicationService
             $this->repo->insertGeneration($generation,$normalized['records']);
             $this->repo->setHead($datasetId,$generation['id'],$current['id']??null);
             if ($previous!==null) $this->repo->removeGeneration($previous['id']);
-            $this->repo->completeJob($jobId,$job['lease_id'],$now);
+            $commitNow=($this->clock)();
+            if (!is_int($commitNow) || $commitNow<$now || $commitNow>9007199254740691 ||
+                $job['lease_expires_at']<$commitNow || $job['expires_at']<$commitNow) {
+                throw new DomainException('snapshot_job_invalid');
+            }
+            $remaining=($this->freeBytes)();
+            if (!is_int($remaining) || $remaining<536870912) throw new DomainException('snapshot_disk_floor');
+            $this->repo->completeJob($jobId,$job['lease_id'],$commitNow);
             return ['decision'=>'publish'];
         });
     }

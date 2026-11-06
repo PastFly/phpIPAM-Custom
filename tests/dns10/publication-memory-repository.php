@@ -7,6 +7,7 @@ final class Dns10PublicationMemoryRepository implements IntegrationDnsZonePublic
     public array $tokens=[],$sources=[],$collectors=[],$assignments=[],$datasets=[],$jobs=[],$generations=[],$records=[],$heads=[];
     public ?int $failAt=null;
     public ?int $accountedOverride=null;
+    public ?Closure $afterInsert=null;
     private bool $inTransaction=false;
     private int $writes=0;
     public function transaction(callable $work): mixed {
@@ -45,6 +46,7 @@ final class Dns10PublicationMemoryRepository implements IntegrationDnsZonePublic
     public function insertGeneration(array $generation,array $records): void {
         $this->write();$id=$generation['id'];if(isset($this->generations[$id]))throw new DomainException('upload_unavailable');
         $this->generations[$id]=$generation;$this->records[$id]=$records;
+        if ($this->afterInsert!==null) ($this->afterInsert)();
     }
     public function setHead(string $datasetId,string $currentId,?string $previousId): void {
         $this->write();$this->heads[$datasetId]=['current'=>$currentId,'previous'=>$previousId];
