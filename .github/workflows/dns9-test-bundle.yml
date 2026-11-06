@@ -1,4 +1,4 @@
-name: DNS9 exact-SHA read-only test bundle
+name: DNS9 exact-SHA operator bundle
 
 on:
   push:
@@ -84,6 +84,6 @@ jobs:
           fi
           gh release create "$TAG" dist/* \
             --target "$GITHUB_SHA" \
-            --title "DNS9 read-only test ${GITHUB_SHA:0:12}" \
-            --notes "Read-only B3 scheduler diagnostic and disk inventory. Exact source SHA: $GITHUB_SHA. Do not execute live B3 apply." \
+            --title "DNS9 operator bundle ${GITHUB_SHA:0:12}" \
+            --notes "Exact source SHA: $GITHUB_SHA. Stages have different effects: --b3-tls-upgrade replaces the Windows runner with backup; other explicitly selected stages may also mutate state. Review the requested stage before use." \
             --prerelease
