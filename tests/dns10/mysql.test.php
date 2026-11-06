@@ -45,6 +45,8 @@ $addDataset($datasetA,$sourceA);$addDataset($datasetB,$sourceB);
 mysqlCheck10((int)$pdo->query('SELECT COUNT(*) FROM custom_dns_zone_datasets')->fetchColumn()===2,'same zone across sources is independent');
 mysqlReject10(fn()=> $addDataset(str_repeat('f',32),$sourceA),'duplicate zone within source');
 mysqlReject10(fn()=> $addDataset(str_repeat('f',32),$sourceA,2),'invalid selection flag');
+mysqlReject10(fn()=> $pdo->prepare('INSERT INTO custom_dns_zone_datasets (id,connection_id,zone_name,virtualization_instance,zone_scope,selected,collection_enabled,revision,created_at,created_by,updated_at,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
+    ->execute([str_repeat('f',32),$sourceA,'other.example.test.','default','default',0,1,1,100,1,100,1]),'collection cannot be enabled without selection');
 
 $gen=$pdo->prepare('INSERT INTO custom_dns_zone_generations (id,dataset_id,collector_id,job_id,run_id,sequence_no,dataset_revision,configuration_revision,binding_epoch,assignment_revision,credential_version,payload_sha256,payload_bytes,record_count,started_at,finished_at,received_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
 $addGeneration=static function($id,$datasetId,$seq,$bytes=100,$count=1) use($gen,$collector): void {
@@ -121,7 +123,7 @@ function mysqlDomainReject10(callable $fn,string $code): void {
     throw new RuntimeException('not_rejected: '.$code);
 }
 $pdo->prepare('UPDATE custom_dns_connections SET enabled=1,status=? WHERE id=?')->execute(['active',$sourceA]);
-$pdo->prepare('UPDATE custom_dns_zone_datasets SET selected=1 WHERE id=?')->execute([$datasetA]);
+$pdo->prepare('UPDATE custom_dns_zone_datasets SET selected=1,collection_enabled=1 WHERE id=?')->execute([$datasetA]);
 $pdo->prepare('INSERT INTO custom_dns_collector_assignments (connection_id,collector_id,revision,assigned_at,assigned_by) VALUES (?,?,?,?,?)')->execute([$sourceA,$collector,1,100,1]);
 $issued=IntegrationDnsZoneUploadToken::issue();
 $pdo->prepare('INSERT INTO custom_dns_zone_upload_tokens (id,connection_id,collector_id,assignment_revision,token_digest,revoked,created_at,created_by,updated_at,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?)')
@@ -179,9 +181,9 @@ $pdo->prepare('UPDATE custom_dns_zone_upload_tokens SET revoked=0 WHERE id=?')->
 $pdo->prepare('UPDATE custom_dns_collector_assignments SET revision=2 WHERE connection_id=?')->execute([$sourceA]);
 mysqlDomainReject10(fn()=> $service->publishUpload($issued['token'],$doc2,hash('sha256',$raw2),strlen($raw2)),'upload_auth_failed');
 $pdo->prepare('UPDATE custom_dns_collector_assignments SET revision=1 WHERE connection_id=?')->execute([$sourceA]);
-$pdo->prepare('UPDATE custom_dns_zone_datasets SET selected=0 WHERE id=?')->execute([$datasetA]);
+$pdo->prepare('UPDATE custom_dns_zone_datasets SET selected=0,collection_enabled=0 WHERE id=?')->execute([$datasetA]);
 mysqlDomainReject10(fn()=> $service->publishUpload($issued['token'],$doc2,hash('sha256',$raw2),strlen($raw2)),'snapshot_unavailable');
-$pdo->prepare('UPDATE custom_dns_zone_datasets SET selected=1 WHERE id=?')->execute([$datasetA]);
+$pdo->prepare('UPDATE custom_dns_zone_datasets SET selected=1,collection_enabled=1 WHERE id=?')->execute([$datasetA]);
 mysqlCheck10($service->publishUpload($issued['token'],$doc2,hash('sha256',$raw2),strlen($raw2))===['decision'=>'publish'],'new authorized generation publishes after rollback tests');
 $jid3=str_repeat('a',32);$lease3=str_repeat('b',32);$makeJob($jid3,$lease3);
 $doc3=$doc2;$doc3['job_id']=$jid3;$doc3['lease_id']=$lease3;$doc3['sequence']=6;

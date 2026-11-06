@@ -112,8 +112,9 @@ final class IntegrationDnsZonePublicationPhpIpamRepository implements Integratio
     }
     public function dataset(string $id): ?array
     {
-        $row=$this->one('SELECT id,connection_id,zone_name AS zone,selected,revision FROM custom_dns_zone_datasets WHERE id=? LIMIT 2',[$id]);
-        if ($row===null) return null;$row=self::numbers($row,['revision']);$row['selected']=self::flag($row['selected']??null);return $row;
+        $row=$this->one('SELECT id,connection_id,zone_name AS zone,selected,collection_enabled,revision FROM custom_dns_zone_datasets WHERE id=? LIMIT 2',[$id]);
+        if ($row===null) return null;$row=self::numbers($row,['revision']);$row['selected']=self::flag($row['selected']??null);
+        $row['collection_enabled']=self::flag($row['collection_enabled']??null);return $row;
     }
     public function job(string $id): ?array
     {

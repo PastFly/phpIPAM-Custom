@@ -26,7 +26,7 @@ function serviceFixture10(): array {
     $repo->sources[$source]=['id'=>$source,'enabled'=>true,'revision'=>4,'binding_epoch'=>7,'credential_version'=>null];
     $repo->collectors[$collector]=['id'=>$collector,'revoked'=>false];
     $repo->assignments[$source]=['connection_id'=>$source,'collector_id'=>$collector,'revision'=>6];
-    $repo->datasets[$dataset]=['id'=>$dataset,'connection_id'=>$source,'zone'=>'example.test.','selected'=>true,'revision'=>3];
+    $repo->datasets[$dataset]=['id'=>$dataset,'connection_id'=>$source,'zone'=>'example.test.','selected'=>true,'collection_enabled'=>true,'revision'=>3];
     $repo->jobs[$job]=['id'=>$job,'connection_id'=>$source,'collector_id'=>$collector,'dataset_id'=>$dataset,
         'job_type'=>'collect_selected_zones','state'=>'running','attempt_count'=>1,'lease_id'=>$lease,
         'lease_expires_at'=>$now+120,'expires_at'=>$now+300,'credential_delivered_at'=>$now,
@@ -62,6 +62,9 @@ serviceReject10(fn()=>upload10($service,$issued['token'],$changed),'snapshot_seq
 $repo->tokens[$issued['token_id']]['revoked']=true;
 serviceReject10(fn()=>upload10($service,$issued['token'],$doc),'upload_auth_failed');
 $repo->tokens[$issued['token_id']]['revoked']=false;
+$repo->datasets[$dataset]['collection_enabled']=false;
+serviceReject10(fn()=>upload10($service,$issued['token'],$doc),'snapshot_unavailable');
+$repo->datasets[$dataset]['collection_enabled']=true;
 $repo->datasets[$dataset]['revision']=4;
 serviceReject10(fn()=>upload10($service,$issued['token'],$doc),'snapshot_unavailable');
 $repo->datasets[$dataset]['revision']=3;
@@ -72,7 +75,7 @@ $repo->sources[$doc['source_id']]['credential_version']=3;
 serviceReject10(fn()=>upload10($service,$issued['token'],$doc),'snapshot_unavailable');
 $repo->sources[$doc['source_id']]['credential_version']=null;
 
-foreach (['revoked_token','disabled_source','revoked_collector','reassigned','unselected','wrong_dataset','expired_job','expired_lease',
+foreach (['revoked_token','disabled_source','revoked_collector','reassigned','unselected','collection_off','wrong_dataset','expired_job','expired_lease',
           'wrong_lease','stale_assignment','stale_config','stale_dataset','stale_credential','bad_payload'] as $case) {
     [$r,$t,$d,$clock]=serviceFixture10();$space=1024*1024*1024;$s=service10($r,$clock,$space);
     $src=$d['source_id'];$col=$d['collector_id'];$ds=$d['dataset_id'];$j=$d['job_id'];$code='snapshot_job_invalid';
@@ -82,6 +85,7 @@ foreach (['revoked_token','disabled_source','revoked_collector','reassigned','un
         case 'revoked_collector':$r->collectors[$col]['revoked']=true;$code='upload_auth_failed';break;
         case 'reassigned':$r->assignments[$src]['revision']=7;$code='upload_auth_failed';break;
         case 'unselected':$r->datasets[$ds]['selected']=false;$code='snapshot_unavailable';break;
+        case 'collection_off':$r->datasets[$ds]['collection_enabled']=false;$code='snapshot_unavailable';break;
         case 'wrong_dataset':$r->jobs[$j]['dataset_id']=str_repeat('f',32);break;
         case 'expired_job':$r->jobs[$j]['expires_at']=$clock-1;break;
         case 'expired_lease':$r->jobs[$j]['lease_expires_at']=$clock-1;break;

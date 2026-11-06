@@ -9,6 +9,7 @@ CREATE TABLE custom_dns_zone_datasets (
     virtualization_instance VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
     zone_scope VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
     selected TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    collection_enabled TINYINT UNSIGNED NOT NULL DEFAULT 0,
     revision INT UNSIGNED NOT NULL,
     created_at BIGINT UNSIGNED NOT NULL,
     created_by INT UNSIGNED NOT NULL,
@@ -18,7 +19,7 @@ CREATE TABLE custom_dns_zone_datasets (
     CONSTRAINT custom_dns_zone_dataset_source_fk FOREIGN KEY (connection_id) REFERENCES custom_dns_connections(id) ON DELETE RESTRICT,
     CONSTRAINT custom_dns_zone_dataset_zone CHECK (zone_name <> ''),
     CONSTRAINT custom_dns_zone_dataset_scope CHECK (virtualization_instance='default' AND zone_scope='default'),
-    CONSTRAINT custom_dns_zone_dataset_selected CHECK (selected IN (0,1)),
+    CONSTRAINT custom_dns_zone_dataset_selected CHECK (selected IN (0,1) AND collection_enabled IN (0,1) AND (collection_enabled=0 OR selected=1)),
     CONSTRAINT custom_dns_zone_dataset_revision CHECK (revision > 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin ROW_FORMAT=DYNAMIC;
 

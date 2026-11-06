@@ -82,7 +82,8 @@ final class IntegrationDnsZonePublicationService
             if (!self::id($datasetId)) throw new DomainException('snapshot_invalid');
             $dataset=$this->repo->dataset($datasetId);
             if (!is_array($dataset) || ($dataset['id']??null)!==$datasetId || ($dataset['connection_id']??null)!==$source['id'] ||
-                ($dataset['selected']??null)!==true || !self::version($dataset['revision']??null) || !is_string($dataset['zone']??null)) {
+                ($dataset['selected']??null)!==true || ($dataset['collection_enabled']??null)!==true ||
+                !self::version($dataset['revision']??null) || !is_string($dataset['zone']??null)) {
                 throw new DomainException('snapshot_unavailable');
             }
             $head=$this->repo->head($datasetId);
