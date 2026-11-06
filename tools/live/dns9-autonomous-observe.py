@@ -19,6 +19,15 @@ BACKUP = Path('/var/backups/phpipam-custom/dns9-activation-7b184667f6e2a681')
 MARKER = Path('/var/lib/phpipam-custom/dns9-production-activation-global')
 
 
+def safe_error(exc):
+    allowed = {'root_required','activation_receipt_invalid','activation_marker_invalid','activation_backup_invalid',
+               'timer_not_active','baseline_or_binding_changed','binding_invalid','observation_invalid',
+               'baseline_result_changed','target_boundary_invalid','database_row_count_invalid',
+               'server_timer_enabled_state_unknown','server_timer_active_state_unknown'}
+    message = str(exc)
+    return message if message in allowed else 'read_only_check_stopped'
+
+
 def validate_receipt(doc):
     if (not isinstance(doc, dict) or doc.get('source_sha') != SOURCE_SHA or doc.get('backup_sha256') != BACKUP_SHA
             or doc.get('dns_write') is not False or type(doc.get('revision')) is not int or doc['revision'] < 1
@@ -108,6 +117,6 @@ def main():
 
 if __name__ == '__main__':
     try: main()
-    except Exception:
-        print('DNS9_OBSERVE_ERROR=read_only_check_stopped',file=sys.stderr)
+    except Exception as exc:
+        print('DNS9_OBSERVE_ERROR='+safe_error(exc),file=sys.stderr)
         raise SystemExit(1)

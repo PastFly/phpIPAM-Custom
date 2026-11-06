@@ -79,4 +79,9 @@ class ObservationTests(unittest.TestCase):
         for change in ({'source_sha':'0'*40},{'revision':True},{'dns_write':True}, {'cycle':{}}):
             with self.subTest(change=change),self.assertRaises(RuntimeError): self.obs.validate_receipt({**receipt,**change})
 
+    def test_failure_output_exposes_only_allowlisted_safe_reasons(self):
+        self.assertEqual(self.obs.safe_error(RuntimeError('timer_not_active')),'timer_not_active')
+        self.assertEqual(self.obs.safe_error(RuntimeError('baseline_or_binding_changed')),'baseline_or_binding_changed')
+        self.assertEqual(self.obs.safe_error(RuntimeError('secret from database')),'read_only_check_stopped')
+
 if __name__ == '__main__': unittest.main()
