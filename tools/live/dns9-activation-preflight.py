@@ -20,13 +20,40 @@ FIX_SHA='97377897fe48a9e01a8bb844c4c19e37117cc3db'
 FIX_BACKUP=Path('/var/backups/phpipam-custom/dns9-scheduler-fix-2612d4b1595b6cdb')
 SERVER='srv-dc01.rbank.local'
 USER='rbank\\kadaev.admin'
+EXPIRED_UI_JOBS=(
+    ('0f5fbf81fc71164cc7c624fc6101925f','list_zones',1793966475),
+    ('edfcd75935083e51c4536a390174057e','test_connection',1793966491),
+)
 
 def module(name,path):
     spec=importlib.util.spec_from_file_location(name,path)
     obj=importlib.util.module_from_spec(spec); spec.loader.exec_module(obj); return obj
 
 def validate_queue(row):
-    if row!='0|0|0|0|0': raise RuntimeError('queue_or_retention_requires_review')
+    if row!='2|0|0|0|0|2': raise RuntimeError('queue_or_retention_requires_review')
+
+def queue_summary(b3):
+    cases=' OR '.join(
+        "(j.id='"+job_id+"' AND j.job_type='"+kind+"' AND j.created_at="+str(created)+")"
+        for job_id,kind,created in EXPIRED_UI_JOBS
+    )
+    return b3.one(f"""SELECT CONCAT(
+ COALESCE(SUM(state='pending'),0),'|',COALESCE(SUM(state='running'),0),'|',
+ COALESCE(SUM(state IN ('succeeded','failed','expired','obsolete') AND COALESCE(finished_at,updated_at)<=UNIX_TIMESTAMP()+1200-86400),0),'|',
+ (SELECT COUNT(*) FROM custom_dns_connections WHERE id<>'{b3.PILOT_CONNECTION_ID}' AND enabled=1),'|',IF(COUNT(*)>=384,1,0),'|',
+ (SELECT COUNT(*) FROM custom_dns_control_jobs j
+  JOIN custom_dns_collector_assignments a ON a.connection_id=j.connection_id AND a.collector_id=j.collector_id AND a.revision=j.assignment_revision
+  JOIN custom_dns_connections c ON c.id=j.connection_id AND c.revision=j.configuration_revision AND c.binding_epoch=j.binding_epoch
+  JOIN custom_dns_collectors k ON k.id=j.collector_id
+  WHERE ({cases}) AND j.state='pending' AND j.collector_id='{b3.PILOT_COLLECTOR_ID}' AND j.connection_id='{b3.PILOT_CONNECTION_ID}'
+   AND j.expires_at=j.created_at+300 AND j.expires_at<UNIX_TIMESTAMP() AND j.updated_at=j.created_at AND j.updated_by=4
+   AND j.attempt_count=0 AND j.lease_id IS NULL AND j.lease_expires_at IS NULL AND j.credential_delivered_at IS NULL
+   AND j.result_code IS NULL AND j.result_payload IS NULL AND j.finished_at IS NULL AND j.credential_version IS NULL
+   AND c.enabled=0 AND c.credential_mode='collector_identity' AND c.server='{SERVER}' AND k.revoked=0
+   AND (SELECT COUNT(*) FROM custom_dns_control_events e WHERE e.object_id=j.id AND e.action='control_job_queued')=1
+   AND (SELECT COUNT(*) FROM custom_dns_control_events e WHERE e.object_id=j.id AND e.action='control_job_queued' AND e.actor_id=4)=1
+   AND (SELECT COUNT(*) FROM custom_dns_control_events e WHERE e.object_id=j.id AND e.action IN ('control_job_cli_queued','autonomous_job_queued'))=0))
+ FROM custom_dns_control_jobs;""")
 
 def validate_remote(doc,now):
     required_true=('permanent_disabled','principal_system','action_expected','trigger_enabled','repetition_active',
@@ -94,18 +121,15 @@ def local_preflight(b3,b4,pdo,ui,fix,post):
         ('layers/dns9/functions/classes/class.IntegrationDnsAutonomousAdminService.php','functions/classes/class.IntegrationDnsAutonomousAdminService.php'),
         ('layers/dns1/app/admin/integrations/dns/config.js','app/admin/integrations/dns/config.js')]:
         if pdo.snapshot(ROOT/src)['data']!=pdo.snapshot(WEB/dst)['data']: raise RuntimeError('installed_file_changed')
-    row=b3.one(f"""SELECT CONCAT(
- COALESCE(SUM(state='pending'),0),'|',COALESCE(SUM(state='running'),0),'|',
- COALESCE(SUM(state IN ('succeeded','failed','expired','obsolete') AND COALESCE(finished_at,updated_at)<=UNIX_TIMESTAMP()+1200-86400),0),'|',
- (SELECT COUNT(*) FROM custom_dns_connections WHERE id<>'{b3.PILOT_CONNECTION_ID}' AND enabled=1),'|',IF(COUNT(*)>=384,1,0))
- FROM custom_dns_control_jobs;""")
-    print('DNS9_ACTIVATION_QUEUE_FIELDS=pending|running|terminal_due_20m|other_enabled|pressure',flush=True)
+    row=queue_summary(b3)
+    print('DNS9_ACTIVATION_QUEUE_FIELDS=pending|running|terminal_due_20m|other_enabled|pressure|verified_expired_ui',flush=True)
     print('DNS9_ACTIVATION_QUEUE='+row,flush=True)
     validate_queue(row)
     if b3.one("SELECT COUNT(*) FROM custom_dns_connections WHERE id='"+b3.PILOT_CONNECTION_ID+"' AND enabled=0 AND server='"+SERVER+"' AND credential_mode='collector_identity' AND interval_seconds=300;")!='1':
         raise RuntimeError('connection_state_changed')
     if pdo.fake_poll(b3)!=(401,'collector_auth_failed'): raise RuntimeError('fake_auth_failed')
     actor=b4.run_cli('--b4-preflight')['actor_id']
+    if actor!=4: raise RuntimeError('actor_changed')
     return actor
 
 def remote_loaders(source,hashes):
@@ -162,7 +186,9 @@ def main():
     print('DNS9_ACTIVATION_CONNECTION=srv-dc01.rbank.local|collector_identity|300s|disabled')
     print('DNS9_ACTIVATION_SERVER_TIMER=disabled_inactive')
     print('DNS9_ACTIVATION_WINDOWS_TASK=disabled')
-    print('DNS9_ACTIVATION_PENDING_OR_RUNNING=0')
+    print('DNS9_ACTIVATION_VERIFIED_EXPIRED_PENDING=2')
+    print('DNS9_ACTIVATION_RUNNING=0')
+    print('DNS9_ACTIVATION_NORMAL_EXPIRY_REQUIRES_REVIEW=1')
     print('DNS9_ACTIVATION_PREVIOUS_ZONES=172')
     print('DNS9_ACTIVATION_DB_MUTATION=0')
     print('DNS9_ACTIVATION_REMOTE_MUTATION=0')
