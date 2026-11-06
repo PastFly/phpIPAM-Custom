@@ -13,6 +13,9 @@ on:
       - 'tools/live/dns9-phase-b3-post-check.py'
       - 'tools/live/dns9-phase-b3-transport-probe.py'
       - 'tests/dns9/phase-b3-transport-probe.test.py'
+      - 'tools/live/dns9-runner-tls-upgrade.py'
+      - 'tests/dns9/runner-tls-upgrade.test.py'
+      - 'collectors/windows/dns/Invoke-PhpIpamDnsCollectorScheduled.ps1'
       - 'tools/live/dns9_winrm_common.py'
       - 'tests/dns9/phase-b3-diagnose-source.test.py'
       - '.github/workflows/dns9-test-bundle.yml'
@@ -33,6 +36,7 @@ jobs:
         run: |
           python3 tests/dns9/phase-b3-diagnose-source.test.py
           python3 tests/dns9/phase-b3-transport-probe.test.py
+          python3 tests/dns9/runner-tls-upgrade.test.py
       - name: Build exact-SHA bundle
         run: bash tools/live/dns9-build-test-bundle.sh
       - name: Verify archive and execute source portion of runner
@@ -45,6 +49,7 @@ jobs:
           sha256sum --status -c SHA256SUMS
           python3 tests/dns9/phase-b3-diagnose-source.test.py
           python3 tests/dns9/phase-b3-transport-probe.test.py
+          python3 tests/dns9/runner-tls-upgrade.test.py
           bash -n tools/live/dns9-test-bundle-run.sh
           python3 -c "import pathlib; p=pathlib.Path('tools/live/dns9-phase-b3-first-cycle.py'); compile(p.read_text(),str(p),'exec')"
           python3 -c "import pathlib; p=pathlib.Path('tools/live/dns9-phase-b3-recover.py'); compile(p.read_text(),str(p),'exec')"

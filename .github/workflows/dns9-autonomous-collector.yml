@@ -81,3 +81,6 @@ jobs:
       - name: Verify runner TLS and restoration
         shell: powershell
         run: .\tests\dns9\runner-tls.test.ps1
+      - name: Verify runner replacement and backup
+        shell: powershell
+        run: .\tests\dns9\runner-tls-upgrade.test.ps1

@@ -30,6 +30,12 @@ print('TEST_BUNDLE_PYTHON_COMPILE=PASS')
 PY
 python3 tests/dns9/phase-b3-diagnose-source.test.py
 if [[ "$(id -u)" != 0 ]]; then echo 'TEST_BUNDLE_ERROR=root_required'; exit 1; fi
+if [[ "${1:-}" == '--b3-tls-upgrade' && $# -eq 1 ]]; then
+  STAGE='b3-tls-runner-upgrade'
+  python3 tests/dns9/runner-tls-upgrade.test.py
+  python3 tools/live/dns9-runner-tls-upgrade.py
+  exit 0
+fi
 if [[ "${1:-}" == '--b3-transport-probe' && $# -eq 1 ]]; then
   STAGE='b3-unauthenticated-transport-probe'
   python3 tests/dns9/phase-b3-transport-probe.test.py

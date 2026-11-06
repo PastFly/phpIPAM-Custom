@@ -12,7 +12,7 @@ mkdir -p "$OUT"
 OUT="$(cd "$OUT" && pwd)"
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
-mkdir -p "$STAGE/tools/live" "$STAGE/tests/dns9"
+mkdir -p "$STAGE/tools/live" "$STAGE/tests/dns9" "$STAGE/collectors/windows/dns"
 for file in \
   tools/live/dns9-phase-b3-diagnose.py \
   tools/live/dns9_winrm_common.py \
@@ -22,6 +22,9 @@ for file in \
   tools/live/dns9-phase-b3-post-check.py \
   tools/live/dns9-phase-b3-transport-probe.py \
   tests/dns9/phase-b3-transport-probe.test.py \
+  tools/live/dns9-runner-tls-upgrade.py \
+  tests/dns9/runner-tls-upgrade.test.py \
+  collectors/windows/dns/Invoke-PhpIpamDnsCollectorScheduled.ps1 \
   tools/live/dns9-test-bundle-run.sh; do
   cp "$file" "$STAGE/$file"
 done
@@ -29,7 +32,7 @@ printf '%s\n' "$SHA" > "$STAGE/EXPECTED_SHA"
 printf '%s\n' 'b3-readonly-diagnostic+disk-inventory' > "$STAGE/STAGE"
 (
  cd "$STAGE"
- find tools tests -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+ find tools tests collectors -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
  sha256sum EXPECTED_SHA STAGE >> SHA256SUMS
 )
 PACKAGE="$OUT/phpipam-dns9-test-$SHORT.tar.gz"
