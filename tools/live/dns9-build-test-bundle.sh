@@ -79,7 +79,13 @@ for file in \
   collectors/windows/dns/Invoke-PhpIpamDnsCollectorScheduled.ps1 \
   tools/live/dns9-test-bundle-run.sh; do
   mkdir -p "$(dirname "$STAGE/$file")"
-  cp "$file" "$STAGE/$file"
+  git cat-file blob "$SHA:$file" > "$STAGE/$file"
+  mode="$(git ls-tree "$SHA" -- "$file")"
+  case "${mode%% *}" in
+    100644) ;;
+    100755) chmod 700 "$STAGE/$file" ;;
+    *) echo invalid_payload_mode >&2; exit 1 ;;
+  esac
 done
 printf '%s\n' "$SHA" > "$STAGE/EXPECTED_SHA"
 printf '%s\n' 'b3-readonly-diagnostic+disk-inventory' > "$STAGE/STAGE"
