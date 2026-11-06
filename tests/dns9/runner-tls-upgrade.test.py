@@ -11,15 +11,15 @@ spec=importlib.util.spec_from_file_location('upgrade',p)
 u=importlib.util.module_from_spec(spec); spec.loader.exec_module(u)
 
 class UpgradeTest(unittest.TestCase):
-    def test_control_rejects_live_environment_and_backs_up_atomically(self):
+    def test_control_rejects_live_environment_and_verifies_backup_first(self):
         s=u.control_script('a'*16,{'Invoke-PhpIpamDnsWorkerOnce.ps1':'1'*64,'Invoke-PhpIpamDnsPreview.ps1':'2'*64,'Invoke-PhpIpamDnsCollectorScheduled.ps1':'3'*64},'4'*64)
         self.assertIn("-ne 'Disabled'",s)
         self.assertIn('CommandLine',s)
         self.assertIn('Get-FileHash',s)
-        self.assertIn('[IO.File]::Replace($Replacement,$Runner,$Backup)',s)
-        self.assertLess(s.index('replacement_acl_mismatch'),s.index('[IO.File]::Replace($Replacement,$Runner,$Backup)'))
-        self.assertIn('[IO.FileMode]::CreateNew',s)
-        self.assertIn('replacement_acl_mismatch',s)
+        self.assertIn('[IO.File]::Copy($Runner,$Backup,$false)',s)
+        self.assertLess(s.index('backup_hash_mismatch'),s.index('$stream.SetLength(0)'))
+        self.assertLess(s.index('locked_runner_hash_mismatch'),s.index('$stream.SetLength(0)'))
+        self.assertIn('[IO.FileShare]::None',s)
         self.assertIn('backup_hash_mismatch',s)
         self.assertNotIn('Start-ScheduledTask',s)
         self.assertNotIn('schtasks.exe',s)

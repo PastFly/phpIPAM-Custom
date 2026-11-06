@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Replace only the disabled Windows collector runner, with an atomic backup."""
+"""Update only the disabled Windows collector runner, with a verified backup."""
 import base64
 import copy
 import getpass
@@ -48,7 +48,6 @@ $Root='C:\\ProgramData\\phpIPAM\\DnsCollector'
 $Runner=Join-Path $Root 'Invoke-PhpIpamDnsCollectorScheduled.ps1'
 $Staged={ps_quote(stage)}
 $Backup={ps_quote(backup)}
-$Replacement=Join-Path $Root 'Invoke-PhpIpamDnsCollectorScheduled.ps1.tls-{nonce}.new'
 $Expected=ConvertFrom-Json -InputObject {ps_quote(expected)}
 if([string](Get-ScheduledTask -TaskName 'phpIPAM Microsoft DNS Collector' -ErrorAction Stop).State -ne 'Disabled'){{throw 'task_not_disabled'}}
 if(Get-ScheduledTask | Where-Object {{$_.TaskName -like 'phpIPAM Microsoft DNS Collector DNS9 Pilot Once *'}}){{throw 'pilot_task_present'}}
@@ -59,7 +58,7 @@ foreach($path in @($Root,$Runner,(Split-Path -Parent $Staged),$Staged)){{
     $item=Get-Item -LiteralPath $path -Force -ErrorAction Stop
     if(($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0){{throw 'reparse_point'}}
 }}
-if((Test-Path -LiteralPath $Backup) -or (Test-Path -LiteralPath $Replacement)){{throw 'backup_or_replacement_exists'}}
+if(Test-Path -LiteralPath $Backup){{throw 'backup_exists'}}
 foreach($name in @('Invoke-PhpIpamDnsWorkerOnce.ps1','Invoke-PhpIpamDnsPreview.ps1','Invoke-PhpIpamDnsCollectorScheduled.ps1')){{
     $actual=(Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $Root $name)).Hash.ToLowerInvariant()
     if($actual -cne [string]$Expected.$name){{throw 'runtime_hash_mismatch'}}
@@ -67,20 +66,26 @@ foreach($name in @('Invoke-PhpIpamDnsWorkerOnce.ps1','Invoke-PhpIpamDnsPreview.p
 if((Get-FileHash -Algorithm SHA256 -LiteralPath $Staged).Hash.ToLowerInvariant() -cne {ps_quote(new_hash)}){{throw 'stage_hash_mismatch'}}
 $runnerAcl=Get-Acl -LiteralPath $Runner -ErrorAction Stop
 $acl=$runnerAcl.Sddl
+[IO.File]::Copy($Runner,$Backup,$false)
+if((Get-FileHash -Algorithm SHA256 -LiteralPath $Backup).Hash.ToLowerInvariant() -cne [string]$Expected.'Invoke-PhpIpamDnsCollectorScheduled.ps1'){{throw 'backup_hash_mismatch'}}
+Write-Output 'DNS9_TLS_UPGRADE_BACKUP_READY=1'
 $bytes=[IO.File]::ReadAllBytes($Staged)
 $stream=$null
 try {{
-    $stream=[IO.File]::Open($Replacement,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
+    $stream=[IO.File]::Open($Runner,[IO.FileMode]::Open,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+    $sha=[Security.Cryptography.SHA256]::Create()
+    try {{$lockedHash=[BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-','').ToLowerInvariant()}}
+    finally {{$sha.Dispose()}}
+    if($lockedHash -cne [string]$Expected.'Invoke-PhpIpamDnsCollectorScheduled.ps1'){{throw 'locked_runner_hash_mismatch'}}
+    Write-Output 'DNS9_TLS_UPGRADE_REPLACE_START=1'
+    $stream.SetLength(0)
+    $stream.Position=0
     $stream.Write($bytes,0,$bytes.Length)
     $stream.Flush($true)
 }} finally {{
     if($null -ne $stream){{$stream.Dispose()}}
     if($null -ne $bytes){{[Array]::Clear($bytes,0,$bytes.Length)}}
 }}
-if((Get-Acl -LiteralPath $Replacement -ErrorAction Stop).Sddl -cne $acl){{throw 'replacement_acl_mismatch'}}
-if((Get-FileHash -Algorithm SHA256 -LiteralPath $Replacement).Hash.ToLowerInvariant() -cne {ps_quote(new_hash)}){{throw 'replacement_hash_mismatch'}}
-Write-Output 'DNS9_TLS_UPGRADE_REPLACE_START=1'
-[IO.File]::Replace($Replacement,$Runner,$Backup)
 if((Get-FileHash -Algorithm SHA256 -LiteralPath $Backup).Hash.ToLowerInvariant() -cne [string]$Expected.'Invoke-PhpIpamDnsCollectorScheduled.ps1'){{throw 'backup_hash_mismatch'}}
 if((Get-FileHash -Algorithm SHA256 -LiteralPath $Runner).Hash.ToLowerInvariant() -cne {ps_quote(new_hash)}){{throw 'new_hash_mismatch'}}
 if((Get-Acl -LiteralPath $Runner -ErrorAction Stop).Sddl -cne $acl){{throw 'runner_acl_changed'}}
@@ -129,6 +134,8 @@ def main():
     plan={'stage':'prepared_before_remote_change','nonce':nonce,'old_sha256':hashes[NAMES[2]],'new_sha256':new_hash,'old_receipt':str(RECEIPT),'guard_retained':True}
     write_private(receipt_dir/'plan.json',plan)
     print('DNS9_TLS_UPGRADE_PLAN='+str(receipt_dir/'plan.json'),flush=True)
+    expected_backup=rf'C:\ProgramData\phpIPAM\DnsCollector\Invoke-PhpIpamDnsCollectorScheduled.ps1.pre-tls-{nonce}.bak'
+    print('DNS9_TLS_UPGRADE_BACKUP_PLANNED='+expected_backup,flush=True)
     stage=rf'C:\Windows\Temp\phpipam-dns9-tls-upgrade-{nonce}'
     staged=stage+r'\runner.ps1'
     stage_bytes(p,staged,data)
@@ -140,10 +147,10 @@ def main():
             "$r=New-Object IO.StreamReader($g);& ([scriptblock]::Create($r.ReadToEnd()))")
     if len(base64.b64encode(loader.encode('utf-16le')))>7500: raise RuntimeError('encoded_command_limit')
     rc,out,_=run_ps(p,loader)
+    if 'DNS9_TLS_UPGRADE_BACKUP_READY=1' in out: print('DNS9_TLS_UPGRADE_BACKUP_READY=1',flush=True)
     if 'DNS9_TLS_UPGRADE_REPLACE_START=1' in out: print('DNS9_TLS_UPGRADE_REPLACE_START=1',flush=True)
     if rc!=0: raise RuntimeError('remote_apply_outcome_requires_review')
     result=json_line(out,'DNS9_TLS_UPGRADE_JSON=')
-    expected_backup=rf'C:\ProgramData\phpIPAM\DnsCollector\Invoke-PhpIpamDnsCollectorScheduled.ps1.pre-tls-{nonce}.bak'
     if not isinstance(result,dict) or set(result)!={'installed','backup_verified','acl_unchanged','task_disabled','new_sha256','backup'} or any(result[k] is not True for k in ('installed','backup_verified','acl_unchanged','task_disabled')) or result['new_sha256']!=new_hash or result['backup']!=expected_backup: raise RuntimeError('remote_result_requires_review')
     prospective['upgrade']['windows_backup']=expected_backup
     target=receipt_dir/'receipt.json'

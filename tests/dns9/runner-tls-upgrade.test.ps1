@@ -24,12 +24,17 @@ try {
     $tokens=$null; $errors=$null
     [void][System.Management.Automation.Language.Parser]::ParseInput($source,[ref]$tokens,[ref]$errors)
     if(@($errors).Count -ne 0){throw 'upgrade_control_parse_failed'}
+    [IO.File]::WriteAllText((Join-Path $testRoot 'Invoke-PhpIpamDnsWorkerOnce.ps1'),'unexpected')
+    $blocked=$false
+    try {& ([scriptblock]::Create($source))} catch {$blocked=$true}
+    if(-not $blocked -or [IO.File]::ReadAllText($runner) -cne 'old-runner' -or (Test-Path $backup)){throw 'preflight_did_not_block'}
+    [IO.File]::WriteAllText((Join-Path $testRoot 'Invoke-PhpIpamDnsWorkerOnce.ps1'),'worker')
     $output=@(& ([scriptblock]::Create($source)))
+    if(-not ($output -contains 'DNS9_TLS_UPGRADE_BACKUP_READY=1')){throw 'backup_not_observed'}
     if(-not ($output -contains 'DNS9_TLS_UPGRADE_REPLACE_START=1')){throw 'replace_not_started'}
     if([IO.File]::ReadAllText($runner) -cne 'new-runner'){throw 'runner_not_updated'}
     if([IO.File]::ReadAllText($backup) -cne 'old-runner'){throw 'backup_invalid'}
     if(-not (Test-Path -LiteralPath $staged)){throw 'stage_missing'}
-    if(Test-Path -LiteralPath (Join-Path $testRoot 'Invoke-PhpIpamDnsCollectorScheduled.ps1.tls-aaaaaaaaaaaaaaaa.new')){throw 'replacement_not_moved'}
     Write-Output 'DNS9_TLS_UPGRADE_WINDOWS_FIXTURE_OK=1'
 } catch {
     $replacement=Join-Path $testRoot 'Invoke-PhpIpamDnsCollectorScheduled.ps1.tls-aaaaaaaaaaaaaaaa.new'
