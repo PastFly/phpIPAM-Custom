@@ -1,0 +1,25 @@
+name: DNS10 selected-zone snapshot validation
+
+on:
+  pull_request:
+    paths:
+      - 'layers/dns10/**'
+      - 'tests/dns10/**'
+      - 'design/DNS10_ZONE_SNAPSHOT_VALIDATION.md'
+      - '.github/workflows/dns10-snapshot-validator.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot-validator:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Verify PHP syntax and source contracts
+        run: |
+          php -l layers/dns10/functions/classes/class.IntegrationDnsZoneSnapshotValidator.php
+          php -l tests/dns10/snapshot-validator.test.php
+          php tests/dns10/snapshot-validator.test.php
