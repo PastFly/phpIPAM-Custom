@@ -15,11 +15,14 @@ function reject10(array $snapshot,array $context,int $now,string $name): void {
     catch (DomainException $e) {check10($e->getMessage()==='snapshot_invalid',$name); return;}
     throw new RuntimeException('not_rejected: '.$name);
 }
-$context=['source_id'=>str_repeat('a',32),'dataset_id'=>str_repeat('b',32),'zone'=>'example.test.',
-    'configuration_revision'=>4,'binding_epoch'=>7];
+$context=['source_id'=>str_repeat('a',32),'dataset_id'=>str_repeat('b',32),'collector_id'=>str_repeat('c',32),
+    'job_id'=>str_repeat('d',32),'lease_id'=>str_repeat('e',32),'zone'=>'example.test.',
+    'configuration_revision'=>4,'binding_epoch'=>7,'dataset_revision'=>3,'assignment_revision'=>6,'credential_version'=>null];
 $snapshot=['schema_version'=>1,'source_id'=>$context['source_id'],'dataset_id'=>$context['dataset_id'],
+    'collector_id'=>$context['collector_id'],'job_id'=>$context['job_id'],'lease_id'=>$context['lease_id'],
     'zone'=>'EXAMPLE.TEST','virtualization_instance'=>'default','zone_scope'=>'default',
-    'configuration_revision'=>4,'binding_epoch'=>7,'run_id'=>'12345678-1234-4abc-8def-123456789abc',
+    'configuration_revision'=>4,'binding_epoch'=>7,'dataset_revision'=>3,'assignment_revision'=>6,'credential_version'=>null,
+    'run_id'=>'12345678-1234-4abc-8def-123456789abc',
     'sequence'=>42,'started_at'=>1999999900,'finished_at'=>2000000000,
     'supported_types'=>['A','AAAA','CNAME','PTR'],'complete'=>true,'record_count'=>4,
     'records'=>[
@@ -53,7 +56,9 @@ check10(IntegrationDnsZoneSnapshotValidator::validate($root,$rootContext,2000000
 
 foreach ([
     ['schema_version',2],['source_id',str_repeat('c',32)],['dataset_id',str_repeat('c',32)],['zone','other.test.'],
+    ['collector_id',str_repeat('f',32)],['job_id',str_repeat('f',32)],['lease_id',str_repeat('f',32)],
     ['virtualization_instance','other'],['zone_scope','other'],['configuration_revision',5],['binding_epoch',8],
+    ['dataset_revision',4],['assignment_revision',7],['credential_version',1],
     ['run_id','not-a-uuid'],['sequence',0],['sequence',9007199254740992],['sequence',true],
     ['started_at',0],['started_at',2000000001],['finished_at',2000000301],
     ['supported_types',['A','AAAA','CNAME']],['complete',false],['record_count',3],['record_count','4'],
@@ -86,6 +91,10 @@ $bad=$snapshot; $bad['records'][]=$snapshot['records'][0]; $bad['records'][4]['o
 reject10($bad,$context,2000000000,'duplicate normalized record');
 $badContext=$context; $badContext['source_id']=strtoupper(str_repeat('a',32)); reject10($snapshot,$badContext,2000000000,'invalid trusted context');
 $badContext=$context; $badContext['zone']='*.example.test.'; reject10($snapshot,$badContext,2000000000,'wildcard dataset');
+$profileContext=$context; $profileContext['credential_version']=3;
+$profileSnapshot=$snapshot; $profileSnapshot['credential_version']=3;
+check10(IntegrationDnsZoneSnapshotValidator::validate($profileSnapshot,$profileContext,2000000000)['credential_version']===3,'matching profile version accepted');
+$profileSnapshot['credential_version']=4; reject10($profileSnapshot,$profileContext,2000000000,'rotated profile version rejected');
 reject10($snapshot,$context,0,'invalid receiver time');
 echo 'DNS10_SNAPSHOT_VALIDATOR_ASSERTIONS='.$assertions."\n";
 echo "DNS10_SNAPSHOT_VALIDATOR_TEST_OK=1\n";

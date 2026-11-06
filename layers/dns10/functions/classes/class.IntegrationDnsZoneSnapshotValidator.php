@@ -7,10 +7,11 @@ final class IntegrationDnsZoneSnapshotValidator
     private const MAX_SEQUENCE=9007199254740991;
     private const MAX_RECORDS=10000;
     private const TYPES=['A','AAAA','CNAME','PTR'];
-    private const ENVELOPE=['schema_version','source_id','dataset_id','zone','virtualization_instance','zone_scope',
-        'configuration_revision','binding_epoch','run_id','sequence','started_at','finished_at',
+    private const ENVELOPE=['schema_version','source_id','dataset_id','collector_id','job_id','lease_id','zone','virtualization_instance','zone_scope',
+        'configuration_revision','binding_epoch','dataset_revision','assignment_revision','credential_version','run_id','sequence','started_at','finished_at',
         'supported_types','complete','record_count','records'];
-    private const CONTEXT=['source_id','dataset_id','zone','configuration_revision','binding_epoch'];
+    private const CONTEXT=['source_id','dataset_id','collector_id','job_id','lease_id','zone','configuration_revision','binding_epoch',
+        'dataset_revision','assignment_revision','credential_version'];
     private const RECORD=['owner','display_owner','type','record_class','rdata','display_rdata','ttl_seconds','source_aging_timestamp'];
 
     private static function invalid(): never {throw new DomainException('snapshot_invalid');}
@@ -82,7 +83,7 @@ final class IntegrationDnsZoneSnapshotValidator
             'ttl_seconds'=>self::integer($row['ttl_seconds'],0,4294967295),'source_aging_timestamp'=>$aging];
     }
 
-    public static function validate(array $snapshot,array $context,int $now): array
+    public static function validate(#[SensitiveParameter] array $snapshot,#[SensitiveParameter] array $context,int $now): array
     {
         if (PHP_INT_SIZE<8) self::invalid();
         self::integer($now,1,self::MAX_SEQUENCE-300);
@@ -90,13 +91,24 @@ final class IntegrationDnsZoneSnapshotValidator
         self::fields($snapshot,self::ENVELOPE);
         $source=self::id($context['source_id']);
         $dataset=self::id($context['dataset_id']);
+        $collector=self::id($context['collector_id']);
+        $job=self::id($context['job_id']);
+        $lease=self::id($context['lease_id']);
         $zone=self::name($context['zone'],false);
         $revision=self::integer($context['configuration_revision'],1,4294967295);
         $epoch=self::integer($context['binding_epoch'],1,4294967295);
+        $datasetRevision=self::integer($context['dataset_revision'],1,4294967295);
+        $assignmentRevision=self::integer($context['assignment_revision'],1,4294967295);
+        $credentialVersion=$context['credential_version'];
+        if ($credentialVersion!==null) self::integer($credentialVersion,1,4294967295);
         if ($snapshot['schema_version']!==1 || self::id($snapshot['source_id'])!==$source ||
-            self::id($snapshot['dataset_id'])!==$dataset || self::name($snapshot['zone'],false)!==$zone ||
+            self::id($snapshot['dataset_id'])!==$dataset || self::id($snapshot['collector_id'])!==$collector ||
+            self::id($snapshot['job_id'])!==$job || !hash_equals($lease,self::id($snapshot['lease_id'])) ||
+            self::name($snapshot['zone'],false)!==$zone ||
             $snapshot['virtualization_instance']!=='default' || $snapshot['zone_scope']!=='default' ||
             $snapshot['configuration_revision']!==$revision || $snapshot['binding_epoch']!==$epoch ||
+            $snapshot['dataset_revision']!==$datasetRevision || $snapshot['assignment_revision']!==$assignmentRevision ||
+            $snapshot['credential_version']!==$credentialVersion ||
             !is_string($snapshot['run_id']) || !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/D',$snapshot['run_id']) ||
             $snapshot['supported_types']!==self::TYPES || $snapshot['complete']!==true) self::invalid();
         self::integer($snapshot['sequence'],1,self::MAX_SEQUENCE);
