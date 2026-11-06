@@ -102,3 +102,15 @@ jobs:
       - name: Exercise diagnostic task cleanup
         shell: powershell
         run: .\tests\dns9\system-probe-control.test.ps1
+      - name: Parse post-PDO SYSTEM preflight
+        shell: powershell
+        run: |
+          $encoded = & python tests/dns9/after-pdo-preflight-fixture.py
+          if ($LASTEXITCODE -ne 0) { throw 'preflight fixture generator failed' }
+          $source=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($encoded))
+          $tokens=$null; $errors=$null
+          [void][System.Management.Automation.Language.Parser]::ParseInput($source,[ref]$tokens,[ref]$errors)
+          if (@($errors).Count -ne 0) { throw 'SYSTEM preflight PowerShell parse failed' }
+      - name: Exercise post-PDO SYSTEM preflight
+        shell: powershell
+        run: .\tests\dns9\after-pdo-preflight.test.ps1

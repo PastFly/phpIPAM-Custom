@@ -25,6 +25,8 @@ for file in \
   tools/live/dns9-runner-tls-upgrade.py \
   tests/dns9/runner-tls-upgrade.test.py \
   tools/live/dns9-b3-auto-once.py \
+  tools/live/dns9-b3-after-pdo.py \
+  tests/dns9/b3-after-pdo.test.py \
   tools/live/dns9-queue-cli.php \
   tests/dns9/b3-auto-once.test.py \
   tests/dns9/b3-retry-guard.test.py \

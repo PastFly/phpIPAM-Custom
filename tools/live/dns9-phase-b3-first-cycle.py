@@ -22,7 +22,9 @@ PILOT_JOB_ID="a4ee3e5987dd15495d7e2419e853d9c8"
 PILOT_COLLECTOR_ID="f57057d6677e1ca7a032aab8b68796ac"
 PILOT_CONNECTION_ID="33b6fade9323f15aa7b1f56a8a865a9d"
 PREVIOUS_ATTEMPT_SHA="262972915047dda0d2c462f433409633070c3463"
+PREVIOUS_RETRY_SHA="bbd3ef04137a7f2268167b0850788ea4a46d1b28"
 RETRY_GUARD="dns9-b3-live-attempt-retry-global"
+FOLLOWUP_GUARD="dns9-b3-live-attempt-followup-global"
 
 def sql(text: str)->str:
     p=subprocess.run(
@@ -231,7 +233,33 @@ def validate_retry(root: Path, sha: str, uid: int=0, gid: int=0)->None:
     _checked_guard(old,PREVIOUS_ATTEMPT_SHA,uid,gid)
     _checked_guard(retry,sha,uid,gid)
 
-def main(password_override=None,reserved_retry=False,job_override=None)->None:
+def reserve_followup(root: Path, sha: str, uid: int=0, gid: int=0)->None:
+    if not re.fullmatch(r'[0-9a-f]{40}',sha): raise ValueError('attempt_sha_invalid')
+    st=root.lstat()
+    if not stat.S_ISDIR(st.st_mode) or st.st_uid!=uid or st.st_gid!=gid or st.st_mode&0o022:
+        raise RuntimeError('followup_guard_directory_invalid')
+    validate_retry(root,PREVIOUS_RETRY_SHA,uid,gid)
+    try:
+        fd=os.open(root/FOLLOWUP_GUARD,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+    except OSError as exc: raise RuntimeError('followup_guard_reservation_failed') from exc
+    try:
+        data=(sha+'\n').encode('ascii')
+        if os.write(fd,data)!=len(data): raise RuntimeError('followup_guard_write_failed')
+        os.fsync(fd)
+    finally: os.close(fd)
+    fd=os.open(root,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+    try:os.fsync(fd)
+    finally:os.close(fd)
+    validate_followup(root,sha,uid,gid)
+
+def validate_followup(root: Path, sha: str, uid: int=0, gid: int=0)->None:
+    old=root/'dns9-b3-live-attempt-global'; retry=root/RETRY_GUARD; followup=root/FOLLOWUP_GUARD
+    if set(root.glob('dns9-b3-live-attempt-*'))!={old,retry,followup}: raise RuntimeError('followup_guard_set_invalid')
+    _checked_guard(old,PREVIOUS_ATTEMPT_SHA,uid,gid)
+    _checked_guard(retry,PREVIOUS_RETRY_SHA,uid,gid)
+    _checked_guard(followup,sha,uid,gid)
+
+def main(password_override=None,reserved_retry=False,job_override=None,reserved_followup=False)->None:
     ap=argparse.ArgumentParser()
     ap.add_argument("--bootstrap-receipt",required=True)
     ap.add_argument("--username")
@@ -293,7 +321,11 @@ def main(password_override=None,reserved_retry=False,job_override=None)->None:
     # Never reserve a live attempt before the interactive credential prompt.
     # Any prior attempt marker, including one from another bundle SHA, is
     # ambiguous and must be reviewed rather than silently removed.
-    if reserved_retry:
+    if reserved_retry and reserved_followup:
+        raise RuntimeError('guard_reservation_ambiguous')
+    if reserved_followup:
+        validate_followup(Path("/var/lib/phpipam-custom"),args.attempt_sha)
+    elif reserved_retry:
         validate_retry(Path("/var/lib/phpipam-custom"),args.attempt_sha)
     else:
         reserve_attempt(Path("/var/lib/phpipam-custom"),args.attempt_sha)

@@ -36,6 +36,7 @@ python3 tests/dns9/phase-b3-post-check.test.py
 python3 tests/dns9/phase-b3-transport-probe.test.py
 python3 tests/dns9/runner-tls-upgrade.test.py
 python3 tests/dns9/b3-auto-once.test.py
+python3 tests/dns9/b3-after-pdo.test.py
 python3 tests/dns9/b3-retry-guard.test.py
 python3 tests/dns9/system-probe.test.py
 python3 tests/dns9/pdo-hotfix.test.py
