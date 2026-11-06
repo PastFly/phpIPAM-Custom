@@ -9,6 +9,8 @@ if (!is_file($migration)) throw new RuntimeException('snapshot_schema_missing');
 $workMigration=$root.'/database/dns10/002-upload-work.sql';
 $adapterPath=$root.'/layers/dns10/functions/classes/class.IntegrationDnsZonePublicationPhpIpamRepository.php';
 if (!is_file($workMigration) || !is_file($adapterPath)) throw new RuntimeException('snapshot_repository_missing');
+$selectionPath=$root.'/layers/dns10/functions/classes/class.IntegrationDnsZoneSelectionPhpIpamRepository.php';
+if (!is_file($selectionPath)) throw new RuntimeException('selection_repository_missing');
 $dsn=getenv('DNS10_TEST_DSN');
 if (!$dsn || !in_array('mysql',PDO::getAvailableDrivers(),true)) {echo "DNS10_MYSQL_NOT_RUN=1\n";exit(77);}
 if (!preg_match('/^mysql:host=127\\.0\\.0\\.1;port=[0-9]{1,5};dbname=phpipam_dns10_test;charset=utf8mb4$/D',$dsn)) {
@@ -223,5 +225,46 @@ $repo->transaction(function() use($otherPdo): void {
     finally {if($otherPdo->inTransaction())$otherPdo->rollBack();}
     mysqlCheck10($blocked,'shared guard excludes concurrent configuration transaction');
 });
+
+require $root.'/layers/dns10/functions/classes/class.IntegrationDnsZoneSelectionRepository.php';
+require $root.'/layers/dns10/functions/classes/class.IntegrationDnsZoneSelectionService.php';
+require $selectionPath;
+$discoveryId=str_repeat('0',32);
+$zonePayload=json_encode(['zones'=>[
+    ['name'=>'new.example.test','zone_type'=>'Primary','ds_integrated'=>true,'reverse_lookup'=>false],
+    ['name'=>'failure.example.test','zone_type'=>'Secondary','ds_integrated'=>false,'reverse_lookup'=>false],
+    ['name'=>'stub.example.test','zone_type'=>'Stub','ds_integrated'=>false,'reverse_lookup'=>false],
+]],JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
+$jobInsert->execute([$discoveryId,$collector,$sourceA,1,'list_zones','succeeded',1,1,null,null,null,1,$clock-15,
+    'ok',$zonePayload,$clock-10,$clock-20,$clock+280,$clock-10,0]);
+$selectionRepo=new IntegrationDnsZoneSelectionPhpIpamRepository($db);
+$selectionService=new IntegrationDnsZoneSelectionService($selectionRepo,static function() use(&$clock): int{return $clock;});
+$selected=$selectionService->setSelected($sourceA,'NEW.example.test',true,null,$discoveryId,17);
+mysqlCheck10($selected['selected']===true && $selected['collection_enabled']===false && $selected['revision']===1,'real database selection does not start collection');
+mysqlDomainReject10(fn()=> $selectionService->setSelected($sourceA,'stub.example.test',true,null,$discoveryId,17),'zone_not_eligible');
+mysqlDomainReject10(fn()=> $selectionService->setCollectionEnabled($selected['id'],1,true,str_repeat('9',32),17),'discovery_unavailable');
+$enabled=$selectionService->setCollectionEnabled($selected['id'],1,true,$discoveryId,17);
+mysqlCheck10($enabled['collection_enabled']===true && $enabled['revision']===2,'real database explicit enable');
+mysqlDomainReject10(fn()=> $selectionService->setCollectionEnabled($selected['id'],1,false,null,17),'revision_conflict');
+$pdo->prepare('UPDATE custom_dns_connections SET enabled=0,status=? WHERE id=?')->execute(['disabled',$sourceA]);
+$disabled=$selectionService->setCollectionEnabled($selected['id'],2,false,null,17);
+$deselected=$selectionService->setSelected($sourceA,'new.example.test',false,3,null,17);
+mysqlCheck10($disabled['revision']===3 && $deselected['revision']===4 && $deselected['selected']===false,'disable and deselect work with source off');
+$pdo->prepare('UPDATE custom_dns_connections SET enabled=1,status=? WHERE id=?')->execute(['active',$sourceA]);
+mysqlDomainReject10(function() use($selectionRepo,$deselected): void {
+    $selectionRepo->transaction(function() use($selectionRepo,$deselected): void {
+        $changed=$deselected;$changed['zone_name']='other.example.test.';++$changed['revision'];$selectionRepo->putDataset($changed);
+    });
+},'selection_unavailable');
+$db->failAt=2;
+mysqlDomainReject10(fn()=> $selectionService->setSelected($sourceA,'failure.example.test',true,null,$discoveryId,17),'injected_failure');
+$db->failAt=null;
+$countDataset=$pdo->prepare('SELECT COUNT(*) FROM custom_dns_zone_datasets WHERE connection_id=? AND zone_name=?');
+$countDataset->execute([$sourceA,'failure.example.test.']);
+mysqlCheck10((int)$countDataset->fetchColumn()===0,'audit failure rolls back selection in MariaDB');
+$pdo->prepare('UPDATE custom_dns_control_jobs SET result_payload=? WHERE id=?')->execute(['{"zones":[],"zones":[]}',$discoveryId]);
+mysqlDomainReject10(fn()=> $selectionService->setSelected($sourceA,'failure.example.test',true,null,$discoveryId,17),'discovery_unavailable');
+$pdo->prepare('UPDATE custom_dns_control_jobs SET result_payload=? WHERE id=?')->execute([$zonePayload,$discoveryId]);
+mysqlCheck10((int)$pdo->query('SELECT COUNT(*) FROM custom_dns_config_events WHERE action IN (\'zone_selected\',\'zone_collection_enabled\',\'zone_collection_disabled\',\'zone_deselected\')')->fetchColumn()===4,'selection changes audited transactionally');
 echo 'DNS10_MYSQL_ASSERTIONS='.$n."\n";
 echo "DNS10_MYSQL_TEST_OK=1\n";

@@ -111,12 +111,13 @@ final class IntegrationDnsZoneSelectionService
     {
         self::actor($actor);$sourceId=self::id($sourceId);$zone=self::zone($zone);
         return $this->repo->transaction(function() use($sourceId,$zone,$selected,$expectedRevision,$discoveryId,$actor): array {
-            $source=$this->source($sourceId);$now=$this->now();$row=$this->repo->datasetByZone($sourceId,$zone);
+            $now=$this->now();$row=$this->repo->datasetByZone($sourceId,$zone);
             if($row!==null) {
                 $row=self::dataset($row,$sourceId,$zone);
                 if($expectedRevision!==$row['revision'])throw new DomainException('revision_conflict');
             } elseif($expectedRevision!==null)throw new DomainException('revision_conflict');
             if($selected) {
+                $source=$this->source($sourceId);
                 $this->discovery($source,$zone,$discoveryId,$now);
                 if($row!==null&&$row['selected'])return $row;
                 $selectedCount=$this->repo->selectedCount($sourceId);

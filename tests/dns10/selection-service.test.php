@@ -89,6 +89,9 @@ $reverse=$service->setSelected($src,'2.0.192.in-addr.arpa.',true,null,$discovery
 selectionCheck10($reverse['collection_enabled']===false,'secondary reverse zone selectable but off');
 $rootRow=$service->setSelected($src,'.',true,null,$discovery,17);
 selectionCheck10($rootRow['zone_name']==='.' && $rootRow['collection_enabled']===false,'root dataset identity canonical');
+$lostSourceRepo=clone $repo;unset($lostSourceRepo->sources[$src]);$lostSourceService=selectionService10($lostSourceRepo,$time);
+$lostSourceRow=$lostSourceService->setSelected($src,'.',false,$rootRow['revision'],null,17);
+selectionCheck10($lostSourceRow['selected']===false,'deselection works when source context is unavailable');
 selectionReject10(fn()=> $service->setSelected($src,'пример.test',true,null,$discovery,17),'zone_invalid');
 selectionReject10(fn()=> $service->setSelected($src,'*.example.test',true,null,$discovery,17),'zone_invalid');
 selectionReject10(fn()=> $service->setSelected($src,'example.test',true,null,$discovery,0),'actor_invalid');
