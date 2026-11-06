@@ -46,16 +46,26 @@ FROM custom_dns_control_jobs WHERE id='{PILOT_JOB_ID}';
 """)
 
 def timer_enabled()->bool:
-    return subprocess.run(
+    result=subprocess.run(
         ["systemctl","is-enabled","phpipam-dns-autonomous.timer"],
-        stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,check=False
-    ).returncode==0
+        stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False
+    )
+    if result.returncode==0 and result.stdout.strip()=="enabled":
+        return True
+    if result.returncode==1 and result.stdout.strip()=="disabled":
+        return False
+    raise RuntimeError("server_timer_enabled_state_unknown")
 
 def timer_active()->bool:
-    return subprocess.run(
+    result=subprocess.run(
         ["systemctl","is-active","phpipam-dns-autonomous.timer"],
-        stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,check=False
-    ).returncode==0
+        stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False
+    )
+    if result.returncode==0 and result.stdout.strip()=="active":
+        return True
+    if result.returncode==3 and result.stdout.strip()=="inactive":
+        return False
+    raise RuntimeError("server_timer_active_state_unknown")
 
 def receipt(path: Path,server: str)->dict:
     if path.is_symlink() or not path.is_file():

@@ -117,7 +117,7 @@ try {
     Assert-Dns2 ($aaaa.owner -eq 'hostv6.example.invalid.' -and $aaaa.rdata -eq '2001:db8::1') 'IPv6 canonicalized'
     Assert-Dns2 ($cname.owner -eq '_service.example.invalid.' -and $cname.rdata -eq 'target.example.invalid.') 'underscore CNAME normalized'
     Assert-Dns2 ($ptr.owner -eq '40.30.20.10.in-addr.arpa.' -and $ptr.rdata -eq 'host.example.invalid.') 'PTR normalized'
-    Assert-Dns2 (($records | Where-Object {$_.ttl_seconds -ne 300}).Count -eq 0) 'TTL preserved'
+    Assert-Dns2 (@($records | Where-Object {$_.ttl_seconds -ne 300}).Count -eq 0) 'TTL preserved'
     Assert-Dns2 (-not ((Get-Content -LiteralPath $temp -Raw) -match 'fixture-only')) 'password absent from preview output'
     Assert-Dns2 ($global:DNS2_RemoveSessionCount -eq 2) 'collection session removed'
 }

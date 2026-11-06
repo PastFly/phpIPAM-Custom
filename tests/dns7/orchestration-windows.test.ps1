@@ -8,10 +8,10 @@ if ($PSVersionTable.PSVersion.Major -ne 5) {
 
 $root=Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $worker=Join-Path $root 'collectors\windows\dns\Invoke-PhpIpamDnsWorkerOnce.ps1'
-$n=0
+$global:DNS7_Assertions=0
 function Assert-Dns7 {
     param([bool]$Value,[string]$Label)
-    $script:n++
+    $global:DNS7_Assertions++
     if (-not $Value) { throw $Label }
 }
 
@@ -146,5 +146,5 @@ finally {
     }
 }
 
-Write-Host ('DNS7_ORCHESTRATION_WINDOWS_ASSERTIONS='+$n)
+Write-Host ('DNS7_ORCHESTRATION_WINDOWS_ASSERTIONS='+$global:DNS7_Assertions)
 Write-Host 'DNS7_ORCHESTRATION_WINDOWS_TESTS_OK=1'

@@ -58,7 +58,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
       - name: Publish immutable exact SHA release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/microsoft-dns-autonomous-collector'
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/feature/microsoft-dns-autonomous-collector'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
