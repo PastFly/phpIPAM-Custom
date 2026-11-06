@@ -31,6 +31,13 @@ try {
     if(-not (Test-Path -LiteralPath $staged)){throw 'stage_missing'}
     if(Test-Path -LiteralPath (Join-Path $testRoot 'Invoke-PhpIpamDnsCollectorScheduled.ps1.tls-aaaaaaaaaaaaaaaa.new')){throw 'replacement_not_moved'}
     Write-Output 'DNS9_TLS_UPGRADE_WINDOWS_FIXTURE_OK=1'
+} catch {
+    $replacement=Join-Path $testRoot 'Invoke-PhpIpamDnsCollectorScheduled.ps1.tls-aaaaaaaaaaaaaaaa.new'
+    if((Test-Path $runner) -and (Test-Path $replacement)){
+        Write-Output ('FIXTURE_RUNNER_ACL='+(Get-Acl $runner).Sddl)
+        Write-Output ('FIXTURE_REPLACEMENT_ACL='+(Get-Acl $replacement).Sddl)
+    }
+    throw
 } finally {
     if(Test-Path -LiteralPath $testRoot){Remove-Item -LiteralPath $testRoot -Recurse -Force}
 }
