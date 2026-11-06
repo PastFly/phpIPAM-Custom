@@ -52,6 +52,21 @@ finally:
     os.close(fd)
 print('DNS9_B3_STALE_GUARD_METADATA_AND_CONTENT_OK='+str(int(valid)))
 if not valid or len(guards)!=1: raise SystemExit('DNS9_B3_ERROR=guard_requires_review')
+active=0
+unreadable=0
+for proc in Path('/proc').iterdir():
+    if not proc.name.isdigit(): continue
+    try:
+        argv=(proc/'cmdline').read_bytes().split(b'\0')
+    except FileNotFoundError:
+        continue
+    except OSError:
+        unreadable+=1
+        continue
+    if any(b'dns9-phase-b3-first-cycle.py' in arg for arg in argv) or any(b'--b3-live-once' in arg for arg in argv):
+        active+=1
+print('DNS9_B3_LOCAL_LIVE_PROCESS_COUNT='+str(active))
+print('DNS9_B3_LOCAL_PROCESS_UNREADABLE='+str(unreadable))
 PY
   QUEUE_COUNT="$(mariadb --batch --skip-column-names phpipam <<'SQL'
 SELECT COUNT(*) FROM custom_dns_control_jobs
