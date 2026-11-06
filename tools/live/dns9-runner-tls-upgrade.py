@@ -64,7 +64,10 @@ foreach($name in @('Invoke-PhpIpamDnsWorkerOnce.ps1','Invoke-PhpIpamDnsPreview.p
     if($actual -cne [string]$Expected.$name){{throw 'runtime_hash_mismatch'}}
 }}
 if((Get-FileHash -Algorithm SHA256 -LiteralPath $Staged).Hash.ToLowerInvariant() -cne {ps_quote(new_hash)}){{throw 'stage_hash_mismatch'}}
-$acl=(Get-Acl -LiteralPath $Runner -ErrorAction Stop).Sddl
+$runnerAcl=Get-Acl -LiteralPath $Runner -ErrorAction Stop
+$acl=$runnerAcl.Sddl
+Set-Acl -LiteralPath $Staged -AclObject $runnerAcl -ErrorAction Stop
+if((Get-Acl -LiteralPath $Staged -ErrorAction Stop).Sddl -cne $acl){{throw 'staged_acl_mismatch'}}
 Write-Output 'DNS9_TLS_UPGRADE_REPLACE_START=1'
 [IO.File]::Replace($Staged,$Runner,$Backup)
 if((Get-FileHash -Algorithm SHA256 -LiteralPath $Backup).Hash.ToLowerInvariant() -cne [string]$Expected.'Invoke-PhpIpamDnsCollectorScheduled.ps1'){{throw 'backup_hash_mismatch'}}

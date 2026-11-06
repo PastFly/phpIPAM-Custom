@@ -17,6 +17,8 @@ class UpgradeTest(unittest.TestCase):
         self.assertIn('CommandLine',s)
         self.assertIn('Get-FileHash',s)
         self.assertIn('[IO.File]::Replace($Staged,$Runner,$Backup)',s)
+        self.assertLess(s.index('Set-Acl -LiteralPath $Staged'),s.index('[IO.File]::Replace($Staged,$Runner,$Backup)'))
+        self.assertIn('staged_acl_mismatch',s)
         self.assertIn('backup_hash_mismatch',s)
         self.assertNotIn('Start-ScheduledTask',s)
         self.assertNotIn('schtasks.exe',s)
