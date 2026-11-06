@@ -134,5 +134,10 @@ final class IntegrationDnsZoneSelectionPhpIpamRepository implements IntegrationD
         }
         $this->write('INSERT INTO custom_dns_config_events (action,object_id,actor_id,created_at) VALUES (?,?,?,?)',
             [$event['action'],$event['object_id'],$event['actor_id'],$event['created_at']]);
+        $floor=$this->one('SELECT event_id FROM custom_dns_config_events ORDER BY event_id DESC LIMIT 1 OFFSET 999');
+        if($floor!==null) {
+            $eventId=self::number($floor['event_id']??null);
+            $this->write('DELETE FROM custom_dns_config_events WHERE event_id < ?',[$eventId]);
+        }
     }
 }
