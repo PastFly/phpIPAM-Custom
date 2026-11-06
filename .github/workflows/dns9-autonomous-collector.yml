@@ -19,6 +19,7 @@ on:
       - 'database/dns9/**'
       - 'deploy/dns9/**'
       - 'tools/live/dns9-source-accept.sh'
+      - 'tools/live/dns9-build-test-bundle.sh'
       - 'tools/live/dns9-windows-fixture-stage.py'
       - 'tools/live/dns9-production-preflight.py'
       - 'tests/dns9/phase-b-preflight-source.test.py'

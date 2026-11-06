@@ -3,6 +3,8 @@
 import os
 from pathlib import Path
 import re
+import shlex
+import shutil
 import subprocess
 import tarfile
 import tempfile
@@ -25,11 +27,29 @@ def main():
         repo, output, bin_dir, template = (root / p for p in ('repo', 'output', 'bin', 'template'))
         for directory in (repo, output, bin_dir, template):
             directory.mkdir()
-        # BSD tar cannot accept the builder's GNU reproducibility flags. Preserve
-        # actual archive creation while adapting only those five flags in this fixture.
-        tar = bin_dir / 'tar'
-        tar.write_text('#!/bin/bash\nset -eu\nshift 5\nexec /usr/bin/tar "$@"\n')
-        tar.chmod(0o755)
+        # Prefer the real GNU tar, including its reproducibility options. BSD tar
+        # needs an adapter for those five options; it still creates a real archive.
+        tar_mode = None
+        for name in ('gtar', 'tar'):
+            candidate = shutil.which(name)
+            if not candidate:
+                continue
+            version = subprocess.run([candidate, '--version'], stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE, text=True)
+            if version.returncode == 0 and 'GNU tar' in version.stdout:
+                (bin_dir / 'tar').symlink_to(candidate)
+                tar_mode = 'GNU'
+                break
+        if tar_mode is None:
+            candidate = shutil.which('tar')
+            assert candidate, 'tar is required'
+            version = subprocess.run([candidate, '--version'], stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE, text=True)
+            assert version.returncode == 0 and 'bsdtar' in version.stdout, 'unsupported tar'
+            tar = bin_dir / 'tar'
+            tar.write_text('#!/bin/bash\nset -eu\nshift 5\nexec ' + shlex.quote(candidate) + ' "$@"\n')
+            tar.chmod(0o755)
+            tar_mode = 'BSD_ADAPTER'
         env = os.environ.copy()
         env.update(PATH=str(bin_dir) + os.pathsep + env['PATH'], GIT_CONFIG_NOSYSTEM='1',
                    GIT_CONFIG_GLOBAL='/dev/null', GIT_AUTHOR_NAME='Synthetic',
@@ -81,7 +101,7 @@ def main():
         assert build().returncode != 0, 'missing committed payload must fail closed'
         assert not (output / ('phpipam-dns9-test-' + missing_head[:12] + '.tar.gz')).exists()
         assert not (output / ('phpipam-dns9-test-' + missing_head[:12] + '.run')).exists()
-    print('DNS9_IMMUTABLE_BUNDLE_CASES=5 BEHAVIOR_ASSERTIONS=19')
+    print('DNS9_IMMUTABLE_BUNDLE_CASES=5 BEHAVIOR_ASSERTIONS=19 TAR=' + tar_mode)
 
 
 if __name__ == '__main__':
