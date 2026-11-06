@@ -28,7 +28,8 @@ try {
     if(-not ($output -contains 'DNS9_TLS_UPGRADE_REPLACE_START=1')){throw 'replace_not_started'}
     if([IO.File]::ReadAllText($runner) -cne 'new-runner'){throw 'runner_not_updated'}
     if([IO.File]::ReadAllText($backup) -cne 'old-runner'){throw 'backup_invalid'}
-    if(Test-Path -LiteralPath $staged){throw 'stage_not_moved'}
+    if(-not (Test-Path -LiteralPath $staged)){throw 'stage_missing'}
+    if(Test-Path -LiteralPath (Join-Path $testRoot 'Invoke-PhpIpamDnsCollectorScheduled.ps1.tls-aaaaaaaaaaaaaaaa.new')){throw 'replacement_not_moved'}
     Write-Output 'DNS9_TLS_UPGRADE_WINDOWS_FIXTURE_OK=1'
 } finally {
     if(Test-Path -LiteralPath $testRoot){Remove-Item -LiteralPath $testRoot -Recurse -Force}

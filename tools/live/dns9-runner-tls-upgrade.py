@@ -48,6 +48,7 @@ $Root='C:\\ProgramData\\phpIPAM\\DnsCollector'
 $Runner=Join-Path $Root 'Invoke-PhpIpamDnsCollectorScheduled.ps1'
 $Staged={ps_quote(stage)}
 $Backup={ps_quote(backup)}
+$Replacement=Join-Path $Root 'Invoke-PhpIpamDnsCollectorScheduled.ps1.tls-{nonce}.new'
 $Expected=ConvertFrom-Json -InputObject {ps_quote(expected)}
 if([string](Get-ScheduledTask -TaskName 'phpIPAM Microsoft DNS Collector' -ErrorAction Stop).State -ne 'Disabled'){{throw 'task_not_disabled'}}
 if(Get-ScheduledTask | Where-Object {{$_.TaskName -like 'phpIPAM Microsoft DNS Collector DNS9 Pilot Once *'}}){{throw 'pilot_task_present'}}
@@ -58,7 +59,7 @@ foreach($path in @($Root,$Runner,(Split-Path -Parent $Staged),$Staged)){{
     $item=Get-Item -LiteralPath $path -Force -ErrorAction Stop
     if(($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0){{throw 'reparse_point'}}
 }}
-if(Test-Path -LiteralPath $Backup){{throw 'backup_exists'}}
+if((Test-Path -LiteralPath $Backup) -or (Test-Path -LiteralPath $Replacement)){{throw 'backup_or_replacement_exists'}}
 foreach($name in @('Invoke-PhpIpamDnsWorkerOnce.ps1','Invoke-PhpIpamDnsPreview.ps1','Invoke-PhpIpamDnsCollectorScheduled.ps1')){{
     $actual=(Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $Root $name)).Hash.ToLowerInvariant()
     if($actual -cne [string]$Expected.$name){{throw 'runtime_hash_mismatch'}}
@@ -66,10 +67,12 @@ foreach($name in @('Invoke-PhpIpamDnsWorkerOnce.ps1','Invoke-PhpIpamDnsPreview.p
 if((Get-FileHash -Algorithm SHA256 -LiteralPath $Staged).Hash.ToLowerInvariant() -cne {ps_quote(new_hash)}){{throw 'stage_hash_mismatch'}}
 $runnerAcl=Get-Acl -LiteralPath $Runner -ErrorAction Stop
 $acl=$runnerAcl.Sddl
-Set-Acl -LiteralPath $Staged -AclObject $runnerAcl -ErrorAction Stop
-if((Get-Acl -LiteralPath $Staged -ErrorAction Stop).Sddl -cne $acl){{throw 'staged_acl_mismatch'}}
+Copy-Item -LiteralPath $Staged -Destination $Replacement -ErrorAction Stop
+Set-Acl -LiteralPath $Replacement -AclObject $runnerAcl -ErrorAction Stop
+if((Get-Acl -LiteralPath $Replacement -ErrorAction Stop).Sddl -cne $acl){{throw 'replacement_acl_mismatch'}}
+if((Get-FileHash -Algorithm SHA256 -LiteralPath $Replacement).Hash.ToLowerInvariant() -cne {ps_quote(new_hash)}){{throw 'replacement_hash_mismatch'}}
 Write-Output 'DNS9_TLS_UPGRADE_REPLACE_START=1'
-[IO.File]::Replace($Staged,$Runner,$Backup)
+[IO.File]::Replace($Replacement,$Runner,$Backup)
 if((Get-FileHash -Algorithm SHA256 -LiteralPath $Backup).Hash.ToLowerInvariant() -cne [string]$Expected.'Invoke-PhpIpamDnsCollectorScheduled.ps1'){{throw 'backup_hash_mismatch'}}
 if((Get-FileHash -Algorithm SHA256 -LiteralPath $Runner).Hash.ToLowerInvariant() -cne {ps_quote(new_hash)}){{throw 'new_hash_mismatch'}}
 if((Get-Acl -LiteralPath $Runner -ErrorAction Stop).Sddl -cne $acl){{throw 'runner_acl_changed'}}
