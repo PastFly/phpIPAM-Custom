@@ -69,3 +69,12 @@ jobs:
         run: |
           & .\tests\dns9\autonomous-windows.test.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Parse transport probe in Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $source = Get-Content -Raw 'tools/live/dns9-phase-b3-transport-probe.py'
+          $match = [regex]::Match($source, "(?s)POWERSHELL=r'''(.*?)'''")
+          if (-not $match.Success) { throw 'transport probe source missing' }
+          $tokens = $null; $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseInput($match.Groups[1].Value, [ref]$tokens, [ref]$errors)
+          if (@($errors).Count -ne 0) { throw 'transport probe PowerShell parse failed' }
