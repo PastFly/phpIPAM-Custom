@@ -37,6 +37,15 @@ final class IntegrationDnsCollectorControlPhpIpamRepository implements Integrati
         if ($this->ownedTransaction) throw new DomainException('control_unavailable');
         $begun=false;
         try {
+            // phpIPAM's Database_PDO connects lazily, but beginTransaction()
+            // itself assumes an existing PDO connection.
+            if (method_exists($this->db,'isConnected')) {
+                if (!is_callable([$this->db,'isConnected']) || !is_callable([$this->db,'connect'])) {
+                    throw new DomainException('control_unavailable');
+                }
+                if ($this->db->isConnected()!==true) $this->db->connect();
+                if ($this->db->isConnected()!==true) throw new DomainException('control_unavailable');
+            }
             if ($this->db->beginTransaction()!==true) throw new DomainException('control_unavailable');
             $begun=true;
             $guard=$this->db->getObjectsQuery(
