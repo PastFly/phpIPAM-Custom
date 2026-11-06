@@ -33,27 +33,9 @@ def validate_queue(row):
     if row!='2|0|0|0|0|2': raise RuntimeError('queue_or_retention_requires_review')
 
 def queue_summary(b3):
-    cases=' OR '.join(
-        "(j.id='"+job_id+"' AND j.job_type='"+kind+"' AND j.created_at="+str(created)+")"
-        for job_id,kind,created in EXPIRED_REVIEWED_JOBS
-    )
-    return b3.one(f"""SELECT CONCAT(
- COALESCE(SUM(state='pending'),0),'|',COALESCE(SUM(state='running'),0),'|',
- COALESCE(SUM(state IN ('succeeded','failed','expired','obsolete') AND COALESCE(finished_at,updated_at)<=UNIX_TIMESTAMP()+1200-86400),0),'|',
- (SELECT COUNT(*) FROM custom_dns_connections WHERE id<>'{b3.PILOT_CONNECTION_ID}' AND enabled=1),'|',IF(COUNT(*)>=384,1,0),'|',
- (SELECT COUNT(*) FROM custom_dns_control_jobs j
-  JOIN custom_dns_collector_assignments a ON a.connection_id=j.connection_id AND a.collector_id=j.collector_id AND a.revision=j.assignment_revision
-  JOIN custom_dns_connections c ON c.id=j.connection_id AND c.revision=j.configuration_revision AND c.binding_epoch=j.binding_epoch
-  JOIN custom_dns_collectors k ON k.id=j.collector_id
-  WHERE ({cases}) AND j.state='pending' AND j.collector_id='{b3.PILOT_COLLECTOR_ID}' AND j.connection_id='{b3.PILOT_CONNECTION_ID}'
-   AND j.expires_at=j.created_at+300 AND j.expires_at<UNIX_TIMESTAMP() AND j.updated_at=j.created_at AND j.updated_by=4
-   AND j.attempt_count=0 AND j.lease_id IS NULL AND j.lease_expires_at IS NULL AND j.credential_delivered_at IS NULL
-   AND j.result_code IS NULL AND j.result_payload IS NULL AND j.finished_at IS NULL AND j.credential_version IS NULL
-   AND c.enabled=0 AND c.credential_mode='collector_identity' AND c.server='{SERVER}' AND k.revoked=0
-   AND (SELECT COUNT(*) FROM custom_dns_control_events e WHERE e.object_id=j.id AND e.action='control_job_queued')=1
-   AND (SELECT COUNT(*) FROM custom_dns_control_events e WHERE e.object_id=j.id AND e.action='control_job_queued' AND e.actor_id=4)=1
-   AND (SELECT COUNT(*) FROM custom_dns_control_events e WHERE e.object_id=j.id AND e.action IN ('control_job_cli_queued','autonomous_job_queued'))=0))
- FROM custom_dns_control_jobs;""")
+    if (b3.PILOT_CONNECTION_ID,b3.PILOT_COLLECTOR_ID)!=('33b6fade9323f15aa7b1f56a8a865a9d','f57057d6677e1ca7a032aab8b68796ac'):
+        raise RuntimeError('queue_policy_invalid')
+    return b3.one((ROOT/'tools/live/dns9-activation-queue.sql').read_text())
 
 def validate_remote(doc,now):
     required_true=('permanent_disabled','principal_system','action_expected','trigger_enabled','repetition_active',

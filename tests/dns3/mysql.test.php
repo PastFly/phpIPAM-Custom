@@ -19,6 +19,9 @@ require $root.'/layers/dns3/functions/classes/class.IntegrationDnsCollectorContr
 require $root.'/layers/dns3/functions/classes/class.IntegrationDnsCollectorControlPhpIpamRepository.php';
 require $root.'/layers/dns4/functions/classes/class.IntegrationDnsCollectorMachineService.php';
 require $root.'/layers/dns9/functions/classes/class.IntegrationDnsAutonomousScheduler.php';
+require $root.'/layers/dns1/functions/classes/class.IntegrationDnsConfigRepository.php';
+require $root.'/layers/dns1/functions/classes/class.IntegrationDnsPhpIpamConfigRepository.php';
+require $root.'/tools/live/dns9-activation-mutex.php';
 
 function dns3pdo(string $dsn): PDO {
     return new PDO(
@@ -273,5 +276,48 @@ ok3sql($trim['pressure_pruned']>0,'real database trims verified autonomous jobs'
 $q=$pdo->prepare('SELECT COUNT(*) FROM custom_dns_control_jobs WHERE id=?'); $q->execute([$listJob['id']]);
 ok3sql((int)$q->fetchColumn()===1,'real database retains manual job under pressure');
 ok3sql((int)$pdo->query("SELECT COUNT(*) FROM custom_dns_control_events WHERE action='autonomous_job_pruned'")->fetchColumn()===$trim['pressure_pruned'],'real database audits pressure cleanup');
+
+// The activation handshake runs only in this disposable local fixture database.
+$pdo->exec('DELETE FROM custom_dns_control_jobs');
+$pdo->exec('DELETE FROM custom_dns_control_events');
+$pdo->exec(file_get_contents($root.'/database/dns9/001-autonomous-enable.sql'));
+$pdo->exec("CREATE TABLE users (id INT PRIMARY KEY,disabled VARCHAR(8) NOT NULL,role VARCHAR(32) NOT NULL)");
+$pdo->exec("INSERT INTO users VALUES (4,'No','Administrator')");
+$pdo->exec('SET timestamp=2000000000');
+$pilot=DNS9_ACTIVATION_CONNECTION; $pilotCollector='f57057d6677e1ca7a032aab8b68796ac';
+$q=$pdo->prepare('INSERT INTO custom_dns_connections (id,provider,name,server,interval_seconds,credential_mode,profile_id,collector_id,enabled,status,revision,binding_epoch,updated_at,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+$q->execute([$pilot,'microsoft_dns','Activation fixture','srv-dc01.rbank.local',300,'collector_identity',null,null,0,'disabled',7,4,$now,4]);
+$q=$pdo->prepare('INSERT INTO custom_dns_collectors (id,name,token_digest,revision,control_epoch,revoked,created_at,created_by,updated_at,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?)');
+$q->execute([$pilotCollector,'Activation collector',str_repeat('a',64),1,1,0,$now,4,$now,4]);
+$q=$pdo->prepare('INSERT INTO custom_dns_collector_assignments (connection_id,collector_id,revision,assigned_at,assigned_by) VALUES (?,?,?,?,?)');
+$q->execute([$pilot,$pilotCollector,3,$now,4]);
+$repo->transaction(function() use($repo,$pilot,$pilotCollector) {
+    foreach ([['0f5fbf81fc71164cc7c624fc6101925f','list_zones',1793966475],['edfcd75935083e51c4536a390174057e','test_connection',1793966491]] as [$id,$kind,$created]) {
+        $repo->putJob(['id'=>$id,'collector_id'=>$pilotCollector,'connection_id'=>$pilot,'assignment_revision'=>3,'job_type'=>$kind,
+            'state'=>'pending','configuration_revision'=>7,'binding_epoch'=>4,'credential_version'=>null,'lease_id'=>null,
+            'lease_expires_at'=>null,'attempt_count'=>0,'credential_delivered_at'=>null,'result_code'=>null,'result_payload'=>null,
+            'finished_at'=>null,'created_at'=>$created,'expires_at'=>$created+300,'updated_at'=>$created,'updated_by'=>4]);
+        $repo->audit(['action'=>'control_job_queued','object_id'=>$id,'actor_id'=>4,'created_at'=>$created]);
+    }
+});
+$configRepo=new IntegrationDnsPhpIpamConfigRepository($db);
+foreach(['ABORT','COMMIT_ENABLE'] as $command) {
+    $dir=sys_get_temp_dir().'/dns9-mutex-mysql-'.bin2hex(random_bytes(8)); mkdir($dir,0700);
+    $input=fopen('php://temp','w+'); fwrite($input,$command."\n"); rewind($input); $output=fopen('php://temp','w+');
+    try {
+        if($command==='ABORT') {
+            try {dns9ActivationMutex($db,$configRepo,$dir,$input,$output); throw new RuntimeException('abort_missing');}
+            catch(DomainException $e) {ok3sql($e->getMessage()==='activation_cancelled','real mutex aborts');}
+            $q=$pdo->prepare('SELECT enabled FROM custom_dns_connections WHERE id=?'); $q->execute([$pilot]);
+            ok3sql((int)$q->fetchColumn()===0,'real transaction rollback leaves connection disabled');
+        } else {
+            $result=dns9ActivationMutex($db,$configRepo,$dir,$input,$output);
+            ok3sql($result===['revision'=>8,'binding_epoch'=>5],'real mutex increments connection versions');
+            $q=$pdo->prepare('SELECT enabled FROM custom_dns_connections WHERE id=?'); $q->execute([$pilot]);
+            ok3sql((int)$q->fetchColumn()===1,'real transaction commits enabled connection');
+        }
+        ok3sql(is_file($dir.'/prestate.json'),'real mutex writes private prestate');
+    } finally {fclose($input);fclose($output);if(is_file($dir.'/prestate.json')) unlink($dir.'/prestate.json');rmdir($dir);}
+}
 
 echo "DNS3_MYSQL_ASSERTIONS=$n\nDNS3_MYSQL_TESTS_OK=1\n";

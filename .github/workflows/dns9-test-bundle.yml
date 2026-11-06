@@ -24,6 +24,9 @@ on:
       - 'tools/live/dns9-scheduler-deploy.py'
       - 'tools/live/dns9-activation-preflight.py'
       - 'tools/live/dns9-activation-preflight.ps1'
+      - 'tools/live/dns9-activation-queue.sql'
+      - 'tools/live/dns9-activation-mutex.php'
+      - 'tests/dns9/activation-mutex.test.php'
       - 'tests/dns9/activation-preflight.test.py'
       - 'deploy/dns9/phpipam-dns-autonomous.service'
       - 'deploy/dns9/phpipam-dns-autonomous.timer'
@@ -77,6 +80,8 @@ jobs:
           python3 tests/dns9/scheduler-deploy.test.py
           python3 tests/dns9/activation-preflight.test.py
           php tests/dns9/autonomous-scheduler.test.php
+          php -l tools/live/dns9-activation-mutex.php
+          php tests/dns9/activation-mutex.test.php
           php -l tools/live/dns9-ui-smoke.php
           php tests/dns9/ui-smoke.test.php
           python3 tests/dns9/b3-retry-guard.test.py
@@ -106,6 +111,8 @@ jobs:
           python3 tests/dns9/scheduler-deploy.test.py
           python3 tests/dns9/activation-preflight.test.py
           php tests/dns9/autonomous-scheduler.test.php
+          php -l tools/live/dns9-activation-mutex.php
+          php tests/dns9/activation-mutex.test.php
           php -l tools/live/dns9-ui-smoke.php
           php tests/dns9/ui-smoke.test.php
           python3 tests/dns9/b3-retry-guard.test.py

@@ -62,12 +62,14 @@ php -l layers/dns1/app/admin/integrations/dns-config-panel.php
 php -l tools/live/dns9-queue-cli.php
 php -l tools/live/dns9-cold-db-check.php
 php -l tools/live/dns9-ui-smoke.php
+php -l tools/live/dns9-activation-mutex.php
 
 php tests/dns9/autonomous-scheduler.test.php
 php tests/dns9/autonomous-admin.test.php
 php tests/dns9/queue-cli.test.php
 php tests/dns9/lazy-database.test.php
 php tests/dns9/ui-smoke.test.php
+php tests/dns9/activation-mutex.test.php
 
 if command -v node >/dev/null 2>&1; then
     node --check layers/dns1/app/admin/integrations/dns/config.js
