@@ -36,6 +36,7 @@ jobs:
           php -l layers/dns10/functions/classes/class.IntegrationDnsZoneSelectionRepository.php
           php -l layers/dns10/functions/classes/class.IntegrationDnsZoneSelectionService.php
           php -l layers/dns10/functions/classes/class.IntegrationDnsZoneSelectionPhpIpamRepository.php
+          php -l layers/dns10/functions/classes/class.IntegrationDnsZoneSelectionAdminController.php
           php -l tests/dns10/snapshot-validator.test.php
           php -l tests/dns10/publication-policy.test.php
           php -l tests/dns10/upload-http.test.php
@@ -44,12 +45,14 @@ jobs:
           php -l tests/dns10/publication-service.test.php
           php -l tests/dns10/selection-memory-repository.php
           php -l tests/dns10/selection-service.test.php
+          php -l tests/dns10/selection-admin-controller.test.php
           php tests/dns10/snapshot-validator.test.php
           php tests/dns10/publication-policy.test.php
           php tests/dns10/upload-http.test.php
           php tests/dns10/upload-token.test.php
           php tests/dns10/publication-service.test.php
           php tests/dns10/selection-service.test.php
+          php tests/dns10/selection-admin-controller.test.php
 
   mariadb-schema:
     runs-on: ubuntu-24.04
