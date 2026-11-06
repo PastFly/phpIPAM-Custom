@@ -48,7 +48,7 @@ function global:Get-DnsServerZone {
     )
 }
 function New-Dns2Record {
-    param([string]$Host,[string]$Type,[string]$Data,[DateTime]$Timestamp=[DateTime]::MinValue)
+    param([string]$RecordHost,[string]$Type,[string]$Data,[DateTime]$Timestamp=[DateTime]::MinValue)
     $recordData = switch ($Type) {
         'A' { [pscustomobject]@{IPv4Address=[System.Net.IPAddress]::Parse($Data)} }
         'AAAA' { [pscustomobject]@{IPv6Address=[System.Net.IPAddress]::Parse($Data)} }
@@ -56,7 +56,7 @@ function New-Dns2Record {
         'PTR' { [pscustomobject]@{PtrDomainName=$Data} }
     }
     return [pscustomobject]@{
-        HostName=$Host
+        HostName=$RecordHost
         RecordData=$recordData
         TimeToLive=[TimeSpan]::FromSeconds(300)
         Timestamp=$Timestamp
