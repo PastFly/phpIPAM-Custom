@@ -67,8 +67,16 @@ foreach($name in @('Invoke-PhpIpamDnsWorkerOnce.ps1','Invoke-PhpIpamDnsPreview.p
 if((Get-FileHash -Algorithm SHA256 -LiteralPath $Staged).Hash.ToLowerInvariant() -cne {ps_quote(new_hash)}){{throw 'stage_hash_mismatch'}}
 $runnerAcl=Get-Acl -LiteralPath $Runner -ErrorAction Stop
 $acl=$runnerAcl.Sddl
-Copy-Item -LiteralPath $Staged -Destination $Replacement -ErrorAction Stop
-Set-Acl -LiteralPath $Replacement -AclObject $runnerAcl -ErrorAction Stop
+$bytes=[IO.File]::ReadAllBytes($Staged)
+$stream=$null
+try {{
+    $stream=[IO.File]::Open($Replacement,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
+    $stream.Write($bytes,0,$bytes.Length)
+    $stream.Flush($true)
+}} finally {{
+    if($null -ne $stream){{$stream.Dispose()}}
+    if($null -ne $bytes){{[Array]::Clear($bytes,0,$bytes.Length)}}
+}}
 if((Get-Acl -LiteralPath $Replacement -ErrorAction Stop).Sddl -cne $acl){{throw 'replacement_acl_mismatch'}}
 if((Get-FileHash -Algorithm SHA256 -LiteralPath $Replacement).Hash.ToLowerInvariant() -cne {ps_quote(new_hash)}){{throw 'replacement_hash_mismatch'}}
 Write-Output 'DNS9_TLS_UPGRADE_REPLACE_START=1'
