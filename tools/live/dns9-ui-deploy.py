@@ -37,8 +37,12 @@ def module(name,path):
     spec=importlib.util.spec_from_file_location(name,path)
     obj=importlib.util.module_from_spec(spec); spec.loader.exec_module(obj); return obj
 
-def validate_target(old,new,allowed):
-    if hashlib.sha256(old).hexdigest() not in allowed or old==new: raise RuntimeError('target_hash_mismatch')
+def validate_target(old,new,allowed,allow_current=False):
+    if hashlib.sha256(old).hexdigest() not in allowed: raise RuntimeError('target_hash_mismatch')
+    if old==new:
+        if allow_current: return False
+        raise RuntimeError('target_hash_mismatch')
+    return True
 
 def reserve(path,sha):
     if not re.fullmatch('[0-9a-f]{40}',sha): raise ValueError('source_sha_invalid')
@@ -84,7 +88,9 @@ def main():
     for src,dst,allowed in TARGETS:
         source=ROOT/src; target=WEB/dst
         old=pdo.snapshot(target); new=pdo.snapshot(source)['data']
-        validate_target(old['data'],new,allowed)
+        if not validate_target(old['data'],new,allowed,allow_current=source.suffix=='.js'):
+            print('DNS9_UI_STATIC_ALREADY_CURRENT=1',flush=True)
+            continue
         if source.suffix=='.php' and subprocess.run(['php','-l',str(source)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,check=False).returncode:
             raise RuntimeError('php_syntax_failed')
         changes.append((target,old,new))

@@ -18,6 +18,8 @@ class UiDeployTests(unittest.TestCase):
         ui.validate_target(old,new,allowed)
         with self.assertRaises(RuntimeError): ui.validate_target(b'unknown',new,allowed)
         with self.assertRaises(RuntimeError): ui.validate_target(old,old,allowed)
+        self.assertFalse(ui.validate_target(old,old,allowed,allow_current=True))
+        with self.assertRaises(RuntimeError): ui.validate_target(b'unknown',b'unknown',allowed,allow_current=True)
 
     def test_guard_is_exclusive_and_source_bound(self):
         with tempfile.TemporaryDirectory() as temp:
