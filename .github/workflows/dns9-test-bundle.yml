@@ -6,6 +6,7 @@ on:
       - feature/microsoft-dns-autonomous-collector
     paths:
       - 'tools/live/dns9-build-test-bundle.sh'
+      - 'tests/dns9/bundle-immutable-inputs.test.py'
       - 'tools/live/dns9-test-bundle-run.sh'
       - 'tools/live/dns9-phase-b3-diagnose.py'
       - 'tools/live/dns9-phase-b3-first-cycle.py'
@@ -75,6 +76,7 @@ jobs:
           persist-credentials: false
       - name: Validate read-only diagnostic source
         run: |
+          python3 tests/dns9/bundle-immutable-inputs.test.py
           python3 tests/dns9/phase-b3-diagnose-source.test.py
           python3 tests/dns9/phase-b3-transport-probe.test.py
           python3 tests/dns9/runner-tls-upgrade.test.py

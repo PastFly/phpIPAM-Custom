@@ -2,10 +2,15 @@
 set -euo pipefail
 umask 077
 
+BUILDER="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 SHA="$(git rev-parse HEAD)"
 [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo invalid_sha >&2; exit 1; }
+if ! git cat-file blob "$SHA:tools/live/dns9-build-test-bundle.sh" | cmp -s "$BUILDER" -; then
+  echo builder_not_at_head >&2
+  exit 1
+fi
 SHORT="${SHA:0:12}"
 OUT="${1:-dist}"
 mkdir -p "$OUT"
@@ -79,7 +84,13 @@ for file in \
   collectors/windows/dns/Invoke-PhpIpamDnsCollectorScheduled.ps1 \
   tools/live/dns9-test-bundle-run.sh; do
   mkdir -p "$(dirname "$STAGE/$file")"
-  cp "$file" "$STAGE/$file"
+  git cat-file blob "$SHA:$file" > "$STAGE/$file"
+  mode="$(git ls-tree "$SHA" -- "$file")"
+  case "${mode%% *}" in
+    100644) ;;
+    100755) chmod 700 "$STAGE/$file" ;;
+    *) echo invalid_payload_mode >&2; exit 1 ;;
+  esac
 done
 printf '%s\n' "$SHA" > "$STAGE/EXPECTED_SHA"
 printf '%s\n' 'b3-readonly-diagnostic+disk-inventory' > "$STAGE/STAGE"
