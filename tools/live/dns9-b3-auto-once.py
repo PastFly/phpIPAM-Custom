@@ -114,6 +114,10 @@ def private_plan(sha,actor):
     fd=os.open(directory/'plan.json',os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
     with os.fdopen(fd,'w') as f:
         json.dump(plan,f,sort_keys=True,indent=2); f.write('\n'); f.flush(); os.fsync(f.fileno())
+    for path in (directory,BACKUP):
+        fd=os.open(path,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+        try: os.fsync(fd)
+        finally: os.close(fd)
     return directory
 
 def main():
