@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import importlib.util,os,pathlib,sys,tempfile,unittest
+import importlib.util,os,pathlib,sys,tempfile,types,unittest
 from unittest.mock import patch
 root=pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(root/'tools/live'))
@@ -34,6 +34,16 @@ class HotfixTests(unittest.TestCase):
         self.assertEqual(h.parse_response(b'{"ok":false,"error":"control_unavailable"}\nDNS9_HTTP:503\n'),(503,'control_unavailable'))
         self.assertEqual(h.parse_response(b'{"error":"secret-value"}\nDNS9_HTTP:400\n'),(400,'other'))
         with self.assertRaises(ValueError):h.parse_response(b'secret')
+    def test_fake_request_uses_nonexistent_collector_and_never_real_token(self):
+        db=types.SimpleNamespace(one=lambda q:'0')
+        response=types.SimpleNamespace(returncode=0,stdout=b'{"ok":false,"error":"collector_auth_failed"}\nDNS9_HTTP:401\n')
+        with patch.object(h.secrets,'token_hex',return_value='1'*32), patch.object(h.subprocess,'run',return_value=response) as run:
+            self.assertEqual(h.fake_poll(db),(401,'collector_auth_failed'))
+            args=run.call_args.args[0]
+            self.assertIn('Authorization: Bearer dnsctl1.'+('1'*32)+'.'+('A'*43),args)
+            self.assertIn('{"action":"poll"}',args)
+            self.assertIn('ipam.realistbank.ru:443:127.0.0.1',args)
+            self.assertNotIn('--insecure',args)
     def test_verification_failure_restores_both_files(self):
         with tempfile.TemporaryDirectory() as d:
             root=pathlib.Path(d); first=root/'first';second=root/'second'
