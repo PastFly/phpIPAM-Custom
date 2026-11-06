@@ -5,5 +5,12 @@ source=(pathlib.Path(__file__).resolve().parents[2]/'tools/live/dns9-phase-b3-fi
 module=ast.parse(source)
 main=next(x for x in module.body if isinstance(x,ast.FunctionDef) and x.name=='main')
 assignment=next(x for x in main.body if isinstance(x,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='script' for t in x.targets))
-script=''.join(x.value if isinstance(x,ast.Constant) else "'fixture'" for x in assignment.value.values)
+values={
+    'ps_quote(PERMANENT_TASK)':"'fixture-permanent'",
+    'ps_quote(temp_task)':"'fixture-pilot'",
+    'ps_quote(INSTALL_ROOT)':"'__FIXTURE_ROOT__'",
+    'ps_quote(expected_json)':"'__FIXTURE_HASHES__'",
+    "ps_quote(PILOT_PREFIX + '*')":"'fixture-pilot*'",
+}
+script=''.join(x.value if isinstance(x,ast.Constant) else values[ast.unparse(x.value)] for x in assignment.value.values)
 print(base64.b64encode(script.encode()).decode())

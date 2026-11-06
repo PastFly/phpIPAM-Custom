@@ -93,3 +93,6 @@ jobs:
           $tokens=$null; $errors=$null
           [void][System.Management.Automation.Language.Parser]::ParseInput($source,[ref]$tokens,[ref]$errors)
           if (@($errors).Count -ne 0) { throw 'B3 control PowerShell parse failed' }
+      - name: Exercise B3 control and safe cleanup
+        shell: powershell
+        run: .\tests\dns9\phase-b3-control.test.ps1
