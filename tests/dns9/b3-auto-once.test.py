@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import contextlib,importlib.util,io,json,pathlib,sys,types,unittest
+import contextlib,importlib.util,io,json,pathlib,sys,tempfile,types,unittest
 from unittest.mock import patch
 root=pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(root/'tools/live'))
@@ -21,4 +21,26 @@ class AutoTests(unittest.TestCase):
         with patch.object(auto.subprocess,'run',return_value=types.SimpleNamespace(returncode=0,stdout='DNS9_CLI_JSON={"actor_id":17,"job_id":"wrong"}\n')):
             with self.assertRaises(RuntimeError):auto.run_cli('--queue')
         with self.assertRaises(ValueError):auto.run_cli('--other')
+    def test_reservation_precedes_single_job_and_single_run(self):
+        events=[]
+        with tempfile.TemporaryDirectory() as temp:
+            root=pathlib.Path(temp); (root/'EXPECTED_SHA').write_text('a'*40)
+            def call_cli(mode):
+                events.append(mode)
+                return {'actor_id':17} if mode=='--preflight' else {'actor_id':17,'job_id':'b'*32}
+            def run_b3(**kwargs):
+                events.append('run')
+                self.assertEqual(kwargs['job_override'],'b'*32)
+                self.assertTrue(kwargs['reserved_retry'])
+            b3=types.SimpleNamespace(reserve_retry=lambda *x:events.append('reserve'),main=run_b3,validate_retry=lambda *x:events.append('validate'))
+            with patch.object(auto,'ROOT',root), patch.object(auto.os,'geteuid',return_value=0), \
+                 patch.object(auto,'module',side_effect=lambda name,path:b3 if name=='phase_b3' else object()), \
+                 patch.object(auto,'local_preflight',side_effect=lambda *x:events.append('local')), \
+                 patch.object(auto,'windows_preflight',side_effect=lambda *x:events.append('windows')), \
+                 patch.object(auto,'run_cli',side_effect=call_cli), patch.object(auto,'private_plan',side_effect=lambda *x:root), \
+                 patch.object(auto,'ensure_ntlm_md4_runtime',return_value='native'), \
+                 patch.object(auto.getpass,'getpass',return_value='sensitive-password'), contextlib.redirect_stdout(io.StringIO()) as output:
+                auto.main()
+            self.assertEqual(events,['local','--preflight','windows','local','--preflight','reserve','--queue','run','validate'])
+            self.assertNotIn('sensitive-password',output.getvalue())
 if __name__=='__main__':unittest.main()

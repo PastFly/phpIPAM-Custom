@@ -97,6 +97,10 @@ if ($dns9Direct) {
         $result=dns9QueueOnce(new Database_PDO(),$argv[1]==='--queue');
         echo 'DNS9_CLI_JSON='.json_encode($result,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES)."\n";
     } catch (Throwable $e) {
-        fwrite(STDERR,"DNS9_CLI_ERROR=preflight_or_queue_failed\n"); exit(1);
+        $allowed=['previous_actor_unverified','assignment_unexpected','assignment_unavailable',
+            'collector_unavailable','connection_unavailable','job_already_pending','job_limit'];
+        $code=$e instanceof DomainException && in_array($e->getMessage(),$allowed,true)
+            ? $e->getMessage() : 'preflight_or_queue_failed';
+        fwrite(STDERR,'DNS9_CLI_ERROR='.$code."\n"); exit(1);
     }
 }

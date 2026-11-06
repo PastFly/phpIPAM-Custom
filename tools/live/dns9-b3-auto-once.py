@@ -58,7 +58,13 @@ def other_auto_processes():
 def run_cli(mode):
     if mode not in ('--preflight','--queue'): raise ValueError('mode_invalid')
     proc=subprocess.run(['php',str(ROOT/'tools/live/dns9-queue-cli.php'),mode],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False)
-    if proc.returncode!=0: raise RuntimeError('cli_preflight_or_queue_failed')
+    if proc.returncode!=0:
+        allowed={'previous_actor_unverified','assignment_unexpected','assignment_unavailable','collector_unavailable',
+                 'connection_unavailable','job_already_pending','job_limit'}
+        for line in proc.stderr.splitlines():
+            if line.startswith('DNS9_CLI_ERROR=') and line.split('=',1)[1] in allowed:
+                print(line,flush=True)
+        raise RuntimeError('cli_preflight_or_queue_failed')
     lines=[s for s in proc.stdout.splitlines() if s.startswith('DNS9_CLI_JSON=')]
     if len(lines)!=1: raise RuntimeError('cli_output_invalid')
     doc=json.loads(lines[0].split('=',1)[1])
@@ -147,6 +153,15 @@ def main():
 
 if __name__=='__main__':
     try: main()
-    except Exception:
-        print('DNS9_AUTO_ERROR=stopped_requires_review',file=sys.stderr)
+    except Exception as exc:
+        allowed={'root_required','source_sha_invalid','class_file_invalid','installed_class_hash_mismatch',
+                 'local_process_state_uncertain','another_auto_process','previous_guard_invalid',
+                 'previous_job_changed','timer_state_changed','queue_not_empty_or_job_not_expired',
+                 'upgraded_runner_receipt_invalid','cli_preflight_or_queue_failed','cli_output_invalid',
+                 'windows_preflight_invalid','windows_task_not_disabled','windows_process_or_task_uncertain',
+                 'previous_windows_status_changed','windows_status_timestamp_uncertain','backup_root_invalid',
+                 'password_empty','actor_changed','actor_changed_after_queue','retry_guard_invalid',
+                 'retry_guard_set_invalid','retry_guard_reservation_failed'}
+        code=str(exc) if str(exc) in allowed else 'stopped_requires_review'
+        print('DNS9_AUTO_ERROR='+code,file=sys.stderr)
         raise SystemExit(1)
