@@ -49,12 +49,12 @@ try {
     $tokens=$null; $errors=$null
     [void][System.Management.Automation.Language.Parser]::ParseInput($source,[ref]$tokens,[ref]$errors)
     if(@($errors).Count -ne 0){throw 'probe_control_parser_failed'}
-    $output=@(& ([scriptblock]::Create($source)) -StageDir $temp -TaskName $taskName -ProbeHash $probeHash -ReferenceHash $refHash)
+    $output=@(& ([scriptblock]::Create($source)) -StageDir $temp -Nonce 'aaaaaaaaaaaaaaaa' -ProbeHash $probeHash -ReferenceHash $refHash)
     if(-not ($output -contains 'DNS9_SYS_TASK_STARTED=1') -or -not ($output -contains 'DNS9_SYS_TASK_CLEANED=1') -or $script:UnregisterCalls -ne 1){throw 'probe_success_cleanup_invalid'}
     Remove-Item -LiteralPath (Join-Path $temp 'result.json')
     $script:FixtureMode='timeout'; $script:ClockCalls=0; $script:UnregisterCalls=0
     $failed=$false
-    try {& ([scriptblock]::Create($source)) -StageDir $temp -TaskName $taskName -ProbeHash $probeHash -ReferenceHash $refHash} catch {$failed=$true}
+    try {& ([scriptblock]::Create($source)) -StageDir $temp -Nonce 'aaaaaaaaaaaaaaaa' -ProbeHash $probeHash -ReferenceHash $refHash} catch {$failed=$true}
     if(-not $failed -or -not $script:TaskCreated -or $script:UnregisterCalls -ne 0){throw 'running_probe_removed'}
     Write-Output 'DNS9_SYSTEM_CONTROL_WINDOWS_FIXTURE_OK=1'
 } finally {

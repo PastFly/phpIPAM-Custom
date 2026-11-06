@@ -173,7 +173,7 @@ Write-Output 'DNS9_SYS_STAGE_READY=1'
     b3.validate_retry(GUARDS,RETRY_SHA)
     if b3.job_state(OLD_JOB)!='pending|0||0|||0' or b3.timer_enabled() or b3.timer_active(): raise RuntimeError('preflight_changed')
     rc,out,_=run(p,'powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',stage+r'\control.ps1',
-        '-StageDir',stage,'-TaskName',task,'-ProbeHash',hashlib.sha256(probe).hexdigest(),'-ReferenceHash',hashlib.sha256(ref).hexdigest()])
+        '-StageDir',stage,'-Nonce',nonce,'-ProbeHash',hashlib.sha256(probe).hexdigest(),'-ReferenceHash',hashlib.sha256(ref).hexdigest()])
     for marker in ('DNS9_SYS_TASK_STARTED=1','DNS9_SYS_TASK_CLEANED=1','DNS9_SYS_TASK_CLEANED=0','DNS9_SYS_TASK_WAS_STARTED=1','DNS9_SYS_TASK_WAS_STARTED=0'):
         if marker in out: print(marker,flush=True)
     if rc!=0 or 'DNS9_SYS_TASK_STARTED=1' not in out or 'DNS9_SYS_TASK_CLEANED=1' not in out: raise RuntimeError('remote_control_requires_review')

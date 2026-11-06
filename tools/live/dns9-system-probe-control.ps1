@@ -2,18 +2,19 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)][string]$StageDir,
-    [Parameter(Mandatory=$true)][string]$TaskName,
+    [Parameter(Mandatory=$true)][string]$Nonce,
     [Parameter(Mandatory=$true)][string]$ProbeHash,
     [Parameter(Mandatory=$true)][string]$ReferenceHash
 )
 $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
 $created=$false; $started=$false; $phase='preflight'
+$TaskName='phpIPAM Microsoft DNS Collector DNS9 SYSTEM Probe '+$Nonce
 $scriptPath=Join-Path $StageDir 'probe.ps1'
 $referencePath=Join-Path $StageDir 'reference.json'
 $resultPath=Join-Path $StageDir 'result.json'
 try {
-    if($TaskName -notmatch '^phpIPAM Microsoft DNS Collector DNS9 SYSTEM Probe [0-9a-f]{16}$'){throw 'invalid_task_name'}
+    if($Nonce -notmatch '^[0-9a-f]{16}$'){throw 'invalid_task_name'}
     if($StageDir -notmatch '^C:\\Windows\\Temp\\phpipam-dns9-system-probe-[0-9a-f]{16}$'){throw 'invalid_stage'}
     if($ProbeHash -notmatch '^[0-9a-f]{64}$' -or $ReferenceHash -notmatch '^[0-9a-f]{64}$'){throw 'invalid_hash'}
     if([string](Get-ScheduledTask -TaskName 'phpIPAM Microsoft DNS Collector' -ErrorAction Stop).State -ne 'Disabled'){throw 'permanent_task_not_disabled'}
