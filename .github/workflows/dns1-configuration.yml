@@ -51,8 +51,16 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - run: sudo apt-get update && sudo apt-get install -y php-cli
       - run: python3 -m venv .dns1-test-venv && .dns1-test-venv/bin/pip install playwright==1.51.0
-      - run: .dns1-test-venv/bin/python -m playwright install --with-deps chromium
+      - name: Select Chromium browser
+        run: |
+          if command -v google-chrome >/dev/null 2>&1; then
+            echo "CHROMIUM_PATH=$(command -v google-chrome)" >> "$GITHUB_ENV"
+          elif command -v chromium >/dev/null 2>&1; then
+            echo "CHROMIUM_PATH=$(command -v chromium)" >> "$GITHUB_ENV"
+          else
+            .dns1-test-venv/bin/python -m playwright install --with-deps chromium
+            echo "CHROMIUM_PATH=$(.dns1-test-venv/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()')" >> "$GITHUB_ENV"
+          fi
       - name: Offline Chromium component and real PHP service
         run: |
-          export CHROMIUM_PATH="$(.dns1-test-venv/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()')"
           .dns1-test-venv/bin/python tests/dns1/browser.test.py
