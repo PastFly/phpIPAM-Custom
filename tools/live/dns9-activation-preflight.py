@@ -30,7 +30,7 @@ def validate_queue(row):
 
 def validate_remote(doc,now):
     required_true=('permanent_disabled','principal_system','action_expected','trigger_enabled','repetition_active',
-        'start_when_available','ignore_new','files_match','status_expected')
+        'start_when_available','ignore_new','files_match','config_expected','token_blob_present','status_expected')
     required_int={'trigger_count':1,'interval_seconds':60,'execution_limit_seconds':180,
         'pilot_task_count':0,'unknown_process_count':0,'collector_process_count':0}
     if not isinstance(doc,dict) or any(doc.get(k) is not True for k in required_true): raise RuntimeError('windows_state_requires_review')

@@ -13,13 +13,13 @@ class ActivationPreflightTests(unittest.TestCase):
     def test_remote_readiness_rejects_unsafe_or_uncertain_state(self):
         good={'permanent_disabled':True,'principal_system':True,'action_expected':True,'trigger_count':1,
             'trigger_enabled':True,'interval_seconds':60,'repetition_active':True,'start_when_available':True,
-            'ignore_new':True,'execution_limit_seconds':180,'files_match':True,'status_expected':True,
+            'ignore_new':True,'execution_limit_seconds':180,'files_match':True,'config_expected':True,'token_blob_present':True,'status_expected':True,
             'pilot_task_count':0,'unknown_process_count':0,'collector_process_count':0,'server_epoch':2000000000}
         activation.validate_remote(good,2000000000)
         for key,value in [('permanent_disabled',False),('principal_system',False),('action_expected',False),
             ('trigger_count',2),('trigger_enabled',False),('interval_seconds',900),('repetition_active',False),
             ('start_when_available',False),('ignore_new',False),('execution_limit_seconds',181),
-            ('files_match',False),('status_expected',False),('pilot_task_count',1),
+            ('files_match',False),('config_expected',False),('token_blob_present',False),('status_expected',False),('pilot_task_count',1),
             ('unknown_process_count',1),('collector_process_count',1),('server_epoch',1999999800)]:
             with self.subTest(key=key),self.assertRaises(RuntimeError): activation.validate_remote({**good,key:value},2000000000)
 

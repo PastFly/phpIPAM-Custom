@@ -27,6 +27,8 @@ try {
         [IO.File]::WriteAllText($path,'fixture-'+$name)
         $ExpectedHashes[$name]=(Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLowerInvariant()
     }
+    [IO.File]::WriteAllText((Join-Path $Root 'collector.json'),'{"schema_version":1,"phpipam_base_uri":"https://ipam.realistbank.ru/","http_timeout_seconds":30,"dns_timeout_seconds":60}')
+    [IO.File]::WriteAllBytes((Join-Path $Root 'control-token.dpapi'),(New-Object byte[] 64))
     $statusPath=Join-Path $Root 'status.json'
     [IO.File]::WriteAllText($statusPath,('{"state":"submitted","job_id":"'+$ExpectedJobId+'","job_type":"list_zones","result_ok":true,"result_code":"ok","updated_at":1793959934}'))
     (Get-Item -LiteralPath $statusPath).LastWriteTimeUtc=[DateTimeOffset]::FromUnixTimeSeconds(1793959934).UtcDateTime
@@ -37,7 +39,7 @@ try {
     $lines=@(& $path); $line=@($lines | Where-Object {$_ -like 'DNS9_ACTIVATION_REMOTE_JSON=*'})
     if($line.Count -ne 1){throw 'activation_preflight_output_missing'}
     $doc=$line[0].Substring('DNS9_ACTIVATION_REMOTE_JSON='.Length)|ConvertFrom-Json
-    if(-not $doc.permanent_disabled -or -not $doc.principal_system -or -not $doc.action_expected -or -not $doc.files_match -or
+    if(-not $doc.permanent_disabled -or -not $doc.principal_system -or -not $doc.action_expected -or -not $doc.files_match -or -not $doc.config_expected -or -not $doc.token_blob_present -or
        -not $doc.status_expected -or -not $doc.repetition_active -or $doc.interval_seconds -ne 60 -or
        $doc.execution_limit_seconds -ne 180 -or $doc.collector_process_count -ne 0){throw 'activation_preflight_success_invalid'}
     $script:FixtureDisabled=$false; $script:FixtureActiveProcess=$true

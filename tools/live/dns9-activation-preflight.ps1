@@ -34,6 +34,15 @@ foreach($name in @('Invoke-PhpIpamDnsWorkerOnce.ps1','Invoke-PhpIpamDnsPreview.p
     $hash=(Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $Root $name)).Hash.ToLowerInvariant()
     if($hash -cne [string]$ExpectedHashes.$name){$filesMatch=$false}
 }
+$config=Get-Content -LiteralPath (Join-Path $Root 'collector.json') -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+$actualFields=@($config.PSObject.Properties.Name | Sort-Object)
+$expectedFields=@(@('schema_version','phpipam_base_uri','http_timeout_seconds','dns_timeout_seconds') | Sort-Object)
+$configExpected=(($actualFields -join [char]0) -eq ($expectedFields -join [char]0) -and [int]$config.schema_version -eq 1 -and
+    [string]$config.phpipam_base_uri -eq 'https://ipam.realistbank.ru/' -and
+    [int]$config.http_timeout_seconds -eq 30 -and [int]$config.dns_timeout_seconds -eq 60)
+$tokenPath=Join-Path $Root 'control-token.dpapi'
+$tokenItem=Get-Item -LiteralPath $tokenPath -ErrorAction Stop
+$tokenBlobPresent=(-not $tokenItem.PSIsContainer -and [int64]$tokenItem.Length -ge 32 -and [int64]$tokenItem.Length -le 8192)
 $statusPath=Join-Path $Root 'status.json'
 $status=Get-Content -LiteralPath $statusPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
 $statusItem=Get-Item -LiteralPath $statusPath -ErrorAction Stop
@@ -53,6 +62,8 @@ $statusExpected=([string]$status.state -eq 'submitted' -and [string]$status.job_
     ignore_new=([string]$task.Settings.MultipleInstances -eq 'IgnoreNew')
     execution_limit_seconds=[int]$limit
     files_match=[bool]$filesMatch
+    config_expected=[bool]$configExpected
+    token_blob_present=[bool]$tokenBlobPresent
     status_expected=[bool]$statusExpected
     pilot_task_count=[int]$otherTasks.Count
     unknown_process_count=[int]$unknown.Count
