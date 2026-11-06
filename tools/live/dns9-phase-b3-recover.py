@@ -11,6 +11,7 @@ from pathlib import Path
 
 OLD_SHA='60ddc1545fd2b333b44ca149ddd90d6ebfb8e7d1'
 GUARD_NAME='dns9-b3-live-attempt-'+OLD_SHA
+RECOVERY_MARKER='dns9-b3-live-attempt-recovery-in-progress'
 GUARD_ROOT=Path('/var/lib/phpipam-custom')
 BACKUP_ROOT=Path('/var/backups/phpipam-custom')
 RECEIPT=BACKUP_ROOT/'dns9-winrm-bootstrap-20260930-122257'/'receipt.json'
@@ -50,6 +51,14 @@ def archive_guard(guard_root,backup_root,uid=0,gid=0):
                 raise RuntimeError('guard_metadata_or_content_invalid')
         finally:
             os.close(fd)
+        marker_fd=os.open(RECOVERY_MARKER,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600,dir_fd=root_fd)
+        try:
+            data=(OLD_SHA+'\n').encode('ascii')
+            if os.write(marker_fd,data)!=len(data): raise RuntimeError('recovery_marker_write_failed')
+            os.fsync(marker_fd)
+        finally:
+            os.close(marker_fd)
+        os.fsync(root_fd)
         saved=backup_root/('dns9-b3-preauth-guard-'+str(time.time_ns()))
         saved.mkdir(mode=0o700)
         parent_fd=os.open(backup_root,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
@@ -59,11 +68,13 @@ def archive_guard(guard_root,backup_root,uid=0,gid=0):
         current=os.stat(GUARD_NAME,dir_fd=root_fd,follow_symlinks=False)
         if (current.st_dev,current.st_ino,current.st_size,current.st_mtime_ns,current.st_ctime_ns,current.st_mode,current.st_uid,current.st_gid,current.st_nlink)!=(st.st_dev,st.st_ino,st.st_size,st.st_mtime_ns,st.st_ctime_ns,st.st_mode,st.st_uid,st.st_gid,st.st_nlink):
             raise RuntimeError('guard_changed_during_recovery')
-        if set(guard_root.glob('dns9-b3-live-attempt-*'))!={guard}:
+        if set(guard_root.glob('dns9-b3-live-attempt-*'))!={guard,guard_root/RECOVERY_MARKER}:
             raise RuntimeError('guard_set_changed')
         os.rename(GUARD_NAME,'original-guard',src_dir_fd=root_fd,dst_dir_fd=backup_fd)
         os.fsync(root_fd)
         os.fsync(backup_fd)
+        os.unlink(RECOVERY_MARKER,dir_fd=root_fd)
+        os.fsync(root_fd)
         return saved/'original-guard'
     finally:
         if backup_fd is not None: os.close(backup_fd)

@@ -35,6 +35,7 @@ class GuardRecoveryTests(unittest.TestCase):
         with patch.object(recover.os,'rename',side_effect=OSError('unavailable')):
             with self.assertRaises(OSError): recover.archive_guard(self.root,self.backups,*self.owner)
         self.assertEqual(self.guard.read_text(),recover.OLD_SHA+'\n')
+        self.assertTrue((self.root/recover.RECOVERY_MARKER).exists())
     def test_wrong_contents_and_unsafe_metadata_are_refused(self):
         for variant in ('contents','mode','symlink','hardlink'):
             with self.subTest(variant=variant):
