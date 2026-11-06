@@ -109,6 +109,8 @@ final class IntegrationDnsAutonomousScheduler
             $now=$this->now();
             $jobs=[];
             foreach($this->repo->jobs() as $job) {
+                // Future job types have their own lifecycle and must not be expired or pruned here.
+                if(!in_array($job['job_type']??null,['test_connection','list_zones'],true)) {$jobs[]=$job;continue;}
                 $state=$job['state']??'';
                 $finished=(int)($job['finished_at']??$job['updated_at']??0);
                 if(in_array($state,['succeeded','failed','expired','obsolete'],true) && $finished<=$now-86400) {

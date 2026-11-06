@@ -228,5 +228,16 @@ for ($i=0;$i<12*60;$i++,$fastNow+=60) {
 }
 ok(count($repo9->jobs)<512,'failed automatic jobs also remain bounded');
 
+$futureRepo=new Dns9MemoryRepo();
+$futurePending=str_repeat('1',32);$futureTerminal=str_repeat('2',32);
+$futureRepo->jobs[$futurePending]=['id'=>$futurePending,'connection_id'=>$connection,'collector_id'=>$collector,
+    'job_type'=>'collect_selected_zones','state'=>'pending','expires_at'=>1999999999,'updated_at'=>1999999999];
+$futureRepo->jobs[$futureTerminal]=['id'=>$futureTerminal,'connection_id'=>$connection,'collector_id'=>$collector,
+    'job_type'=>'collect_selected_zones','state'=>'succeeded','finished_at'=>1999900000,'updated_at'=>1999900000];
+$futureScheduler=new IntegrationDnsAutonomousScheduler($futureRepo,static fn(): int=>2000000000);
+$futureScheduler->run([$disabledIdentity]);
+ok(($futureRepo->jobs[$futurePending]['state']??null)==='pending','legacy scheduler does not expire unknown job types');
+ok(isset($futureRepo->jobs[$futureTerminal]),'legacy scheduler does not prune unknown job types');
+
 echo "DNS9_AUTONOMOUS_SCHEDULER_ASSERTIONS={$n}\n";
 echo "DNS9_AUTONOMOUS_SCHEDULER_TESTS_OK=1\n";
