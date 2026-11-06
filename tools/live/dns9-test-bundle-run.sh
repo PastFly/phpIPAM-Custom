@@ -36,6 +36,12 @@ if [[ "${1:-}" == '--activation-preflight' && $# -eq 1 ]]; then
   python3 tools/live/dns9-activation-preflight.py
   exit 0
 fi
+if [[ "${1:-}" == '--autonomous-observe' && $# -eq 1 ]]; then
+  STAGE='read-only-autonomous-observation'
+  python3 tests/dns9/autonomous-observe.test.py
+  python3 tools/live/dns9-autonomous-observe.py
+  exit 0
+fi
 if [[ "${1:-}" == '--activation-apply' && $# -eq 1 ]]; then
   STAGE='guarded-automation-activation'
   python3 tests/dns9/activation-preflight.test.py

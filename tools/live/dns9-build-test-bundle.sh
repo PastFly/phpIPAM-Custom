@@ -35,6 +35,8 @@ for file in \
   tools/live/dns9-activation-coordinator.py \
   tools/live/dns9-activation-task-control.ps1 \
   tests/dns9/activation-coordinator.test.py \
+  tools/live/dns9-autonomous-observe.py \
+  tests/dns9/autonomous-observe.test.py \
   tools/live/dns9-activation-queue.sql \
   tools/live/dns9-activation-mutex.php \
   tests/dns9/activation-mutex.test.php \
