@@ -22,6 +22,11 @@ on:
       - 'tests/dns9/b4-list-zones.test.py'
       - 'tools/live/dns9-ui-deploy.py'
       - 'tools/live/dns9-scheduler-deploy.py'
+      - 'tools/live/dns9-activation-preflight.py'
+      - 'tools/live/dns9-activation-preflight.ps1'
+      - 'tests/dns9/activation-preflight.test.py'
+      - 'deploy/dns9/phpipam-dns-autonomous.service'
+      - 'deploy/dns9/phpipam-dns-autonomous.timer'
       - 'tests/dns9/scheduler-deploy.test.py'
       - 'tests/dns9/autonomous-scheduler.test.php'
       - 'layers/dns9/functions/classes/class.IntegrationDnsAutonomousScheduler.php'
@@ -70,6 +75,7 @@ jobs:
           python3 tests/dns9/b4-list-zones.test.py
           python3 tests/dns9/ui-deploy.test.py
           python3 tests/dns9/scheduler-deploy.test.py
+          python3 tests/dns9/activation-preflight.test.py
           php tests/dns9/autonomous-scheduler.test.php
           php -l tools/live/dns9-ui-smoke.php
           php tests/dns9/ui-smoke.test.php
@@ -98,6 +104,7 @@ jobs:
           python3 tests/dns9/b4-list-zones.test.py
           python3 tests/dns9/ui-deploy.test.py
           python3 tests/dns9/scheduler-deploy.test.py
+          python3 tests/dns9/activation-preflight.test.py
           php tests/dns9/autonomous-scheduler.test.php
           php -l tools/live/dns9-ui-smoke.php
           php tests/dns9/ui-smoke.test.php

@@ -30,6 +30,11 @@ for file in \
   tests/dns9/b4-list-zones.test.py \
   tools/live/dns9-ui-deploy.py \
   tools/live/dns9-scheduler-deploy.py \
+  tools/live/dns9-activation-preflight.py \
+  tools/live/dns9-activation-preflight.ps1 \
+  tests/dns9/activation-preflight.test.py \
+  deploy/dns9/phpipam-dns-autonomous.service \
+  deploy/dns9/phpipam-dns-autonomous.timer \
   tests/dns9/scheduler-deploy.test.py \
   tests/dns9/autonomous-scheduler.test.php \
   layers/dns9/functions/classes/class.IntegrationDnsAutonomousScheduler.php \
@@ -71,7 +76,7 @@ printf '%s\n' "$SHA" > "$STAGE/EXPECTED_SHA"
 printf '%s\n' 'b3-readonly-diagnostic+disk-inventory' > "$STAGE/STAGE"
 (
  cd "$STAGE"
- find tools tests collectors layers -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+ find tools tests collectors layers deploy -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
  sha256sum EXPECTED_SHA STAGE >> SHA256SUMS
 )
 PACKAGE="$OUT/phpipam-dns9-test-$SHORT.tar.gz"

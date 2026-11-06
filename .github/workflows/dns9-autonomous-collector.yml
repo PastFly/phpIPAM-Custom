@@ -99,6 +99,9 @@ jobs:
       - name: Exercise isolated SYSTEM diagnostic
         shell: powershell
         run: .\tests\dns9\system-probe.test.ps1
+      - name: Verify read-only activation preflight
+        shell: powershell
+        run: .\tests\dns9\activation-preflight.test.ps1
       - name: Exercise diagnostic task cleanup
         shell: powershell
         run: .\tests\dns9\system-probe-control.test.ps1

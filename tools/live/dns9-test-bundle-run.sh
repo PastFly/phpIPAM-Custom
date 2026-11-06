@@ -30,6 +30,12 @@ print('TEST_BUNDLE_PYTHON_COMPILE=PASS')
 PY
 python3 tests/dns9/phase-b3-diagnose-source.test.py
 if [[ "$(id -u)" != 0 ]]; then echo 'TEST_BUNDLE_ERROR=root_required'; exit 1; fi
+if [[ "${1:-}" == '--activation-preflight' && $# -eq 1 ]]; then
+  STAGE='read-only-activation-preflight'
+  python3 tests/dns9/activation-preflight.test.py
+  python3 tools/live/dns9-activation-preflight.py
+  exit 0
+fi
 if [[ "${1:-}" == '--scheduler-fix-deploy' && $# -eq 1 ]]; then
   STAGE='guarded-scheduler-fix-deploy'
   python3 tests/dns9/scheduler-deploy.test.py

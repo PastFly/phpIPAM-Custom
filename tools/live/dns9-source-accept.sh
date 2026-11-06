@@ -40,6 +40,7 @@ python3 tests/dns9/b3-after-pdo.test.py
 python3 tests/dns9/b4-list-zones.test.py
 python3 tests/dns9/ui-deploy.test.py
 python3 tests/dns9/scheduler-deploy.test.py
+python3 tests/dns9/activation-preflight.test.py
 python3 tests/dns9/b3-retry-guard.test.py
 python3 tests/dns9/system-probe.test.py
 python3 tests/dns9/pdo-hotfix.test.py

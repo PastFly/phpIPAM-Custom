@@ -1,0 +1,50 @@
+#requires -Version 5.1
+$ErrorActionPreference='Stop'
+$repository=(Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+$Root=Join-Path $env:TEMP ('dns9-activation-fixture-'+[Guid]::NewGuid().ToString('N'))
+$PermanentName='phpIPAM Microsoft DNS Collector'
+$ExpectedJobId='3af8e09411c0e94a17ed19d3f0872359'
+$script:FixtureDisabled=$true
+$script:FixtureActiveProcess=$false
+function Get-ScheduledTask {
+    param($TaskName,$ErrorAction)
+    $action=[PSCustomObject]@{Execute='powershell.exe';Arguments=('-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "'+(Join-Path $Root 'Invoke-PhpIpamDnsCollectorScheduled.ps1')+'"')}
+    $trigger=[PSCustomObject]@{Enabled=$true;StartBoundary=(Get-Date).AddMinutes(-5).ToString('s');Repetition=[PSCustomObject]@{Interval='PT1M';Duration='P3650D'}}
+    return [PSCustomObject]@{TaskName=$PermanentName;State=$(if($script:FixtureDisabled){'Disabled'}else{'Ready'});
+        Principal=[PSCustomObject]@{UserId='SYSTEM';LogonType='ServiceAccount'};Actions=@($action);Triggers=@($trigger);
+        Settings=[PSCustomObject]@{StartWhenAvailable=$true;MultipleInstances='IgnoreNew';ExecutionTimeLimit='PT3M'}}
+}
+function Get-CimInstance {
+    param($ClassName,$ErrorAction)
+    if($script:FixtureActiveProcess){return [PSCustomObject]@{Name='powershell.exe';CommandLine='Invoke-PhpIpamDnsCollectorScheduled.ps1'}}
+    return @()
+}
+try {
+    New-Item -ItemType Directory -Path $Root | Out-Null
+    $ExpectedHashes=@{}
+    foreach($name in @('Invoke-PhpIpamDnsWorkerOnce.ps1','Invoke-PhpIpamDnsPreview.ps1','Invoke-PhpIpamDnsCollectorScheduled.ps1')) {
+        $path=Join-Path $Root $name
+        [IO.File]::WriteAllText($path,'fixture-'+$name)
+        $ExpectedHashes[$name]=(Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLowerInvariant()
+    }
+    $statusPath=Join-Path $Root 'status.json'
+    [IO.File]::WriteAllText($statusPath,('{"state":"submitted","job_id":"'+$ExpectedJobId+'","job_type":"list_zones","result_ok":true,"result_code":"ok","updated_at":1793959934}'))
+    (Get-Item -LiteralPath $statusPath).LastWriteTimeUtc=[DateTimeOffset]::FromUnixTimeSeconds(1793959934).UtcDateTime
+    $path=Join-Path $repository 'tools\live\dns9-activation-preflight.ps1'
+    $tokens=$null; $errors=$null
+    [void][System.Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)
+    if(@($errors).Count -ne 0){throw 'activation_preflight_parse_failed'}
+    $lines=@(& $path); $line=@($lines | Where-Object {$_ -like 'DNS9_ACTIVATION_REMOTE_JSON=*'})
+    if($line.Count -ne 1){throw 'activation_preflight_output_missing'}
+    $doc=$line[0].Substring('DNS9_ACTIVATION_REMOTE_JSON='.Length)|ConvertFrom-Json
+    if(-not $doc.permanent_disabled -or -not $doc.principal_system -or -not $doc.action_expected -or -not $doc.files_match -or
+       -not $doc.status_expected -or -not $doc.repetition_active -or $doc.interval_seconds -ne 60 -or
+       $doc.execution_limit_seconds -ne 180 -or $doc.collector_process_count -ne 0){throw 'activation_preflight_success_invalid'}
+    $script:FixtureDisabled=$false; $script:FixtureActiveProcess=$true
+    $line=@(& $path | Where-Object {$_ -like 'DNS9_ACTIVATION_REMOTE_JSON=*'})
+    $doc=$line[0].Substring('DNS9_ACTIVATION_REMOTE_JSON='.Length)|ConvertFrom-Json
+    if($doc.permanent_disabled -or $doc.collector_process_count -ne 1){throw 'activation_preflight_unsafe_state_not_detected'}
+    Write-Output 'DNS9_ACTIVATION_WINDOWS_FIXTURE_OK=1'
+} finally {
+    if(Test-Path -LiteralPath $Root){Remove-Item -LiteralPath $Root -Recurse -Force}
+}
