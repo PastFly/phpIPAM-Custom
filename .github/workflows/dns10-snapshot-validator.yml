@@ -5,6 +5,9 @@ on:
     paths:
       - 'layers/dns10/**'
       - 'tests/dns10/**'
+      - 'database/dns10/**'
+      - 'database/dns1/**'
+      - 'database/dns3/**'
       - 'design/DNS10_ZONE_SNAPSHOT_VALIDATION.md'
       - '.github/workflows/dns10-snapshot-validator.yml'
   workflow_dispatch:
@@ -26,3 +29,30 @@ jobs:
           php -l tests/dns10/publication-policy.test.php
           php tests/dns10/snapshot-validator.test.php
           php tests/dns10/publication-policy.test.php
+
+  mariadb-schema:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: fixture-only-not-a-production-secret
+          MARIADB_DATABASE: phpipam_dns10_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Install test-only PHP MySQL driver
+        run: sudo apt-get update && sudo apt-get install -y php-cli php-mysql
+      - name: Verify isolated schema, foreign keys and transactional rollback
+        env:
+          DNS10_TEST_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=phpipam_dns10_test;charset=utf8mb4'
+          DNS10_TEST_USER: root
+          DNS10_TEST_PASSWORD: fixture-only-not-a-production-secret
+        run: |
+          php -l tests/dns10/mysql.test.php
+          php tests/dns10/mysql.test.php
