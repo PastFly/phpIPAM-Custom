@@ -198,6 +198,8 @@ if __name__=='__main__':
                  'hotfix_backup_invalid','hotfix_installed_state_changed','actor_invalid','previous_cli_actor_unverified','boundary_hash_mismatch',
                  'local_process_uncertain','another_process_exists','pdo_fake_auth_boundary_failed','remote_preflight_too_long','remote_preflight_failed',
                  'windows_state_changed','backup_root_invalid','previous_job_backup_invalid','backup_write_failed','password_empty','actor_changed',
-                 'actor_changed_after_queue','followup_guard_directory_invalid','followup_guard_reservation_failed','followup_guard_set_invalid','previous_jobs_missing'}
+                 'actor_changed_after_queue','followup_guard_directory_invalid','followup_guard_reservation_failed','followup_guard_set_invalid','previous_jobs_missing',
+                 'system_marker_invalid','job_changed','timer_changed','queue_uncertain','target_boundary_invalid','retry_guard_invalid','retry_guard_set_invalid',
+                 'cli_output_invalid','cli_preflight_or_queue_failed','fake_http_failed','fake_collector_collision'}
         print('DNS9_AFTER_PDO_ERROR='+(str(exc) if str(exc) in allowed else 'stopped_requires_review'),file=sys.stderr)
         raise SystemExit(1)
