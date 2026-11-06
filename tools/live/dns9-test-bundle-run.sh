@@ -30,6 +30,14 @@ print('TEST_BUNDLE_PYTHON_COMPILE=PASS')
 PY
 python3 tests/dns9/phase-b3-diagnose-source.test.py
 if [[ "$(id -u)" != 0 ]]; then echo 'TEST_BUNDLE_ERROR=root_required'; exit 1; fi
+if [[ "${1:-}" == '--b3-pdo-hotfix' && $# -eq 1 ]]; then
+  STAGE='b3-pdo-guarded-hotfix'
+  python3 tests/dns9/pdo-hotfix.test.py
+  php -l tools/live/dns9-cold-db-check.php
+  php tests/dns9/lazy-database.test.php
+  python3 tools/live/dns9-pdo-hotfix.py
+  exit 0
+fi
 if [[ "${1:-}" == '--b3-system-probe' && $# -eq 1 ]]; then
   STAGE='b3-system-isolated-probe'
   python3 tests/dns9/system-probe.test.py

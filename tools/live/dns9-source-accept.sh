@@ -38,6 +38,7 @@ python3 tests/dns9/runner-tls-upgrade.test.py
 python3 tests/dns9/b3-auto-once.test.py
 python3 tests/dns9/b3-retry-guard.test.py
 python3 tests/dns9/system-probe.test.py
+python3 tests/dns9/pdo-hotfix.test.py
 python3 tests/dns9/phase-b3-diagnose-source.test.py
 python3 - <<'PY'
 from pathlib import Path
@@ -54,6 +55,7 @@ php -l layers/dns1/functions/classes/class.IntegrationDnsAdminView.php
 php -l layers/dns1/app/admin/integrations/dns-config-action.php
 php -l layers/dns1/app/admin/integrations/dns-config-panel.php
 php -l tools/live/dns9-queue-cli.php
+php -l tools/live/dns9-cold-db-check.php
 
 php tests/dns9/autonomous-scheduler.test.php
 php tests/dns9/autonomous-admin.test.php

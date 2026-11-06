@@ -26,8 +26,7 @@ final class IntegrationDnsPhpIpamConfigRepository implements IntegrationDnsConfi
         if ($this->ownedTransaction) throw new DomainException('configuration_unavailable');
         $begun=false;
         try {
-            // phpIPAM's Database_PDO connects lazily, but beginTransaction()
-            // itself assumes an existing PDO connection.
+            // phpIPAM connects lazily, but beginTransaction() assumes a connection.
             if (method_exists($this->db,'isConnected')) {
                 if (!is_callable([$this->db,'isConnected']) || !is_callable([$this->db,'connect'])) {
                     throw new DomainException('configuration_unavailable');

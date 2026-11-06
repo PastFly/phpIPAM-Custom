@@ -33,6 +33,11 @@ for file in \
   tools/live/dns9-system-probe.ps1 \
   tools/live/dns9-system-probe-control.ps1 \
   tests/dns9/system-probe.test.py \
+  tools/live/dns9-pdo-hotfix.py \
+  tools/live/dns9-cold-db-check.php \
+  tests/dns9/pdo-hotfix.test.py \
+  tests/dns9/lazy-database.test.php \
+  layers/dns4/functions/classes/class.IntegrationDnsCollectorMachineService.php \
   layers/dns5/functions/classes/class.IntegrationDnsCollectorMachineHttpController.php \
   layers/dns5/app/integrations/dns/machine-control.php \
   tests/dns3/control-memory-repository.php \
