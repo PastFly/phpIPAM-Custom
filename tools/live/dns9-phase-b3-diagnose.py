@@ -43,6 +43,11 @@ $PermanentTask={ps_quote(PERMANENT_TASK)}
 $Status=Join-Path {ps_quote(INSTALL_ROOT)} 'status.json'
 
 $perm=Get-ScheduledTask -TaskName $PermanentTask -ErrorAction Stop
+$pilotTasks=@(Get-ScheduledTask -ErrorAction Stop | Where-Object {{$_.TaskName -like ({ps_quote(PILOT_PREFIX+'*')})}})
+$collectorProcesses=@(Get-CimInstance -ClassName Win32_Process -ErrorAction Stop | Where-Object {{
+    $_.Name -match '^(powershell|pwsh)\\.exe$' -and
+    ($_.CommandLine -like '*Invoke-PhpIpamDnsCollectorScheduled.ps1*' -or $_.CommandLine -like '*phpipam-dns9-phase-b3-*')
+}})
 $statusDoc=$null
 $statusMtime=$null
 if(Test-Path -LiteralPath $Status -PathType Leaf){{
@@ -119,6 +124,8 @@ if($null -ne $log -and $log.IsEnabled){{
     queried_task=$TaskName
     permanent_task_state=[string]$perm.State
     permanent_allow_demand_start=[bool]$perm.Settings.AllowDemandStart
+    pilot_task_count=$pilotTasks.Count
+    collector_process_count=$collectorProcesses.Count
     status_exists=[bool](Test-Path -LiteralPath $Status -PathType Leaf)
     status_mtime_utc=$statusMtime
     status=$statusDoc

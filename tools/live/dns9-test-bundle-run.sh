@@ -30,6 +30,43 @@ print('TEST_BUNDLE_PYTHON_COMPILE=PASS')
 PY
 python3 tests/dns9/phase-b3-diagnose-source.test.py
 if [[ "$(id -u)" != 0 ]]; then echo 'TEST_BUNDLE_ERROR=root_required'; exit 1; fi
+if [[ "${1:-}" == '--b3-recovery-check' && $# -eq 1 ]]; then
+  STAGE='b3-readonly-recovery-check'
+  RECEIPT='/var/backups/phpipam-custom/dns9-winrm-bootstrap-20260930-122257/receipt.json'
+  python3 tools/live/dns9-phase-b3-first-cycle.py --bootstrap-receipt "$RECEIPT"
+  python3 - <<'PY'
+from pathlib import Path
+import os, stat
+root=Path('/var/lib/phpipam-custom')
+sha='60ddc1545fd2b333b44ca149ddd90d6ebfb8e7d1'
+guard=root/('dns9-b3-live-attempt-'+sha)
+guards=list(root.glob('dns9-b3-live-attempt-*'))
+print('DNS9_B3_GUARD_COUNT='+str(len(guards)))
+fd=os.open(guard,os.O_RDONLY|os.O_NOFOLLOW)
+try:
+    info=os.fstat(fd)
+    valid=(stat.S_ISREG(info.st_mode) and info.st_uid==0 and info.st_gid==0 and
+           stat.S_IMODE(info.st_mode)==0o600 and info.st_nlink==1 and
+           os.read(fd,128)==(sha+'\n').encode('ascii'))
+finally:
+    os.close(fd)
+print('DNS9_B3_STALE_GUARD_METADATA_AND_CONTENT_OK='+str(int(valid)))
+if not valid or len(guards)!=1: raise SystemExit('DNS9_B3_ERROR=guard_requires_review')
+PY
+  QUEUE_COUNT="$(mariadb --batch --skip-column-names phpipam <<'SQL'
+SELECT COUNT(*) FROM custom_dns_control_jobs
+WHERE collector_id=(SELECT collector_id FROM custom_dns_control_jobs WHERE id='a4ee3e5987dd15495d7e2419e853d9c8')
+AND state IN ('pending','running');
+SQL
+)"
+  [[ "$QUEUE_COUNT" =~ ^[0-9]+$ ]] || { echo 'DNS9_B3_ERROR=queue_count_invalid'; exit 1; }
+  echo "DNS9_B3_COLLECTOR_PENDING_OR_RUNNING=$QUEUE_COUNT"
+  read -r -p 'WinRM diagnostic username: ' DNS9_USER </dev/tty
+  [[ -n "$DNS9_USER" ]] || { echo 'TEST_BUNDLE_ERROR=username_required'; exit 1; }
+  python3 tools/live/dns9-phase-b3-diagnose.py --username "$DNS9_USER" --suffix 4aafbf3f8edc
+  echo 'DNS9_B3_RECOVERY_CHECK_NO_GUARD_REMOVED=1'
+  exit 0
+fi
 if [[ "${1:-}" == '--b3-live-once' ]]; then
   STAGE='b3-controlled-live-once'
   echo 'TEST_BUNDLE_STAGE=b3-controlled-live-once'

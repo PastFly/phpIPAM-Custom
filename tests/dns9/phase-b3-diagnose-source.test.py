@@ -22,6 +22,7 @@ for required in [
     "Microsoft-Windows-TaskScheduler/Operational",
     "Get-WinEvent -ListLog","Get-WinEvent -FilterHashtable",
     "status.json","status_epoch_consistent","status_error_generic","permanent_task_state","permanent_allow_demand_start",
+    "pilot_task_count","collector_process_count","Get-CimInstance -ClassName Win32_Process",
     "operational_event_count","operational_events",
     "DNS9_PHASE_B3_DIAG_REMOTE_MUTATION=0",
     "DNS9_PHASE_B3_DIAG_DB_MUTATION=0",
