@@ -74,6 +74,12 @@ final class IntegrationDnsCollectorControlPhpIpamRepository implements Integrati
         if (!$this->ownedTransaction) throw new DomainException('control_unavailable');
     }
 
+    /** Only a configuration adapter using this exact DB may join the guarded transaction. */
+    public function ownsTransactionFor(object $db): bool
+    {
+        return $this->ownedTransaction && $this->db===$db;
+    }
+
     private static function field(mixed $row,string $field): mixed
     {
         if (is_array($row)) return $row[$field]??null;

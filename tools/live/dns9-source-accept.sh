@@ -69,6 +69,7 @@ php -l tools/live/dns9-activation-mutex.php
 
 php tests/dns9/autonomous-scheduler.test.php
 php tests/dns9/autonomous-admin.test.php
+php tests/dns9/revoke-atomicity.test.php
 php tests/dns9/queue-cli.test.php
 php tests/dns9/lazy-database.test.php
 php tests/dns9/ui-smoke.test.php

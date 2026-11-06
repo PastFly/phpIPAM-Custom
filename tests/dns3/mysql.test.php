@@ -320,4 +320,48 @@ foreach(['ABORT','COMMIT_ENABLE'] as $command) {
     } finally {fclose($input);fclose($output);if(is_file($dir.'/prestate.json')) unlink($dir.'/prestate.json');rmdir($dir);}
 }
 
+// Cross-adapter revoke uses the same guarded DB transaction in this disposable fixture.
+require $root.'/layers/dns1/functions/classes/class.IntegrationDnsConfigService.php';
+require $root.'/layers/dns9/functions/classes/class.IntegrationDnsAutonomousAdminService.php';
+$revokeConnection=str_repeat('e',32);$revokeCollector=str_repeat('f',32);$revokeJob=str_repeat('9',32);
+$q=$pdo->prepare('INSERT INTO custom_dns_connections (id,provider,name,server,interval_seconds,credential_mode,profile_id,collector_id,enabled,status,revision,binding_epoch,updated_at,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+$q->execute([$revokeConnection,'microsoft_dns','Synthetic fixture','dns.example.invalid',300,'collector_identity',null,null,1,'active',3,4,$now,17]);
+$repo->transaction(function() use($repo,$revokeConnection,$revokeCollector,$revokeJob,$now): void {
+    $repo->putCollector(['id'=>$revokeCollector,'name'=>'Synthetic collector','token_digest'=>str_repeat('a',64),
+        'revision'=>2,'control_epoch'=>2,'revoked'=>false,'created_at'=>$now,'created_by'=>17,'updated_at'=>$now,'updated_by'=>17]);
+    $repo->putAssignment(['connection_id'=>$revokeConnection,'collector_id'=>$revokeCollector,'revision'=>1,'assigned_at'=>$now,'assigned_by'=>17]);
+    $repo->putJob(['id'=>$revokeJob,'collector_id'=>$revokeCollector,'connection_id'=>$revokeConnection,'assignment_revision'=>1,
+        'job_type'=>'test_connection','state'=>'pending','configuration_revision'=>3,'binding_epoch'=>4,'credential_version'=>null,
+        'lease_id'=>null,'lease_expires_at'=>null,'attempt_count'=>0,'credential_delivered_at'=>null,'result_code'=>null,'result_payload'=>null,
+        'finished_at'=>null,'created_at'=>$now,'expires_at'=>$now+300,'updated_at'=>$now,'updated_by'=>17]);
+});
+$configService=(new ReflectionClass(IntegrationDnsConfigService::class))->newInstanceWithoutConstructor();
+$admin=new IntegrationDnsAutonomousAdminService($configService,$configRepo,$service);
+$readRevokeState=static function() use($pdo,$revokeConnection,$revokeCollector,$revokeJob): array {
+    $rows=[];
+    foreach([
+        ['SELECT enabled,status,revision,binding_epoch,updated_at,updated_by FROM custom_dns_connections WHERE id=?',$revokeConnection],
+        ['SELECT revoked,revision,control_epoch,updated_at,updated_by FROM custom_dns_collectors WHERE id=?',$revokeCollector],
+        ['SELECT connection_id,collector_id,revision FROM custom_dns_collector_assignments WHERE connection_id=?',$revokeConnection],
+        ['SELECT state,updated_at,updated_by FROM custom_dns_control_jobs WHERE id=?',$revokeJob]
+    ] as [$sql,$id]) {$q=$pdo->prepare($sql);$q->execute([$id]);$rows[]=$q->fetch(PDO::FETCH_ASSOC);}
+    $rows[]=(int)$pdo->query('SELECT COUNT(*) FROM custom_dns_config_events')->fetchColumn();
+    $rows[]=(int)$pdo->query('SELECT COUNT(*) FROM custom_dns_control_events')->fetchColumn();
+    return $rows;
+};
+$beforeRevoke=$readRevokeState();
+$pdo->exec("CREATE TRIGGER dns3_fixture_fail_composed BEFORE UPDATE ON custom_dns_control_jobs FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='fixture_rejection'");
+try {
+    try {$admin->revokeCollector($revokeCollector,2,17);throw new RuntimeException('composed_failure_missing');}
+    catch(PDOException $e) {ok3sql($e->getCode()==='45000','composed revoke later failure propagated');}
+    ok3sql($readRevokeState()===$beforeRevoke,'composed revoke rolls back config, control and audits');
+} finally {$pdo->exec('DROP TRIGGER dns3_fixture_fail_composed');}
+$admin->revokeCollector($revokeCollector,2,17);
+$afterRevoke=$readRevokeState();
+ok3sql((int)$afterRevoke[0]['enabled']===0 && (int)$afterRevoke[0]['revision']===4 && (int)$afterRevoke[0]['binding_epoch']===5,
+    'composed revoke commits disabled connection and versions');
+ok3sql((int)$afterRevoke[1]['revoked']===1 && $afterRevoke[2]===false && $afterRevoke[3]['state']==='obsolete',
+    'composed revoke commits collector assignment and job changes');
+ok3sql($afterRevoke[4]===$beforeRevoke[4]+1 && $afterRevoke[5]===$beforeRevoke[5]+1,'composed revoke commits both audits');
+
 echo "DNS3_MYSQL_ASSERTIONS=$n\nDNS3_MYSQL_TESTS_OK=1\n";
