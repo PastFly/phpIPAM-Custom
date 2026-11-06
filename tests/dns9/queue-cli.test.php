@@ -19,6 +19,21 @@ try {dns9PreviousActor($db); throw new RuntimeException('empty_actor_accepted');
 $db->rows=[(object)['actor_id'=>'17']]; dns9Test(dns9PreviousActor($db)===17,'actor verified');
 $db->rows=[(object)['actor_id'=>'17'],(object)['actor_id'=>'17']];
 try {dns9PreviousActor($db); throw new RuntimeException('ambiguous_actor_accepted');} catch (DomainException $e) {}
+final class B4ActorDb {
+    public array $rows=[];
+    public function getObjectsQuery($mode,$sql,$args) {
+        dns9Test(str_contains($sql,"u.disabled='No'") && str_contains($sql,"u.role='Administrator'"),'B4 active admin required');
+        dns9Test(str_contains($sql,"control_job_cli_queued") && str_contains($sql,"control_job_queued"),'both queue audits required');
+        dns9Test(str_contains($sql,"j.state='succeeded'") && str_contains($sql,"j.attempt_count=1"),'successful B3 required');
+        dns9Test($args===[DNS9_SUCCESS_JOB,DNS9_CONNECTION,DNS9_COLLECTOR],'exact successful job required');
+        return $this->rows;
+    }
+}
+$b4db=new B4ActorDb();
+try {dns9B4Actor($b4db); throw new RuntimeException('missing_b4_actor_accepted');} catch (DomainException $e) {}
+$b4db->rows=[(object)['actor_id'=>'17']]; dns9Test(dns9B4Actor($b4db)===17,'B4 actor verified by audits');
+$b4db->rows=[(object)['actor_id'=>'17'],(object)['actor_id'=>'17']];
+try {dns9B4Actor($b4db); throw new RuntimeException('ambiguous_b4_actor_accepted');} catch (DomainException $e) {}
 $inner=new Dns3MemoryRepository();
 $inner->collectors[DNS9_COLLECTOR]=['id'=>DNS9_COLLECTOR,'revoked'=>false];
 $inner->assignments[DNS9_CONNECTION]=['connection_id'=>DNS9_CONNECTION,'collector_id'=>DNS9_COLLECTOR,'revision'=>1];

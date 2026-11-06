@@ -58,7 +58,9 @@ SELECT CONCAT(
 FROM custom_dns_control_jobs WHERE id='{job_id}';
 """)
 
-def pilot_details(job_id: str)->tuple[int,int]:
+def pilot_details(job_id: str, expected_type: str='test_connection')->tuple[int,int]:
+    if expected_type not in ('test_connection','list_zones'):
+        raise ValueError('job_type_invalid')
     job_id=checked_job_id(job_id)
     row=one(f"""
 SELECT CONCAT(j.job_type,'|',j.collector_id,'|',j.connection_id,'|',
@@ -76,7 +78,7 @@ WHERE j.id='{job_id}' AND a.collector_id=j.collector_id
  AND c.server='{SERVER}' AND j.credential_version IS NULL AND k.revoked=0;
 """)
     parts=row.split('|')
-    if len(parts)!=5 or parts[:3]!=['test_connection',PILOT_COLLECTOR_ID,PILOT_CONNECTION_ID]:
+    if len(parts)!=5 or parts[:3]!=[expected_type,PILOT_COLLECTOR_ID,PILOT_CONNECTION_ID]:
         raise RuntimeError('pilot_identity_invalid')
     try:
         ttl=int(parts[3])
@@ -85,8 +87,8 @@ WHERE j.id='{job_id}' AND a.collector_id=j.collector_id
         raise RuntimeError('pilot_expiry_or_queue_invalid') from exc
     return ttl,active_count
 
-def pilot_ttl(job_id: str=PILOT_JOB_ID)->int:
-    ttl,active_count=pilot_details(job_id)
+def pilot_ttl(job_id: str=PILOT_JOB_ID, expected_type: str='test_connection')->int:
+    ttl,active_count=pilot_details(job_id,expected_type)
     print('DNS9_PHASE_B3_PILOT_TTL_SECONDS='+str(ttl))
     if active_count!=1:
         raise RuntimeError('pilot_queue_invalid')
@@ -259,7 +261,7 @@ def validate_followup(root: Path, sha: str, uid: int=0, gid: int=0)->None:
     _checked_guard(retry,PREVIOUS_RETRY_SHA,uid,gid)
     _checked_guard(followup,sha,uid,gid)
 
-def main(password_override=None,reserved_retry=False,job_override=None,reserved_followup=False)->None:
+def main(password_override=None,reserved_retry=False,job_override=None,reserved_followup=False,reserved_list_zones=False)->None:
     ap=argparse.ArgumentParser()
     ap.add_argument("--bootstrap-receipt",required=True)
     ap.add_argument("--username")
@@ -309,21 +311,26 @@ def main(password_override=None,reserved_retry=False,job_override=None,reserved_
         raise SystemExit("DNS9_PHASE_B3_ERROR=username_required")
     if not args.attempt_sha or not re.fullmatch(r"[0-9a-f]{40}",args.attempt_sha):
         raise SystemExit("DNS9_PHASE_B3_ERROR=attempt_sha_invalid")
-    pilot_ttl(job_id)
+    expected_type='list_zones' if reserved_list_zones else 'test_connection'
+    pilot_ttl(job_id,expected_type)
     password=password_override if password_override is not None else getpass.getpass("WinRM bootstrap password: ")
     if not password:
         raise SystemExit("DNS9_PHASE_B3_ERROR=password_empty")
 
     if job_state(job_id)!="pending|0||0|||0" or timer_enabled() or timer_active():
         raise SystemExit("DNS9_PHASE_B3_ERROR=preflight_changed")
-    pilot_ttl(job_id)
+    pilot_ttl(job_id,expected_type)
 
     # Never reserve a live attempt before the interactive credential prompt.
     # Any prior attempt marker, including one from another bundle SHA, is
     # ambiguous and must be reviewed rather than silently removed.
-    if reserved_retry and reserved_followup:
+    if sum(bool(x) for x in (reserved_retry,reserved_followup,reserved_list_zones))>1:
         raise RuntimeError('guard_reservation_ambiguous')
-    if reserved_followup:
+    if reserved_list_zones:
+        root=Path('/var/lib/phpipam-custom')
+        validate_followup(root,'617e80a4ec49cbd6ba09d6777ed16713ff993c8d')
+        _checked_guard(root/'dns9-list-zones-attempt-global',args.attempt_sha,0,0)
+    elif reserved_followup:
         validate_followup(Path("/var/lib/phpipam-custom"),args.attempt_sha)
     elif reserved_retry:
         validate_retry(Path("/var/lib/phpipam-custom"),args.attempt_sha)
@@ -540,7 +547,7 @@ finally {{
         raise RuntimeError("phase_b3_temp_task_result")
     if remote.get("collector_state")!="submitted":
         raise RuntimeError("phase_b3_collector_state")
-    if remote.get("job_id")!=job_id or remote.get("job_type")!="test_connection":
+    if remote.get("job_id")!=job_id or remote.get("job_type")!=expected_type:
         raise RuntimeError("phase_b3_job_identity")
     if remote.get("result_ok") is not True or remote.get("result_code")!="ok":
         raise RuntimeError("phase_b3_job_result")
@@ -550,13 +557,14 @@ finally {{
     parts=after.split("|")
     if len(parts)!=7:
         raise RuntimeError("phase_b3_job_state_shape")
-    if parts[0]!="succeeded" or parts[1]!="1" or parts[2]!="" or parts[3]=="0" or parts[4]!="ok" or parts[5]!="" or parts[6]=="0":
+    expected_payload='nonempty' if reserved_list_zones else ''
+    if parts[0]!="succeeded" or parts[1]!="1" or parts[2]!="" or parts[3]=="0" or parts[4]!="ok" or parts[5]!=expected_payload or parts[6]=="0":
         raise RuntimeError("phase_b3_job_state_invalid")
     if timer_enabled() or timer_active():
         raise RuntimeError("phase_b3_server_timer_changed")
 
     stamp=time.strftime("%Y%m%d-%H%M%S",time.gmtime())
-    receipt_dir=BACKUP_ROOT/("dns9-phase-b3-first-cycle-"+stamp)
+    receipt_dir=BACKUP_ROOT/(("dns9-list-zones-cycle-" if reserved_list_zones else "dns9-phase-b3-first-cycle-")+stamp)
     receipt_dir.mkdir(parents=True,mode=0o700,exist_ok=False)
     receipt_path=receipt_dir/"receipt.json"
     result={
@@ -564,7 +572,7 @@ finally {{
         "created_at":int(time.time()),
         "server":args.server.lower(),
         "pilot_job_id":job_id,
-        "pilot_job_type":"test_connection",
+        "pilot_job_type":expected_type,
         "pilot_job_state":"succeeded",
         "pilot_attempt_count":1,
         "pilot_result_code":"ok",

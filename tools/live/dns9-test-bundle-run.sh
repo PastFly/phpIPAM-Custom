@@ -30,6 +30,14 @@ print('TEST_BUNDLE_PYTHON_COMPILE=PASS')
 PY
 python3 tests/dns9/phase-b3-diagnose-source.test.py
 if [[ "$(id -u)" != 0 ]]; then echo 'TEST_BUNDLE_ERROR=root_required'; exit 1; fi
+if [[ "${1:-}" == '--b4-list-zones-once' && $# -eq 1 ]]; then
+  STAGE='b4-controlled-list-zones-once'
+  python3 tests/dns9/b4-list-zones.test.py
+  php -l tools/live/dns9-queue-cli.php
+  php tests/dns9/queue-cli.test.php
+  python3 tools/live/dns9-b4-list-zones.py
+  exit 0
+fi
 if [[ "${1:-}" == '--b3-after-pdo-once' && $# -eq 1 ]]; then
   STAGE='b3-after-pdo-controlled-once'
   python3 tests/dns9/b3-after-pdo.test.py

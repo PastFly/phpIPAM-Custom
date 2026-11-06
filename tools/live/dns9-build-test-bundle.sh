@@ -26,6 +26,8 @@ for file in \
   tests/dns9/runner-tls-upgrade.test.py \
   tools/live/dns9-b3-auto-once.py \
   tools/live/dns9-b3-after-pdo.py \
+  tools/live/dns9-b4-list-zones.py \
+  tests/dns9/b4-list-zones.test.py \
   tests/dns9/b3-after-pdo.test.py \
   tools/live/dns9-queue-cli.php \
   tests/dns9/b3-auto-once.test.py \

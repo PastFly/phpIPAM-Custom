@@ -18,6 +18,8 @@ on:
       - 'collectors/windows/dns/Invoke-PhpIpamDnsCollectorScheduled.ps1'
       - 'tools/live/dns9-b3-auto-once.py'
       - 'tools/live/dns9-b3-after-pdo.py'
+      - 'tools/live/dns9-b4-list-zones.py'
+      - 'tests/dns9/b4-list-zones.test.py'
       - 'tests/dns9/b3-after-pdo.test.py'
       - 'tools/live/dns9-queue-cli.php'
       - 'tests/dns9/b3-auto-once.test.py'
@@ -56,6 +58,7 @@ jobs:
           python3 tests/dns9/runner-tls-upgrade.test.py
           python3 tests/dns9/b3-auto-once.test.py
           python3 tests/dns9/b3-after-pdo.test.py
+          python3 tests/dns9/b4-list-zones.test.py
           python3 tests/dns9/b3-retry-guard.test.py
           python3 tests/dns9/system-probe.test.py
           python3 tests/dns9/pdo-hotfix.test.py
@@ -78,6 +81,7 @@ jobs:
           python3 tests/dns9/runner-tls-upgrade.test.py
           python3 tests/dns9/b3-auto-once.test.py
           python3 tests/dns9/b3-after-pdo.test.py
+          python3 tests/dns9/b4-list-zones.test.py
           python3 tests/dns9/b3-retry-guard.test.py
           python3 tests/dns9/system-probe.test.py
           python3 tests/dns9/pdo-hotfix.test.py

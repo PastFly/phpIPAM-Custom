@@ -90,7 +90,7 @@ def local_preflight(b3,post,pdo,auto):
     check_queue_safety(b3)
     if pdo.fake_poll(b3)!=(401,'collector_auth_failed'):raise RuntimeError('pdo_fake_auth_boundary_failed')
 
-def remote_preflight(b3,password):
+def remote_preflight(b3,password,expect_success=False):
     receipt=b3.receipt(RECEIPT,b3.SERVER)
     hashes=b3.expected_runtime_hashes(receipt)
     expected=json.dumps(hashes,sort_keys=True,separators=(',',':'))
@@ -114,6 +114,11 @@ $status=Get-Content -LiteralPath $statusPath -Raw | ConvertFrom-Json -ErrorActio
 $consistent=([Math]::Abs(([DateTimeOffset]$item.LastWriteTimeUtc).ToUnixTimeSeconds()-[int64]$status.updated_at) -le 5)
 [PSCustomObject]@{{permanent_disabled=([string]$task.State -eq 'Disabled');other_tasks=$tasks.Count;unknown_processes=$unknown.Count;active_processes=$active.Count;files_match=$filesMatch;previous_status=([string]$status.state -eq 'error' -and [string]$status.result_code -eq 'dns9_runtime_error' -and [int64]$status.updated_at -eq 1793955444 -and $consistent)}} | ConvertTo-Json -Compress | ForEach-Object {{Write-Output ('DNS9_AFTER_PDO_REMOTE_JSON='+$_)}}
 """
+    if expect_success:
+        old="[string]$status.state -eq 'error' -and [string]$status.result_code -eq 'dns9_runtime_error' -and [int64]$status.updated_at -eq 1793955444"
+        new="[string]$status.state -eq 'submitted' -and [string]$status.job_id -eq 'cb0c9350c6b6f310a2cb99fcaf13f0f0' -and [string]$status.job_type -eq 'test_connection' -and $status.result_ok -eq $true -and [string]$status.result_code -eq 'ok' -and [int64]$status.updated_at -eq 1793958899"
+        if script.count(old)!=1:raise RuntimeError('remote_status_expression_invalid')
+        script=script.replace(old,new)
     packed=base64.b64encode(gzip.compress(script.encode(),mtime=0)).decode()
     loader=("$b=[Convert]::FromBase64String('"+packed+"');$m=New-Object IO.MemoryStream(,$b);"
             "$g=New-Object IO.Compression.GzipStream($m,[IO.Compression.CompressionMode]::Decompress);"

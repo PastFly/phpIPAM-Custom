@@ -92,6 +92,12 @@ class PilotEligibilityTests(unittest.TestCase):
         row='test_connection|f57057d6677e1ca7a032aab8b68796ac|33b6fade9323f15aa7b1f56a8a865a9d|600|1'
         with patch.object(b3,'one',return_value=row):
             self.assertEqual(b3.pilot_ttl(),600)
+    def test_list_zones_is_only_accepted_when_explicitly_expected(self):
+        row='list_zones|f57057d6677e1ca7a032aab8b68796ac|33b6fade9323f15aa7b1f56a8a865a9d|600|1'
+        with patch.object(b3,'one',return_value=row):
+            self.assertEqual(b3.pilot_ttl('f'*32,'list_zones'),600)
+            with self.assertRaises(RuntimeError): b3.pilot_ttl('f'*32)
+            with self.assertRaises(ValueError): b3.pilot_ttl('f'*32,'arbitrary')
     def test_expired_wrong_identity_and_other_jobs_are_refused(self):
         rows=[
             'test_connection|f57057d6677e1ca7a032aab8b68796ac|33b6fade9323f15aa7b1f56a8a865a9d|-1|1',

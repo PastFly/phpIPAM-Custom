@@ -1,11 +1,25 @@
 #!/usr/bin/env python3
-import contextlib,importlib.util,io,pathlib,sqlite3,sys,tempfile,types,unittest
+import base64,contextlib,gzip,importlib.util,io,pathlib,re,sqlite3,sys,tempfile,types,unittest
 from unittest.mock import patch
 root=pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(root/'tools/live'))
 spec=importlib.util.spec_from_file_location('followup',root/'tools/live/dns9-b3-after-pdo.py')
 f=importlib.util.module_from_spec(spec);spec.loader.exec_module(f)
 class FollowupTests(unittest.TestCase):
+    def test_b4_windows_preflight_requires_exact_successful_status(self):
+        scripts=[]
+        b3=types.SimpleNamespace(receipt=lambda *a:{},expected_runtime_hashes=lambda *a:{},SERVER='srv-dc01.rbank.local')
+        def run_ps(protocol,loader):
+            packed=re.search(r"FromBase64String\('([^']+)'\)",loader).group(1)
+            scripts.append(gzip.decompress(base64.b64decode(packed)).decode())
+            return 0,'ignored',''
+        doc={'permanent_disabled':True,'other_tasks':0,'unknown_processes':0,'active_processes':0,'files_match':True,'previous_status':True}
+        with patch.object(f,'protocol',return_value=object()),patch.object(f,'run_ps',side_effect=run_ps),patch.object(f,'json_line',return_value=doc):
+            f.remote_preflight(b3,'secret',expect_success=True)
+        self.assertIn("$status.state -eq 'submitted'",scripts[0])
+        self.assertIn('cb0c9350c6b6f310a2cb99fcaf13f0f0',scripts[0])
+        self.assertIn("$status.job_type -eq 'test_connection'",scripts[0])
+        self.assertNotIn('secret',scripts[0])
     def test_unsafe_queue_prevents_automatic_pruning(self):
         queries=[]
         db=types.SimpleNamespace(one=lambda q:(queries.append(q) or '0'),PILOT_COLLECTOR_ID='a'*32,PILOT_CONNECTION_ID='b'*32,PILOT_JOB_ID='c'*32)
