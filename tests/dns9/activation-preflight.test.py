@@ -52,28 +52,28 @@ class ActivationPreflightTests(unittest.TestCase):
         db.execute('INSERT INTO custom_dns_connections VALUES (?,?,?,?,?,?)',(connection,0,7,4,'collector_identity',activation.SERVER))
         db.execute('INSERT INTO custom_dns_collector_assignments VALUES (?,?,?)',(connection,collector,3))
         db.execute('INSERT INTO custom_dns_collectors VALUES (?,?)',(collector,0))
-        for job_id,kind,created in activation.EXPIRED_UI_JOBS:
+        for job_id,kind,created in activation.EXPIRED_REVIEWED_JOBS:
             db.execute('INSERT INTO custom_dns_control_jobs VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
                 (job_id,kind,'pending',collector,connection,created+300,0,None,None,None,None,None,None,created,created,4,3,7,4,None))
             db.execute('INSERT INTO custom_dns_control_events VALUES (?,?,?)',(job_id,'control_job_queued',4))
         b3=SimpleNamespace(PILOT_CONNECTION_ID=connection,PILOT_COLLECTOR_ID=collector,one=lambda sql:db.execute(sql).fetchone()[0])
         self.assertEqual(activation.queue_summary(b3),'2|0|0|0|0|2')
         changes=[
-            "UPDATE custom_dns_control_jobs SET expires_at=2000000001 WHERE id='"+activation.EXPIRED_UI_JOBS[0][0]+"'",
-            "UPDATE custom_dns_control_jobs SET attempt_count=1 WHERE id='"+activation.EXPIRED_UI_JOBS[0][0]+"'",
-            "UPDATE custom_dns_control_jobs SET lease_id='secret' WHERE id='"+activation.EXPIRED_UI_JOBS[0][0]+"'",
-            "UPDATE custom_dns_control_jobs SET credential_delivered_at=1 WHERE id='"+activation.EXPIRED_UI_JOBS[0][0]+"'",
-            "UPDATE custom_dns_control_jobs SET result_payload='fixture' WHERE id='"+activation.EXPIRED_UI_JOBS[0][0]+"'",
-            "UPDATE custom_dns_control_jobs SET credential_version=1 WHERE id='"+activation.EXPIRED_UI_JOBS[0][0]+"'",
-            "UPDATE custom_dns_control_jobs SET updated_by=5 WHERE id='"+activation.EXPIRED_UI_JOBS[0][0]+"'",
-            "UPDATE custom_dns_control_jobs SET updated_at=updated_at+1 WHERE id='"+activation.EXPIRED_UI_JOBS[0][0]+"'",
-            "UPDATE custom_dns_control_jobs SET state='running' WHERE id='"+activation.EXPIRED_UI_JOBS[0][0]+"'",
+            "UPDATE custom_dns_control_jobs SET expires_at=2000000001 WHERE id='"+activation.EXPIRED_REVIEWED_JOBS[0][0]+"'",
+            "UPDATE custom_dns_control_jobs SET attempt_count=1 WHERE id='"+activation.EXPIRED_REVIEWED_JOBS[0][0]+"'",
+            "UPDATE custom_dns_control_jobs SET lease_id='secret' WHERE id='"+activation.EXPIRED_REVIEWED_JOBS[0][0]+"'",
+            "UPDATE custom_dns_control_jobs SET credential_delivered_at=1 WHERE id='"+activation.EXPIRED_REVIEWED_JOBS[0][0]+"'",
+            "UPDATE custom_dns_control_jobs SET result_payload='fixture' WHERE id='"+activation.EXPIRED_REVIEWED_JOBS[0][0]+"'",
+            "UPDATE custom_dns_control_jobs SET credential_version=1 WHERE id='"+activation.EXPIRED_REVIEWED_JOBS[0][0]+"'",
+            "UPDATE custom_dns_control_jobs SET updated_by=5 WHERE id='"+activation.EXPIRED_REVIEWED_JOBS[0][0]+"'",
+            "UPDATE custom_dns_control_jobs SET updated_at=updated_at+1 WHERE id='"+activation.EXPIRED_REVIEWED_JOBS[0][0]+"'",
+            "UPDATE custom_dns_control_jobs SET state='running' WHERE id='"+activation.EXPIRED_REVIEWED_JOBS[0][0]+"'",
             "UPDATE custom_dns_collectors SET revoked=1",
             "UPDATE custom_dns_collector_assignments SET revision=4",
             "UPDATE custom_dns_connections SET binding_epoch=5",
-            "INSERT INTO custom_dns_control_events VALUES ('"+activation.EXPIRED_UI_JOBS[0][0]+"','control_job_cli_queued',4)",
-            "INSERT INTO custom_dns_control_events VALUES ('"+activation.EXPIRED_UI_JOBS[0][0]+"','autonomous_job_queued',0)",
-            "INSERT INTO custom_dns_control_events VALUES ('"+activation.EXPIRED_UI_JOBS[0][0]+"','control_job_queued',4)",
+            "INSERT INTO custom_dns_control_events VALUES ('"+activation.EXPIRED_REVIEWED_JOBS[0][0]+"','control_job_cli_queued',4)",
+            "INSERT INTO custom_dns_control_events VALUES ('"+activation.EXPIRED_REVIEWED_JOBS[0][0]+"','autonomous_job_queued',0)",
+            "INSERT INTO custom_dns_control_events VALUES ('"+activation.EXPIRED_REVIEWED_JOBS[0][0]+"','control_job_queued',4)",
         ]
         for change in changes:
             with self.subTest(change=change):

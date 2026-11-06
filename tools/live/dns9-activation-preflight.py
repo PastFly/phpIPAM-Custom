@@ -20,7 +20,7 @@ FIX_SHA='97377897fe48a9e01a8bb844c4c19e37117cc3db'
 FIX_BACKUP=Path('/var/backups/phpipam-custom/dns9-scheduler-fix-2612d4b1595b6cdb')
 SERVER='srv-dc01.rbank.local'
 USER='rbank\\kadaev.admin'
-EXPIRED_UI_JOBS=(
+EXPIRED_REVIEWED_JOBS=(
     ('0f5fbf81fc71164cc7c624fc6101925f','list_zones',1793966475),
     ('edfcd75935083e51c4536a390174057e','test_connection',1793966491),
 )
@@ -35,7 +35,7 @@ def validate_queue(row):
 def queue_summary(b3):
     cases=' OR '.join(
         "(j.id='"+job_id+"' AND j.job_type='"+kind+"' AND j.created_at="+str(created)+")"
-        for job_id,kind,created in EXPIRED_UI_JOBS
+        for job_id,kind,created in EXPIRED_REVIEWED_JOBS
     )
     return b3.one(f"""SELECT CONCAT(
  COALESCE(SUM(state='pending'),0),'|',COALESCE(SUM(state='running'),0),'|',
@@ -122,7 +122,7 @@ def local_preflight(b3,b4,pdo,ui,fix,post):
         ('layers/dns1/app/admin/integrations/dns/config.js','app/admin/integrations/dns/config.js')]:
         if pdo.snapshot(ROOT/src)['data']!=pdo.snapshot(WEB/dst)['data']: raise RuntimeError('installed_file_changed')
     row=queue_summary(b3)
-    print('DNS9_ACTIVATION_QUEUE_FIELDS=pending|running|terminal_due_20m|other_enabled|pressure|verified_expired_ui',flush=True)
+    print('DNS9_ACTIVATION_QUEUE_FIELDS=pending|running|terminal_due_20m|other_enabled|pressure|verified_expired_reviewed',flush=True)
     print('DNS9_ACTIVATION_QUEUE='+row,flush=True)
     validate_queue(row)
     if b3.one("SELECT COUNT(*) FROM custom_dns_connections WHERE id='"+b3.PILOT_CONNECTION_ID+"' AND enabled=0 AND server='"+SERVER+"' AND credential_mode='collector_identity' AND interval_seconds=300;")!='1':
