@@ -64,44 +64,80 @@ def main():
             dest = repo / file
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text('synthetic committed payload\n')
+        builder = repo / 'tools/live/dns9-build-test-bundle.sh'
+        builder.write_text(source)
         (repo / files[1]).chmod(0o755)
         git('add', '--', '.')
         git('commit', '-q', '-m', 'synthetic fixture')
         head = git('rev-parse', 'HEAD')
         target = repo / files[0]
 
+        build_count = 0
         def build():
-            return run(['bash', str(BUILDER), str(output)], repo, env)
-        def check_archive():
-            package = output / ('phpipam-dns9-test-' + head[:12] + '.tar.gz')
+            nonlocal build_count
+            build_count += 1
+            destination = output / str(build_count)
+            result = run(['bash', str(builder), str(destination)], repo, env)
+            return result, destination
+        def check_archive(destination):
+            package = destination / ('phpipam-dns9-test-' + head[:12] + '.tar.gz')
             with tarfile.open(package, 'r:gz') as archive:
                 assert archive.extractfile('./EXPECTED_SHA').read() == (head + '\n').encode()
                 assert archive.extractfile('./' + files[0]).read() == b'synthetic committed payload\n', 'uncommitted bytes entered archive'
                 assert archive.getmember('./' + files[1]).mode & 0o111, 'committed executable mode must survive'
 
+        result, destination = build()
+        assert result.returncode == 0, 'clean builder must succeed'
+        check_archive(destination)
+        assert (destination / ('phpipam-dns9-test-' + head[:12] + '.run')).exists()
+
+        marker = '# synthetic-wrapper-marker@example.invalid'
+        altered = source.replace("cat > \"$RUN\" <<'HEADER'\n", "cat > \"$RUN\" <<'HEADER'\n" + marker + '\n')
+        assert altered != source, 'wrapper fixture marker not inserted'
+        builder.write_text(altered)
+        git('add', '--', str(builder.relative_to(repo)))
+        result, destination = build()
+        if result.returncode == 0:
+            wrapper = destination / ('phpipam-dns9-test-' + head[:12] + '.run')
+            assert marker.encode() in wrapper.read_bytes(), 'fixture did not alter wrapper'
+            raise AssertionError('DIRTY_BUILDER_ACCEPTED_WRAPPER_MARKER')
+        assert result.returncode != 0, 'staged builder must be rejected'
+        assert not destination.exists(), 'staged builder must fail before output creation'
+        git('restore', '--staged', '--worktree', '--', str(builder.relative_to(repo)))
+        builder.write_text(altered)
+        result, destination = build()
+        assert result.returncode != 0, 'unstaged builder must be rejected'
+        assert not destination.exists(), 'unstaged builder must fail before output creation'
+        builder.write_text(source)
+
         target.write_text('synthetic staged payload\n')
         git('add', '--', files[0])
-        assert build().returncode == 0, 'builder failed on staged input'
-        check_archive()
+        result, destination = build()
+        assert result.returncode == 0, 'builder failed on staged input'
+        check_archive(destination)
         target.write_text('synthetic unstaged payload\n')
-        assert build().returncode == 0, 'builder failed on dirty input'
-        check_archive()
+        result, destination = build()
+        assert result.returncode == 0, 'builder failed on dirty input'
+        check_archive(destination)
         target.unlink()
-        assert build().returncode == 0, 'builder failed on missing worktree input'
-        check_archive()
+        result, destination = build()
+        assert result.returncode == 0, 'builder failed on missing worktree input'
+        check_archive(destination)
         target.symlink_to(root / 'synthetic-outside')
         (root / 'synthetic-outside').write_text('synthetic symlink payload\n')
-        assert build().returncode == 0, 'builder failed on symlink worktree input'
-        check_archive()
+        result, destination = build()
+        assert result.returncode == 0, 'builder failed on symlink worktree input'
+        check_archive(destination)
         target.unlink()
         git('rm', '--cached', '--', files[0])
         git('commit', '-q', '-m', 'synthetic missing committed input')
         missing_head = git('rev-parse', 'HEAD')
         target.write_text('synthetic untracked payload\n')
-        assert build().returncode != 0, 'missing committed payload must fail closed'
-        assert not (output / ('phpipam-dns9-test-' + missing_head[:12] + '.tar.gz')).exists()
-        assert not (output / ('phpipam-dns9-test-' + missing_head[:12] + '.run')).exists()
-    print('DNS9_IMMUTABLE_BUNDLE_CASES=5 BEHAVIOR_ASSERTIONS=19 TAR=' + tar_mode)
+        result, destination = build()
+        assert result.returncode != 0, 'missing committed payload must fail closed'
+        assert not (destination / ('phpipam-dns9-test-' + missing_head[:12] + '.tar.gz')).exists()
+        assert not (destination / ('phpipam-dns9-test-' + missing_head[:12] + '.run')).exists()
+    print('DNS9_IMMUTABLE_BUNDLE_CASES=8 BEHAVIOR_ASSERTIONS=28 TAR=' + tar_mode)
 
 
 if __name__ == '__main__':

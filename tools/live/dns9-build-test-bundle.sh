@@ -2,10 +2,15 @@
 set -euo pipefail
 umask 077
 
+BUILDER="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 SHA="$(git rev-parse HEAD)"
 [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo invalid_sha >&2; exit 1; }
+if ! git cat-file blob "$SHA:tools/live/dns9-build-test-bundle.sh" | cmp -s "$BUILDER" -; then
+  echo builder_not_at_head >&2
+  exit 1
+fi
 SHORT="${SHA:0:12}"
 OUT="${1:-dist}"
 mkdir -p "$OUT"
