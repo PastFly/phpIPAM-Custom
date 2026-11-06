@@ -8,6 +8,8 @@ declare(strict_types=1);
  */
 final class IntegrationDnsAutonomousScheduler
 {
+    private const PRESSURE_LIMIT=384;
+    private const MIN_AUTOMATIC_HISTORY_SECONDS=3600;
     private Closure $clock;
 
     public function __construct(
@@ -54,6 +56,44 @@ final class IntegrationDnsAutonomousScheduler
         return $c;
     }
 
+    /** Keep manual/unknown jobs and the latest terminal and successful result per connection. */
+    private function trimAutomaticHistory(array $jobs,int $now): array
+    {
+        if (count($jobs)<self::PRESSURE_LIMIT || !is_callable([$this->repo,'autonomousJobIds'])) return [$jobs,0];
+        $autonomous=$this->repo->autonomousJobIds();
+        if (!is_array($autonomous)) throw new DomainException('scheduler_unavailable');
+        $last=[]; $lastSuccess=[];
+        foreach ($jobs as $job) {
+            if (($job['job_type']??null)!=='list_zones' || !in_array($job['state']??null,['succeeded','failed','expired','obsolete'],true) ||
+                !is_string($job['connection_id']??null) || !is_string($job['id']??null)) continue;
+            $key=$job['connection_id'];
+            $order=[(int)($job['created_at']??0),(string)$job['id']];
+            if (!isset($last[$key]) || $order>$last[$key]['order']) $last[$key]=['id'=>$job['id'],'order'=>$order];
+            if ($job['state']==='succeeded' && ($job['result_code']??null)==='ok' &&
+                (!isset($lastSuccess[$key]) || $order>$lastSuccess[$key]['order'])) $lastSuccess[$key]=['id'=>$job['id'],'order'=>$order];
+        }
+        $protected=[];
+        foreach (array_merge(array_values($last),array_values($lastSuccess)) as $row) $protected[$row['id']]=true;
+        $candidates=[];
+        foreach ($jobs as $index=>$job) {
+            $id=$job['id']??null; $finished=$job['finished_at']??null;
+            if (!is_string($id) || ($autonomous[$id]??false)!==true || isset($protected[$id]) ||
+                ($job['job_type']??null)!=='list_zones' || !in_array($job['state']??null,['succeeded','failed','expired','obsolete'],true) ||
+                !is_int($finished) || $finished<1 || $finished>$now-self::MIN_AUTOMATIC_HISTORY_SECONDS) continue;
+            $candidates[]=['index'=>$index,'id'=>$id,'finished'=>$finished];
+        }
+        usort($candidates,static fn($a,$b)=>[$a['finished'],$a['id']]<=>[$b['finished'],$b['id']]);
+        $pruned=0;
+        foreach ($candidates as $candidate) {
+            if (count($jobs)<self::PRESSURE_LIMIT) break;
+            $this->repo->removeJob($candidate['id']);
+            $this->repo->audit(['action'=>'autonomous_job_pruned','object_id'=>$candidate['id'],'actor_id'=>0,'created_at'=>$now]);
+            unset($jobs[$candidate['index']]);
+            $pruned++;
+        }
+        return [array_values($jobs),$pruned];
+    }
+
     public function run(array $contexts): array
     {
         if(!array_is_list($contexts)||count($contexts)>256) throw new DomainException('scheduler_context_invalid');
@@ -96,12 +136,14 @@ final class IntegrationDnsAutonomousScheduler
                 }
                 $jobs[]=$job;
             }
+            [$jobs,$pressurePruned]=$this->trimAutomaticHistory($jobs,$now);
             $queued=[];
             $skippedDisabled=0;
             $skippedNoAssignment=0;
             $skippedCollector=0;
             $skippedActive=0;
             $skippedInterval=0;
+            $skippedCapacity=0;
 
             foreach($normalized as $connectionId=>$ctx) {
                 if($ctx['enabled']!==true) {
@@ -139,7 +181,10 @@ final class IntegrationDnsAutonomousScheduler
                     $skippedInterval++;
                     continue;
                 }
-                if(count($jobs)+count($queued)>=512) throw new DomainException('job_limit');
+                if(count($jobs)+count($queued)>=512) {
+                    $skippedCapacity++;
+                    continue;
+                }
 
                 $id=bin2hex(random_bytes(16));
                 $row=[
@@ -181,7 +226,9 @@ final class IntegrationDnsAutonomousScheduler
                 'skipped_no_assignment'=>$skippedNoAssignment,
                 'skipped_collector'=>$skippedCollector,
                 'skipped_active'=>$skippedActive,
-                'skipped_interval'=>$skippedInterval
+                'skipped_interval'=>$skippedInterval,
+                'skipped_capacity'=>$skippedCapacity,
+                'pressure_pruned'=>$pressurePruned
             ];
         });
     }

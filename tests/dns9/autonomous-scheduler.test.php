@@ -23,6 +23,13 @@ final class Dns9MemoryRepo implements IntegrationDnsCollectorControlRepository
     public function putJob(array $row): void { $this->jobs[$row['id']]=$row; }
     public function removeJob(string $id): void { unset($this->jobs[$id]); }
     public function audit(array $event): void { $this->events[]=$event; }
+    public function autonomousJobIds(): array {
+        $ids=[];
+        foreach($this->events as $event) {
+            if(($event['action']??null)==='autonomous_job_queued' && ($event['actor_id']??null)===0) $ids[$event['object_id']]=true;
+        }
+        return $ids;
+    }
 }
 
 $n=0;
@@ -140,6 +147,86 @@ $r=$scheduler5->run([$base]);
 ok(!isset($repo5->jobs[$oldId]),'old terminal job pruned');
 ok($repo5->jobs[$staleId]['state']==='expired' && $repo5->jobs[$staleId]['result_code']==='job_expired','stale pending job expired');
 ok($r['queued_count']===1,'scheduler recovers after stale pending job');
+
+$repo6=new Dns9MemoryRepo();
+$repo6->collectors[$collector]=['id'=>$collector,'revoked'=>false];
+$second=str_repeat('e',32);
+foreach([$connection,$second] as $id) $repo6->assignments[$id]=['connection_id'=>$id,'collector_id'=>$collector,'revision'=>1,'assigned_at'=>1,'assigned_by'=>1];
+$contexts=[$identity,$identity]; $contexts[1]['id']=$second;
+$tick=2000000000;
+$scheduler6=new IntegrationDnsAutonomousScheduler($repo6,static function() use (&$tick): int {return $tick;});
+// 26 hours with two five-minute sources previously exceeded the 512-job ceiling.
+for ($i=0;$i<26*60;$i++,$tick+=60) {
+    $result=$scheduler6->run($contexts);
+    ok(($result['skipped_capacity']??-1)===0,'normal load keeps making progress');
+    foreach ($result['queued'] as $jobId) {
+        $repo6->jobs[$jobId]['state']='succeeded';
+        $repo6->jobs[$jobId]['result_code']='ok';
+        $repo6->jobs[$jobId]['finished_at']=$tick;
+        $repo6->jobs[$jobId]['updated_at']=$tick;
+    }
+}
+ok(count($repo6->jobs)<512,'autonomous history remains bounded');
+foreach([$connection,$second] as $id) {
+    $success=array_filter($repo6->jobs,static fn($j)=>$j['connection_id']===$id && $j['state']==='succeeded');
+    ok(count($success)>0,'last successful result for each source is preserved');
+}
+
+$repo7=new Dns9MemoryRepo();
+$repo7->collectors[$collector]=['id'=>$collector,'revoked'=>false];
+$repo7->assignments[$connection]=['connection_id'=>$connection,'collector_id'=>$collector,'revision'=>1,'assigned_at'=>1,'assigned_by'=>1];
+// Unknown-origin terminal jobs are retained; hitting capacity is visible and never deletes them.
+for ($i=0;$i<512;$i++) {
+    $id=str_pad(dechex($i+1),32,'0',STR_PAD_LEFT);
+    $repo7->jobs[$id]=['id'=>$id,'collector_id'=>$collector,'connection_id'=>$connection,'job_type'=>'test_connection',
+        'state'=>'failed','finished_at'=>2000000000-4000,'updated_at'=>2000000000-4000,'created_at'=>2000000000-4000];
+}
+$scheduler7=new IntegrationDnsAutonomousScheduler($repo7,static fn(): int=>2000000000);
+$full=$scheduler7->run([$identity]);
+ok($full['skipped_capacity']===1 && $full['queued_count']===0,'unrecoverable capacity is reported');
+ok(count($repo7->jobs)===512,'unknown-origin jobs preserved');
+
+$repo8=new Dns9MemoryRepo();
+$repo8->collectors[$collector]=['id'=>$collector,'revoked'=>false];
+$repo8->assignments[$connection]=['connection_id'=>$connection,'collector_id'=>$collector,'revision'=>1,'assigned_at'=>1,'assigned_by'=>1];
+$retentionNow=2000000000;
+for ($i=0;$i<384;$i++) {
+    $id=str_pad(dechex($i+1),32,'0',STR_PAD_LEFT);
+    $finished=$retentionNow-8000+$i;
+    $repo8->jobs[$id]=['id'=>$id,'collector_id'=>$collector,'connection_id'=>$connection,'job_type'=>'list_zones',
+        'state'=>'succeeded','result_code'=>'ok','finished_at'=>$finished,'updated_at'=>$finished,'created_at'=>$finished];
+    $repo8->events[]=['action'=>'autonomous_job_queued','object_id'=>$id,'actor_id'=>0,'created_at'=>$finished];
+}
+$lastAuto=str_pad(dechex(384),32,'0',STR_PAD_LEFT);
+$manual=str_repeat('f',32);
+$repo8->jobs[$manual]=['id'=>$manual,'collector_id'=>$collector,'connection_id'=>$connection,'job_type'=>'list_zones',
+    'state'=>'succeeded','result_code'=>'ok','finished_at'=>$retentionNow-7999,'updated_at'=>$retentionNow-7999,'created_at'=>$retentionNow-7999];
+$repo8->events[]=['action'=>'autonomous_job_queued','object_id'=>$manual,'actor_id'=>17,'created_at'=>$retentionNow-7999];
+$scheduler8=new IntegrationDnsAutonomousScheduler($repo8,static fn(): int=>2000000000);
+$disabledIdentity=$identity; $disabledIdentity['enabled']=false;
+$trim=$scheduler8->run([$disabledIdentity]);
+ok($trim['pressure_pruned']>0,'verified automatic history is trimmed under pressure');
+ok(isset($repo8->jobs[$manual]),'manual result retained under pressure');
+ok(isset($repo8->jobs[$lastAuto]),'newest successful zone result retained under pressure');
+ok(count(array_filter($repo8->events,static fn($e)=>$e['action']==='autonomous_job_pruned'))===$trim['pressure_pruned'],'pressure cleanup is audited');
+
+$fast=$identity; $fast['interval_seconds']=60;
+$repo9=new Dns9MemoryRepo();
+$repo9->collectors[$collector]=['id'=>$collector,'revoked'=>false];
+$repo9->assignments[$connection]=['connection_id'=>$connection,'collector_id'=>$collector,'revision'=>1,'assigned_at'=>1,'assigned_by'=>1];
+$fastNow=2000000000;
+$scheduler9=new IntegrationDnsAutonomousScheduler($repo9,static function() use (&$fastNow): int {return $fastNow;});
+for ($i=0;$i<12*60;$i++,$fastNow+=60) {
+    $result=$scheduler9->run([$fast]);
+    ok($result['skipped_capacity']===0,'one-minute source keeps making progress');
+    foreach ($result['queued'] as $jobId) {
+        $repo9->jobs[$jobId]['state']='failed';
+        $repo9->jobs[$jobId]['result_code']='network';
+        $repo9->jobs[$jobId]['finished_at']=$fastNow;
+        $repo9->jobs[$jobId]['updated_at']=$fastNow;
+    }
+}
+ok(count($repo9->jobs)<512,'failed automatic jobs also remain bounded');
 
 echo "DNS9_AUTONOMOUS_SCHEDULER_ASSERTIONS={$n}\n";
 echo "DNS9_AUTONOMOUS_SCHEDULER_TESTS_OK=1\n";

@@ -159,6 +159,24 @@ final class IntegrationDnsCollectorControlPhpIpamRepository implements Integrati
         return $this->selectRows('custom_dns_control_jobs',self::JOB_COLUMNS,512);
     }
 
+    /** An audit record is required before treating a job as automatically created. */
+    public function autonomousJobIds(): array
+    {
+        $this->guard();
+        $rows=$this->db->getObjectsQuery('no_html_escape',
+            "SELECT DISTINCT j.id FROM custom_dns_control_jobs j ".
+            "JOIN custom_dns_control_events e ON e.object_id=j.id ".
+            "WHERE j.job_type='list_zones' AND e.action='autonomous_job_queued' AND e.actor_id=0 LIMIT 513",[]);
+        if (!is_array($rows) || count($rows)>512) throw new DomainException('control_unavailable');
+        $ids=[];
+        foreach ($rows as $row) {
+            $id=self::field($row,'id');
+            if (!is_string($id) || !preg_match('/^[0-9a-f]{32}$/D',$id)) throw new DomainException('control_unavailable');
+            $ids[$id]=true;
+        }
+        return $ids;
+    }
+
     private function put(string $table,array $columns,array $row): void
     {
         $this->guard();

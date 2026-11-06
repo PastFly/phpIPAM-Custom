@@ -159,6 +159,17 @@ $testJob=$service->queueJob($connectionId,'test_connection',17);
 $listJob=$service->queueJob($connectionId,'list_zones',17);
 ok3sql($testJob['configuration_revision']===5 && $testJob['binding_epoch']===7 && $testJob['credential_version']===3,'job versions persisted');
 ok3sql((int)$pdo->query('SELECT COUNT(*) FROM custom_dns_control_jobs')->fetchColumn()===2,'two jobs persisted');
+$auto=$repo->transaction(function() use($repo,$testJob,$listJob,$now) {
+    $repo->audit(['action'=>'autonomous_job_queued','object_id'=>$testJob['id'],'actor_id'=>0,'created_at'=>$now]);
+    $repo->audit(['action'=>'autonomous_job_queued','object_id'=>$listJob['id'],'actor_id'=>17,'created_at'=>$now]);
+    return $repo->autonomousJobIds();
+});
+ok3sql($auto===[],'manual actor and non-zone job cannot establish autonomous origin');
+$auto=$repo->transaction(function() use($repo,$listJob,$now) {
+    $repo->audit(['action'=>'autonomous_job_queued','object_id'=>$listJob['id'],'actor_id'=>0,'created_at'=>$now]);
+    return $repo->autonomousJobIds();
+});
+ok3sql($auto===[$listJob['id']=>true],'autonomous zone origin verified through audit');
 
 $q=$pdo->prepare("UPDATE custom_dns_control_jobs SET state='running' WHERE id=?");
 $q->execute([$testJob['id']]);

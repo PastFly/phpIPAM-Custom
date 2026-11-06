@@ -37,9 +37,10 @@ final class IntegrationDnsAdminView
         if ($result===null || !is_array($result['zones']??null)) return '';
         $zones=$result['zones'];
         $finished=(int)($result['finished_at']??0);
-        $html='<details class="dns-zone-results"><summary>Полученные зоны: '.count($zones).'</summary>';
+        $html='<details class="dns-zone-results"><summary class="btn btn-default btn-sm" data-dns-zones-toggle>'.
+            '<i class="fa fa-chevron-right" aria-hidden="true"></i> Показать зоны DNS ('.count($zones).')</summary>';
         if ($finished>0) $html.='<p>Получено: '.self::h(gmdate('Y-m-d H:i:s',$finished)).' UTC</p>';
-        $html.='<p class="text-muted">Последний успешный результат для текущего подключения и сборщика. Результат может быть удалён спустя 24 часа.</p>';
+        $html.='<p class="text-muted">Последний успешный результат для текущего подключения и сборщика. При заполнении очереди старые автоматические результаты могут удаляться раньше суток.</p>';
         if (!$zones) return $html.'<p>Зоны не найдены.</p></details>';
         $html.='<div class="table-responsive"><table class="table table-striped table-condensed"><thead><tr>'.
             '<th scope="col">Зона</th><th scope="col">Тип</th><th scope="col">В Active Directory</th><th scope="col">Обратная зона</th></tr></thead><tbody>';

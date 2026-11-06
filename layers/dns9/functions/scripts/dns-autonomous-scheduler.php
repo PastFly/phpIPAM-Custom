@@ -54,9 +54,10 @@ try {
     $scheduler=new IntegrationDnsAutonomousScheduler($controlRepo);
     $result=$scheduler->run($contexts);
     echo json_encode(
-        ['ok'=>true,'data'=>$result],
+        ['ok'=>$result['skipped_capacity']===0,'data'=>$result],
         JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR
     ).PHP_EOL;
+    if ($result['skipped_capacity']>0) exit(1);
 } catch(Throwable $e) {
     echo '{"ok":false,"error":"scheduler_unavailable"}'.PHP_EOL;
     exit(1);

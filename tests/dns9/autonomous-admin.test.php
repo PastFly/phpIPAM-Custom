@@ -113,6 +113,7 @@ ok9a(($service->snapshot()['connection_runtime'][$connection['id']]['zone_result
 unset($controlRepo->jobs[$nextId]);
 $html=(new IntegrationDnsAdminView())->render($state,'fixture');
 ok9a(str_contains($html,'example.invalid') && str_contains($html,'&lt;script&gt;bad&lt;/script&gt;') && !str_contains($html,'<script>bad</script>'),'zone display escapes untrusted values');
+ok9a(str_contains($html,'data-dns-zones-toggle') && str_contains($html,'Показать зоны DNS (2)'),'zone disclosure is visibly labelled');
 $controlRepo->jobs[$zonesId]['binding_epoch']++;
 ok9a(($service->snapshot()['connection_runtime'][$connection['id']]['zone_result']??null)===null,'stale binding does not surface zones');
 $controlRepo->jobs[$zonesId]['binding_epoch']--;

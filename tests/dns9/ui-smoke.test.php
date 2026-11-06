@@ -10,6 +10,8 @@ $state=['profiles'=>[],'connections'=>[['id'=>$id,'revision'=>1,'name'=>'DNS','s
     'connection_runtime'=>[$id=>['zone_result'=>['id'=>'3af8e09411c0e94a17ed19d3f0872359',
         'finished_at'=>1700000000,'zones'=>array_fill(0,172,$zone)]]]];
 if (dns9UiCheck($state)!==172) throw new RuntimeException('zone_count_invalid');
+$html=(new IntegrationDnsAdminView())->render($state,'fixture');
+if (!str_contains($html,'Показать зоны DNS (172)') || !str_contains($html,'data-dns-zones-toggle')) throw new RuntimeException('zone_disclosure_not_visible');
 array_pop($state['connection_runtime'][$id]['zone_result']['zones']);
 try {dns9UiCheck($state); throw new RuntimeException('missing_zone_accepted');}
 catch (DomainException $e) {if ($e->getMessage()!=='zone_result_unavailable') throw $e;}

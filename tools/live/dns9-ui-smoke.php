@@ -9,7 +9,7 @@ function dns9UiCheck(array $state): int {
         throw new DomainException('zone_result_unavailable');
     }
     $html=(new IntegrationDnsAdminView())->render($state,'dns9-ui-smoke');
-    if (!str_contains($html,'Полученные зоны: 172')) throw new DomainException('zone_render_failed');
+    if (!str_contains($html,'Показать зоны DNS (172)') || !str_contains($html,'data-dns-zones-toggle')) throw new DomainException('zone_render_failed');
     return count($result['zones']);
 }
 
