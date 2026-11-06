@@ -32,6 +32,9 @@ for file in \
   tools/live/dns9-scheduler-deploy.py \
   tools/live/dns9-activation-preflight.py \
   tools/live/dns9-activation-preflight.ps1 \
+  tools/live/dns9-activation-coordinator.py \
+  tools/live/dns9-activation-task-control.ps1 \
+  tests/dns9/activation-coordinator.test.py \
   tools/live/dns9-activation-queue.sql \
   tools/live/dns9-activation-mutex.php \
   tests/dns9/activation-mutex.test.php \

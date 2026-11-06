@@ -102,6 +102,9 @@ jobs:
       - name: Verify read-only activation preflight
         shell: powershell
         run: .\tests\dns9\activation-preflight.test.ps1
+      - name: Exercise activation task control
+        shell: powershell
+        run: .\tests\dns9\activation-task-control.test.ps1
       - name: Exercise diagnostic task cleanup
         shell: powershell
         run: .\tests\dns9\system-probe-control.test.ps1

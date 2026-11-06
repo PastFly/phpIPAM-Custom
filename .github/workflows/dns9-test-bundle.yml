@@ -24,6 +24,9 @@ on:
       - 'tools/live/dns9-scheduler-deploy.py'
       - 'tools/live/dns9-activation-preflight.py'
       - 'tools/live/dns9-activation-preflight.ps1'
+      - 'tools/live/dns9-activation-coordinator.py'
+      - 'tools/live/dns9-activation-task-control.ps1'
+      - 'tests/dns9/activation-coordinator.test.py'
       - 'tools/live/dns9-activation-queue.sql'
       - 'tools/live/dns9-activation-mutex.php'
       - 'tests/dns9/activation-mutex.test.php'
@@ -79,6 +82,7 @@ jobs:
           python3 tests/dns9/ui-deploy.test.py
           python3 tests/dns9/scheduler-deploy.test.py
           python3 tests/dns9/activation-preflight.test.py
+          python3 tests/dns9/activation-coordinator.test.py
           php tests/dns9/autonomous-scheduler.test.php
           php -l tools/live/dns9-activation-mutex.php
           php tests/dns9/activation-mutex.test.php
@@ -110,6 +114,7 @@ jobs:
           python3 tests/dns9/ui-deploy.test.py
           python3 tests/dns9/scheduler-deploy.test.py
           python3 tests/dns9/activation-preflight.test.py
+          python3 tests/dns9/activation-coordinator.test.py
           php tests/dns9/autonomous-scheduler.test.php
           php -l tools/live/dns9-activation-mutex.php
           php tests/dns9/activation-mutex.test.php

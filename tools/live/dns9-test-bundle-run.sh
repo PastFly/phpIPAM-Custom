@@ -36,6 +36,14 @@ if [[ "${1:-}" == '--activation-preflight' && $# -eq 1 ]]; then
   python3 tools/live/dns9-activation-preflight.py
   exit 0
 fi
+if [[ "${1:-}" == '--activation-apply' && $# -eq 1 ]]; then
+  STAGE='guarded-automation-activation'
+  python3 tests/dns9/activation-preflight.test.py
+  python3 tests/dns9/activation-coordinator.test.py
+  php tests/dns9/activation-mutex.test.php
+  python3 tools/live/dns9-activation-coordinator.py --apply
+  exit 0
+fi
 if [[ "${1:-}" == '--scheduler-fix-deploy' && $# -eq 1 ]]; then
   STAGE='guarded-scheduler-fix-deploy'
   python3 tests/dns9/scheduler-deploy.test.py
