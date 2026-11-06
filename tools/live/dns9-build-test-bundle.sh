@@ -24,15 +24,27 @@ for file in \
   tests/dns9/phase-b3-transport-probe.test.py \
   tools/live/dns9-runner-tls-upgrade.py \
   tests/dns9/runner-tls-upgrade.test.py \
+  tools/live/dns9-b3-auto-once.py \
+  tools/live/dns9-queue-cli.php \
+  tests/dns9/b3-auto-once.test.py \
+  tests/dns9/b3-retry-guard.test.py \
+  tests/dns9/queue-cli.test.php \
+  tests/dns3/control-memory-repository.php \
+  layers/dns1/functions/classes/class.IntegrationDnsConfigRepository.php \
+  layers/dns1/functions/classes/class.IntegrationDnsPhpIpamConfigRepository.php \
+  layers/dns3/functions/classes/class.IntegrationDnsCollectorControlRepository.php \
+  layers/dns3/functions/classes/class.IntegrationDnsCollectorControlPhpIpamRepository.php \
+  layers/dns3/functions/classes/class.IntegrationDnsCollectorControlService.php \
   collectors/windows/dns/Invoke-PhpIpamDnsCollectorScheduled.ps1 \
   tools/live/dns9-test-bundle-run.sh; do
+  mkdir -p "$(dirname "$STAGE/$file")"
   cp "$file" "$STAGE/$file"
 done
 printf '%s\n' "$SHA" > "$STAGE/EXPECTED_SHA"
 printf '%s\n' 'b3-readonly-diagnostic+disk-inventory' > "$STAGE/STAGE"
 (
  cd "$STAGE"
- find tools tests collectors -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+ find tools tests collectors layers -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
  sha256sum EXPECTED_SHA STAGE >> SHA256SUMS
 )
 PACKAGE="$OUT/phpipam-dns9-test-$SHORT.tar.gz"

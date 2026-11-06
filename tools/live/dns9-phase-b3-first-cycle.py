@@ -21,6 +21,8 @@ INSTALL_ROOT=r"C:\ProgramData\phpIPAM\DnsCollector"
 PILOT_JOB_ID="a4ee3e5987dd15495d7e2419e853d9c8"
 PILOT_COLLECTOR_ID="f57057d6677e1ca7a032aab8b68796ac"
 PILOT_CONNECTION_ID="33b6fade9323f15aa7b1f56a8a865a9d"
+PREVIOUS_ATTEMPT_SHA="262972915047dda0d2c462f433409633070c3463"
+RETRY_GUARD="dns9-b3-live-attempt-retry-global"
 
 def sql(text: str)->str:
     p=subprocess.run(
@@ -189,7 +191,47 @@ def reserve_attempt(guard_root: Path, attempt_sha: str)->None:
     if any(path != guard for path in guard_root.glob("dns9-b3-live-attempt-*")):
         raise RuntimeError("existing_attempt_requires_review")
 
-def main()->None:
+def _checked_guard(path: Path, expected: str, uid: int, gid: int)->None:
+    try:
+        fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW)
+        try:
+            st=os.fstat(fd)
+            if (not stat.S_ISREG(st.st_mode) or st.st_uid!=uid or st.st_gid!=gid or
+                stat.S_IMODE(st.st_mode)!=0o600 or st.st_nlink!=1 or
+                os.read(fd,128)!=(expected+'\n').encode('ascii')):
+                raise RuntimeError('retry_guard_invalid')
+        finally: os.close(fd)
+    except OSError as exc:
+        raise RuntimeError('retry_guard_invalid') from exc
+
+def reserve_retry(root: Path, sha: str, uid: int=0, gid: int=0)->None:
+    if not re.fullmatch(r'[0-9a-f]{40}',sha): raise ValueError('attempt_sha_invalid')
+    st=root.lstat()
+    if not stat.S_ISDIR(st.st_mode) or st.st_uid!=uid or st.st_gid!=gid or st.st_mode&0o022:
+        raise RuntimeError('retry_guard_directory_invalid')
+    old=root/'dns9-b3-live-attempt-global'
+    if set(root.glob('dns9-b3-live-attempt-*'))!={old}: raise RuntimeError('retry_guard_set_invalid')
+    _checked_guard(old,PREVIOUS_ATTEMPT_SHA,uid,gid)
+    try:
+        fd=os.open(root/RETRY_GUARD,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+    except OSError as exc: raise RuntimeError('retry_guard_reservation_failed') from exc
+    try:
+        data=(sha+'\n').encode('ascii')
+        if os.write(fd,data)!=len(data): raise RuntimeError('retry_guard_write_failed')
+        os.fsync(fd)
+    finally: os.close(fd)
+    fd=os.open(root,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+    try: os.fsync(fd)
+    finally: os.close(fd)
+    validate_retry(root,sha,uid,gid)
+
+def validate_retry(root: Path, sha: str, uid: int=0, gid: int=0)->None:
+    old=root/'dns9-b3-live-attempt-global'; retry=root/RETRY_GUARD
+    if set(root.glob('dns9-b3-live-attempt-*'))!={old,retry}: raise RuntimeError('retry_guard_set_invalid')
+    _checked_guard(old,PREVIOUS_ATTEMPT_SHA,uid,gid)
+    _checked_guard(retry,sha,uid,gid)
+
+def main(password_override=None,reserved_retry=False,job_override=None)->None:
     ap=argparse.ArgumentParser()
     ap.add_argument("--bootstrap-receipt",required=True)
     ap.add_argument("--username")
@@ -217,7 +259,7 @@ def main()->None:
     print("DNS9_PHASE_B3_SERVER_TIMER_ENABLE=0")
     print("DNS9_PHASE_B3_PERMANENT_TASK_ENABLE=0")
 
-    job_id=fresh_job_id() if args.fresh_job else PILOT_JOB_ID
+    job_id=checked_job_id(job_override) if job_override is not None else (fresh_job_id() if args.fresh_job else PILOT_JOB_ID)
     print("DNS9_PHASE_B3_TARGET_JOB_ID="+job_id)
     before=job_state(job_id)
     print("DNS9_PHASE_B3_PILOT_BEFORE="+before)
@@ -240,7 +282,7 @@ def main()->None:
     if not args.attempt_sha or not re.fullmatch(r"[0-9a-f]{40}",args.attempt_sha):
         raise SystemExit("DNS9_PHASE_B3_ERROR=attempt_sha_invalid")
     pilot_ttl(job_id)
-    password=getpass.getpass("WinRM bootstrap password: ")
+    password=password_override if password_override is not None else getpass.getpass("WinRM bootstrap password: ")
     if not password:
         raise SystemExit("DNS9_PHASE_B3_ERROR=password_empty")
 
@@ -251,7 +293,10 @@ def main()->None:
     # Never reserve a live attempt before the interactive credential prompt.
     # Any prior attempt marker, including one from another bundle SHA, is
     # ambiguous and must be reviewed rather than silently removed.
-    reserve_attempt(Path("/var/lib/phpipam-custom"),args.attempt_sha)
+    if reserved_retry:
+        validate_retry(Path("/var/lib/phpipam-custom"),args.attempt_sha)
+    else:
+        reserve_attempt(Path("/var/lib/phpipam-custom"),args.attempt_sha)
     print("DNS9_B3_ONE_SHOT_GUARD_CREATED=1")
     p=protocol(args.server,args.username,password)
     password=""
@@ -314,21 +359,35 @@ try {{
     $started=$true
     $deadline=(Get-Date).AddSeconds(150)
     $observedRun=$false
+    $freshStatus=$false
+    $status=$null
+    $info=$null
     do {{
         Start-Sleep -Milliseconds 500
         $phase='read_task'
         $pilot=Get-ScheduledTask -TaskName $PilotTask -ErrorAction Stop
         $phase='read_task_info'
-        $info=Get-ScheduledTaskInfo -TaskName $PilotTask -ErrorAction Stop
+        try {{$info=Get-ScheduledTaskInfo -TaskName $PilotTask -ErrorAction Stop}} catch {{$info=$null}}
         $phase='inspect_last_run'
-        if($info.LastRunTime -ge $startedAt.AddSeconds(-2)){{$observedRun=$true}}
-        if($observedRun -and [string]$pilot.State -ne 'Running'){{break}}
+        if($null -ne $info -and $info.LastRunTime -ge $startedAt.AddSeconds(-2)){{$observedRun=$true}}
+        $freshStatus=$false
+        if(Test-Path -LiteralPath $Status -PathType Leaf){{
+            try {{
+                $statusItem=Get-Item -LiteralPath $Status -ErrorAction Stop
+                if($statusItem.LastWriteTimeUtc -ge $startedAt.ToUniversalTime().AddSeconds(-2)){{
+                    $status=Get-Content -LiteralPath $Status -Raw | ConvertFrom-Json -ErrorAction Stop
+                    $freshStatus=([int64]$status.updated_at -ge $startedEpoch)
+                }}
+            }} catch {{$freshStatus=$false}}
+        }}
+        $procs=@(Get-CimInstance -ClassName Win32_Process -ErrorAction Stop | Where-Object {{$_.Name -match '^(powershell|pwsh)\\.exe$'}})
+        $unknown=@($procs | Where-Object {{[string]::IsNullOrWhiteSpace($_.CommandLine)}})
+        $collectors=@($procs | Where-Object {{$_.CommandLine -like '*Invoke-PhpIpamDnsCollectorScheduled.ps1*'}})
+        if($freshStatus -and [string]$pilot.State -ne 'Running' -and $unknown.Count -eq 0 -and $collectors.Count -eq 0){{break}}
     }} while((Get-Date) -lt $deadline)
 
     # LastRunTime can lag or be unavailable on this Windows Server 2016
     # ScheduledTasks stack. Prefer a freshly written, redacted runner receipt.
-    $freshStatus=$false
-    $status=$null
     $phase='read_status'
     if(Test-Path -LiteralPath $Status -PathType Leaf){{
         $statusItem=Get-Item -LiteralPath $Status -ErrorAction Stop
@@ -341,6 +400,7 @@ try {{
     Write-Output ('DNS9_PHASE_B3_FRESH_STATUS_OBSERVED='+([int][bool]$freshStatus))
     $phase='validate_result'
     if([string]$pilot.State -eq 'Running'){{throw 'dns9_phase_b3_task_timeout'}}
+    if($unknown.Count -ne 0 -or $collectors.Count -ne 0){{throw 'dns9_phase_b3_process_state_uncertain'}}
     if($freshStatus -and [string]$status.state -eq 'error'){{
         # Do not expose raw exception text or any credential material.
         $safeCode=[string]$status.result_code
@@ -352,7 +412,7 @@ try {{
         throw ('dns9_phase_b3_collector_error_'+$safeCode)
     }}
     if(-not $observedRun -and -not $freshStatus){{throw 'dns9_phase_b3_task_start_unconfirmed'}}
-    if([int64]$info.LastTaskResult -ne 0){{throw ('dns9_phase_b3_task_result_'+[string]$info.LastTaskResult)}}
+    if($observedRun -and $null -ne $info -and [int64]$info.LastTaskResult -ne 0){{throw ('dns9_phase_b3_task_result_'+[string]$info.LastTaskResult)}}
     if(-not $freshStatus){{throw 'dns9_phase_b3_status_missing_or_stale'}}
     $perm=Get-ScheduledTask -TaskName $PermanentTask -ErrorAction Stop
     if([string]$perm.State -ne 'Disabled'){{throw 'dns9_phase_b3_permanent_task_changed'}}
@@ -364,7 +424,7 @@ try {{
         temp_task_trigger_enabled=[bool]$pilot.Triggers[0].Enabled
         temp_task_trigger_future=([DateTime]$pilot.Triggers[0].StartBoundary -gt (Get-Date).AddDays(3600))
         temp_task_allow_on_demand=[bool]$pilot.Settings.AllowDemandStart
-        temp_task_last_result=[int64]$info.LastTaskResult
+        temp_task_last_result=$(if($observedRun -and $null -ne $info){{[int64]$info.LastTaskResult}}else{{$null}})
         collector_state=[string]$status.state
         job_id=$status.job_id
         job_type=$status.job_type
@@ -383,7 +443,15 @@ catch {{
 }}
 finally {{
     if($created){{
-        try{{Unregister-ScheduledTask -TaskName $PilotTask -Confirm:$false -ErrorAction Stop}}catch{{}}
+        try{{
+            $current=Get-ScheduledTask -TaskName $PilotTask -ErrorAction Stop
+            $processes=@(Get-CimInstance -ClassName Win32_Process -ErrorAction Stop | Where-Object {{$_.Name -match '^(powershell|pwsh)\\.exe$'}})
+            $unknownNow=@($processes | Where-Object {{[string]::IsNullOrWhiteSpace($_.CommandLine)}})
+            $activeNow=@($processes | Where-Object {{$_.CommandLine -like '*Invoke-PhpIpamDnsCollectorScheduled.ps1*'}})
+            if([string]$current.State -ne 'Running' -and $unknownNow.Count -eq 0 -and $activeNow.Count -eq 0){{
+                Unregister-ScheduledTask -TaskName $PilotTask -Confirm:$false -ErrorAction Stop
+            }}
+        }}catch{{}}
     }}
     $left=Get-ScheduledTask -TaskName $PilotTask -ErrorAction SilentlyContinue
     $cleanupOk=($null -eq $left)
@@ -436,7 +504,7 @@ finally {{
         raise RuntimeError("phase_b3_temp_task_trigger_not_far_future")
     if remote.get("temp_task_allow_on_demand") is not True:
         raise RuntimeError("phase_b3_on_demand_disabled")
-    if int(remote.get("temp_task_last_result",-1))!=0:
+    if remote.get("temp_task_last_result") not in (None,0):
         raise RuntimeError("phase_b3_temp_task_result")
     if remote.get("collector_state")!="submitted":
         raise RuntimeError("phase_b3_collector_state")

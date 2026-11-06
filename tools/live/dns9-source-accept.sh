@@ -35,6 +35,8 @@ python3 tests/dns9/phase-b3-recover.test.py
 python3 tests/dns9/phase-b3-post-check.test.py
 python3 tests/dns9/phase-b3-transport-probe.test.py
 python3 tests/dns9/runner-tls-upgrade.test.py
+python3 tests/dns9/b3-auto-once.test.py
+python3 tests/dns9/b3-retry-guard.test.py
 python3 tests/dns9/phase-b3-diagnose-source.test.py
 python3 - <<'PY'
 from pathlib import Path
@@ -50,9 +52,11 @@ php -l layers/dns1/functions/classes/class.IntegrationDnsAdminController.php
 php -l layers/dns1/functions/classes/class.IntegrationDnsAdminView.php
 php -l layers/dns1/app/admin/integrations/dns-config-action.php
 php -l layers/dns1/app/admin/integrations/dns-config-panel.php
+php -l tools/live/dns9-queue-cli.php
 
 php tests/dns9/autonomous-scheduler.test.php
 php tests/dns9/autonomous-admin.test.php
+php tests/dns9/queue-cli.test.php
 
 if command -v node >/dev/null 2>&1; then
     node --check layers/dns1/app/admin/integrations/dns/config.js

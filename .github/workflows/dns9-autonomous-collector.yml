@@ -84,3 +84,12 @@ jobs:
       - name: Verify runner replacement and backup
         shell: powershell
         run: .\tests\dns9\runner-tls-upgrade.test.ps1
+      - name: Parse B3 control script in Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $encoded = & python tests/dns9/phase-b3-control-fixture.py
+          if ($LASTEXITCODE -ne 0) { throw 'B3 fixture generator failed' }
+          $source = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($encoded))
+          $tokens=$null; $errors=$null
+          [void][System.Management.Automation.Language.Parser]::ParseInput($source,[ref]$tokens,[ref]$errors)
+          if (@($errors).Count -ne 0) { throw 'B3 control PowerShell parse failed' }
