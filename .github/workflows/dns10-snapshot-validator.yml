@@ -21,5 +21,8 @@ jobs:
       - name: Verify PHP syntax and source contracts
         run: |
           php -l layers/dns10/functions/classes/class.IntegrationDnsZoneSnapshotValidator.php
+          php -l layers/dns10/functions/classes/class.IntegrationDnsZonePublicationPolicy.php
           php -l tests/dns10/snapshot-validator.test.php
+          php -l tests/dns10/publication-policy.test.php
           php tests/dns10/snapshot-validator.test.php
+          php tests/dns10/publication-policy.test.php
