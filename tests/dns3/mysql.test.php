@@ -17,6 +17,7 @@ $root=dirname(__DIR__,2);
 require $root.'/layers/dns3/functions/classes/class.IntegrationDnsCollectorControlRepository.php';
 require $root.'/layers/dns3/functions/classes/class.IntegrationDnsCollectorControlService.php';
 require $root.'/layers/dns3/functions/classes/class.IntegrationDnsCollectorControlPhpIpamRepository.php';
+require $root.'/layers/dns4/functions/classes/class.IntegrationDnsCollectorMachineService.php';
 
 function dns3pdo(string $dsn): PDO {
     return new PDO(
@@ -43,6 +44,22 @@ final class Dns3DatabasePdoFixture
     }
 }
 
+final class Dns3LazyDatabasePdoFixture
+{
+    public ?PDO $pdo=null;
+    public int $connections=0;
+    public function __construct(private string $dsn) {}
+    public function isConnected(): bool {return $this->pdo!==null;}
+    public function connect(): void {$this->pdo=dns3pdo($this->dsn);++$this->connections;}
+    public function beginTransaction(): bool {return $this->pdo->beginTransaction();}
+    public function commit(): bool {return $this->pdo->commit();}
+    public function rollBack(): bool {return $this->pdo->inTransaction() ? $this->pdo->rollBack() : false;}
+    public function getObjectsQuery($table,$sql=null,$values=[],$class='stdClass'): array {
+        $q=$this->pdo->prepare($sql);$q->execute((array)$values);return $q->fetchAll(PDO::FETCH_OBJ);
+    }
+    public function runQuery($sql,$values=[]): bool {$q=$this->pdo->prepare($sql);return $q->execute((array)$values);}
+}
+
 $n=0;
 function ok3sql(bool $v,string $label): void {
     global $n; ++$n;
@@ -66,6 +83,16 @@ $pdo->exec(file_get_contents($root.'/database/dns1/001-configuration.sql'));
 $pdo->exec(file_get_contents($root.'/database/dns3/001-collector-control.sql'));
 $pdo->exec(file_get_contents($root.'/database/dns4/001-machine-job-lifecycle.sql'));
 $pdo->exec(file_get_contents($root.'/database/dns6/001-credential-delivery-marker.sql'));
+
+$lazyDb=new Dns3LazyDatabasePdoFixture($dsn);
+$lazyRepo=new IntegrationDnsCollectorControlPhpIpamRepository($lazyDb);
+$machine=new IntegrationDnsCollectorMachineService($lazyRepo,static fn($id)=>null);
+$fakeToken='dnsctl1.'.str_repeat('0',32).'.'.str_repeat('A',43);
+reject3sql(fn()=> $machine->poll($fakeToken),'collector_auth_failed');
+ok3sql($lazyDb->connections===1 && $lazyDb->isConnected() && !$lazyDb->pdo->inTransaction(),
+    'fresh lazy connection starts and rolls back the authentication transaction');
+ok3sql((int)$pdo->query('SELECT COUNT(*) FROM custom_dns_control_jobs')->fetchColumn()===0,
+    'fake-token poll does not mutate jobs');
 
 $profileId=str_repeat('a',32);
 $connectionId=str_repeat('b',32);
