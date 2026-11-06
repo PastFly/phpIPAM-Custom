@@ -19,6 +19,8 @@ PERMANENT_TASK="phpIPAM Microsoft DNS Collector"
 PILOT_PREFIX="phpIPAM Microsoft DNS Collector DNS9 Pilot Once "
 INSTALL_ROOT=r"C:\ProgramData\phpIPAM\DnsCollector"
 PILOT_JOB_ID="a4ee3e5987dd15495d7e2419e853d9c8"
+PILOT_COLLECTOR_ID="f57057d6677e1ca7a032aab8b68796ac"
+PILOT_CONNECTION_ID="33b6fade9323f15aa7b1f56a8a865a9d"
 
 def sql(text: str)->str:
     p=subprocess.run(
@@ -44,6 +46,33 @@ SELECT CONCAT(
 )
 FROM custom_dns_control_jobs WHERE id='{PILOT_JOB_ID}';
 """)
+
+def pilot_ttl()->int:
+    row=one(f"""
+SELECT CONCAT(j.job_type,'|',j.collector_id,'|',j.connection_id,'|',
+ CAST(j.expires_at AS SIGNED)-CAST(UNIX_TIMESTAMP() AS SIGNED),'|',
+ (SELECT COUNT(*) FROM custom_dns_control_jobs q
+  WHERE q.collector_id=j.collector_id AND q.state IN ('pending','running')))
+FROM custom_dns_control_jobs j
+JOIN custom_dns_collector_assignments a ON a.connection_id=j.connection_id
+JOIN custom_dns_connections c ON c.id=j.connection_id
+JOIN custom_dns_collectors k ON k.id=j.collector_id
+WHERE j.id='{PILOT_JOB_ID}' AND a.collector_id=j.collector_id
+ AND a.revision=j.assignment_revision AND c.revision=j.configuration_revision
+ AND c.binding_epoch=j.binding_epoch AND c.credential_mode='collector_identity'
+ AND c.server='{SERVER}' AND j.credential_version IS NULL AND k.revoked=0;
+""")
+    parts=row.split('|')
+    if len(parts)!=5 or parts[:3]!=['test_connection',PILOT_COLLECTOR_ID,PILOT_CONNECTION_ID] or parts[4]!='1':
+        raise RuntimeError('pilot_identity_or_queue_invalid')
+    try:
+        ttl=int(parts[3])
+    except ValueError as exc:
+        raise RuntimeError('pilot_expiry_invalid') from exc
+    print('DNS9_PHASE_B3_PILOT_TTL_SECONDS='+str(ttl))
+    if ttl<180:
+        raise RuntimeError('pilot_expired_or_ttl_insufficient')
+    return ttl
 
 def timer_enabled()->bool:
     result=subprocess.run(
@@ -174,9 +203,14 @@ def main()->None:
         raise SystemExit("DNS9_PHASE_B3_ERROR=username_required")
     if not args.attempt_sha or not re.fullmatch(r"[0-9a-f]{40}",args.attempt_sha):
         raise SystemExit("DNS9_PHASE_B3_ERROR=attempt_sha_invalid")
+    pilot_ttl()
     password=getpass.getpass("WinRM bootstrap password: ")
     if not password:
         raise SystemExit("DNS9_PHASE_B3_ERROR=password_empty")
+
+    if job_state()!="pending|0||0|||0" or timer_enabled() or timer_active():
+        raise SystemExit("DNS9_PHASE_B3_ERROR=preflight_changed")
+    pilot_ttl()
 
     # Never reserve a live attempt before the interactive credential prompt.
     # Any prior attempt marker, including one from another bundle SHA, is

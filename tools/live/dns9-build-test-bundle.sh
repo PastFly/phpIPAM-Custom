@@ -18,6 +18,7 @@ for file in \
   tools/live/dns9_winrm_common.py \
   tests/dns9/phase-b3-diagnose-source.test.py \
   tools/live/dns9-phase-b3-first-cycle.py \
+  tools/live/dns9-phase-b3-recover.py \
   tools/live/dns9-test-bundle-run.sh; do
   cp "$file" "$STAGE/$file"
 done

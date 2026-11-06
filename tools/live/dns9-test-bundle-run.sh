@@ -30,6 +30,11 @@ print('TEST_BUNDLE_PYTHON_COMPILE=PASS')
 PY
 python3 tests/dns9/phase-b3-diagnose-source.test.py
 if [[ "$(id -u)" != 0 ]]; then echo 'TEST_BUNDLE_ERROR=root_required'; exit 1; fi
+if [[ "${1:-}" == '--b3-recover-guard' && $# -eq 1 ]]; then
+  STAGE='b3-guard-recovery'
+  python3 tools/live/dns9-phase-b3-recover.py
+  exit 0
+fi
 if [[ "${1:-}" == '--b3-recovery-check' && $# -eq 1 ]]; then
   STAGE='b3-readonly-recovery-check'
   RECEIPT='/var/backups/phpipam-custom/dns9-winrm-bootstrap-20260930-122257/receipt.json'

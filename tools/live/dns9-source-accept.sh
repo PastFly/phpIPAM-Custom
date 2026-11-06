@@ -30,6 +30,8 @@ python3 tests/dns9/winrm-stage-chunk.test.py
 python3 tests/dns9/phase-b3-source.test.py
 python3 tests/dns9/phase-b3-timer.test.py
 python3 tests/dns9/phase-b3-guard.test.py
+python3 tests/dns9/phase-b3-eligibility.test.py
+python3 tests/dns9/phase-b3-recover.test.py
 python3 tests/dns9/phase-b3-diagnose-source.test.py
 python3 - <<'PY'
 from pathlib import Path
