@@ -166,6 +166,8 @@ ok("$trigger.Enabled=$false" not in src,
 ok(src.index("if($freshStatus -and [string]$status.state -eq 'error')") < src.index("if(-not $observedRun -and -not $freshStatus)"), "fresh error precedes LastRunTime guard")
 ok("Remove-Item -LiteralPath $Status" not in src,
    "Phase B3 does not delete prior status evidence")
+ok("$StatusPath=Join-Path $Root 'status.json'" in src and "$Status=Join-Path" not in src,
+   "status path and parsed status use distinct PowerShell variable names")
 
 ok(src.index('stage_bytes(p,control_path,script.encode("utf-8"))') < src.index('rc,out,err=run('),
    "Phase B3 control script is staged before execution")

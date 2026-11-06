@@ -311,7 +311,7 @@ $PermanentTask={ps_quote(PERMANENT_TASK)}
 $PilotTask={ps_quote(temp_task)}
 $Root={ps_quote(INSTALL_ROOT)}
 $Runner=Join-Path $Root 'Invoke-PhpIpamDnsCollectorScheduled.ps1'
-$Status=Join-Path $Root 'status.json'
+$StatusPath=Join-Path $Root 'status.json'
 $ExpectedHashes=ConvertFrom-Json -InputObject {ps_quote(expected_json)}
 $created=$false
 $started=$false
@@ -371,11 +371,11 @@ try {{
         $phase='inspect_last_run'
         if($null -ne $info -and $info.LastRunTime -ge $startedAt.AddSeconds(-2)){{$observedRun=$true}}
         $freshStatus=$false
-        if(Test-Path -LiteralPath $Status -PathType Leaf){{
+        if(Test-Path -LiteralPath $StatusPath -PathType Leaf){{
             try {{
-                $statusItem=Get-Item -LiteralPath $Status -ErrorAction Stop
+                $statusItem=Get-Item -LiteralPath $StatusPath -ErrorAction Stop
                 if($statusItem.LastWriteTimeUtc -ge $startedAt.ToUniversalTime().AddSeconds(-2)){{
-                    $status=Get-Content -LiteralPath $Status -Raw | ConvertFrom-Json -ErrorAction Stop
+                    $status=Get-Content -LiteralPath $StatusPath -Raw | ConvertFrom-Json -ErrorAction Stop
                     $freshStatus=([int64]$status.updated_at -ge $startedEpoch)
                 }}
             }} catch {{$freshStatus=$false}}
@@ -389,10 +389,10 @@ try {{
     # LastRunTime can lag or be unavailable on this Windows Server 2016
     # ScheduledTasks stack. Prefer a freshly written, redacted runner receipt.
     $phase='read_status'
-    if(Test-Path -LiteralPath $Status -PathType Leaf){{
-        $statusItem=Get-Item -LiteralPath $Status -ErrorAction Stop
+    if(Test-Path -LiteralPath $StatusPath -PathType Leaf){{
+        $statusItem=Get-Item -LiteralPath $StatusPath -ErrorAction Stop
         if($statusItem.LastWriteTimeUtc -ge $startedAt.ToUniversalTime().AddSeconds(-2)){{
-            $status=Get-Content -LiteralPath $Status -Raw | ConvertFrom-Json -ErrorAction Stop
+            $status=Get-Content -LiteralPath $StatusPath -Raw | ConvertFrom-Json -ErrorAction Stop
             $freshStatus=([int64]$status.updated_at -ge $startedEpoch)
         }}
     }}
