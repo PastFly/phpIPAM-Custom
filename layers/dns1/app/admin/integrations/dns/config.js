@@ -59,7 +59,12 @@
                         'X-Phpipam-Dns-Csrf': root.dataset.csrf}, body: body});
                 body = null;
                 var result = await response.json();
-                if (response.status === 409) { message.textContent = 'Данные изменились или затронуты другие подключения. Обновите страницу и повторите проверку.'; return; }
+                if (response.status === 409) {
+                    message.textContent = result && result.error === 'job_already_pending'
+                        ? 'Такое задание уже находится в очереди или выполняется. Повторно запускать его не нужно.'
+                        : 'Данные изменились или затронуты другие подключения. Обновите страницу и повторите проверку.';
+                    return;
+                }
                 if (!response.ok || !result || result.ok !== true) { message.textContent = 'Не удалось подтвердить сохранение. Проверьте поля, права и состояние хранилища; при сомнении обновите страницу.'; return; }
                 if (action === 'register_collector') {
                     var token = result.data && result.data.control_token;

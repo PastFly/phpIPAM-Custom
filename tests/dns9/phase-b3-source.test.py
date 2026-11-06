@@ -61,6 +61,8 @@ for required in [
     "dns9_phase_b3_task_start_unconfirmed",
     "dns9_phase_b3_collector_error_",
     "DNS9_PHASE_B3_COLLECTOR_ERROR=",
+    "DNS9_PHASE_B3_CONTROL_FAILURE_PHASE=",
+    "DNS9_PHASE_B3_CONTROL_FAILURE_CATEGORY=",
     "DNS9_PHASE_B3_FRESH_STATUS_OBSERVED=",
     "DNS9_PHASE_B3_TEMP_TASK_CLEANED=",
     "DNS9_PHASE_B3_REMOTE_JSON=",

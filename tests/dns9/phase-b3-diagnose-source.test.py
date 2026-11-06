@@ -23,6 +23,7 @@ for required in [
     "Get-WinEvent -ListLog","Get-WinEvent -FilterHashtable",
     "status.json","status_epoch_consistent","status_error_generic","permanent_task_state","permanent_allow_demand_start",
     "pilot_task_count","collector_process_count","powershell_unknown_commandline_count","Get-CimInstance -ClassName Win32_Process",
+    "recent_pilot_events","recent_candidate_limit_reached",
     "operational_event_count","operational_events",
     "DNS9_PHASE_B3_DIAG_REMOTE_MUTATION=0",
     "DNS9_PHASE_B3_DIAG_DB_MUTATION=0",

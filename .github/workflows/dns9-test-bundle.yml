@@ -10,6 +10,7 @@ on:
       - 'tools/live/dns9-phase-b3-diagnose.py'
       - 'tools/live/dns9-phase-b3-first-cycle.py'
       - 'tools/live/dns9-phase-b3-recover.py'
+      - 'tools/live/dns9-phase-b3-post-check.py'
       - 'tools/live/dns9_winrm_common.py'
       - 'tests/dns9/phase-b3-diagnose-source.test.py'
       - '.github/workflows/dns9-test-bundle.yml'
@@ -42,6 +43,7 @@ jobs:
           bash -n tools/live/dns9-test-bundle-run.sh
           python3 -c "import pathlib; p=pathlib.Path('tools/live/dns9-phase-b3-first-cycle.py'); compile(p.read_text(),str(p),'exec')"
           python3 -c "import pathlib; p=pathlib.Path('tools/live/dns9-phase-b3-recover.py'); compile(p.read_text(),str(p),'exec')"
+          python3 -c "import pathlib; p=pathlib.Path('tools/live/dns9-phase-b3-post-check.py'); compile(p.read_text(),str(p),'exec')"
           cd "$GITHUB_WORKSPACE"
           RUN="dist/phpipam-dns9-test-${GITHUB_SHA:0:12}.run"
           test -f "$RUN"

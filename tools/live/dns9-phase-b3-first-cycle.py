@@ -271,6 +271,7 @@ $ExpectedHashes=ConvertFrom-Json -InputObject {ps_quote(expected_json)}
 $created=$false
 $started=$false
 $cleanupOk=$false
+$phase='preflight'
 try {{
     $perm=Get-ScheduledTask -TaskName $PermanentTask -ErrorAction Stop
     if([string]$perm.State -ne 'Disabled'){{throw 'dns9_phase_b3_permanent_task_not_disabled'}}
@@ -315,8 +316,11 @@ try {{
     $observedRun=$false
     do {{
         Start-Sleep -Milliseconds 500
+        $phase='read_task'
         $pilot=Get-ScheduledTask -TaskName $PilotTask -ErrorAction Stop
+        $phase='read_task_info'
         $info=Get-ScheduledTaskInfo -TaskName $PilotTask -ErrorAction Stop
+        $phase='inspect_last_run'
         if($info.LastRunTime -ge $startedAt.AddSeconds(-2)){{$observedRun=$true}}
         if($observedRun -and [string]$pilot.State -ne 'Running'){{break}}
     }} while((Get-Date) -lt $deadline)
@@ -325,6 +329,7 @@ try {{
     # ScheduledTasks stack. Prefer a freshly written, redacted runner receipt.
     $freshStatus=$false
     $status=$null
+    $phase='read_status'
     if(Test-Path -LiteralPath $Status -PathType Leaf){{
         $statusItem=Get-Item -LiteralPath $Status -ErrorAction Stop
         if($statusItem.LastWriteTimeUtc -ge $startedAt.ToUniversalTime().AddSeconds(-2)){{
@@ -334,6 +339,7 @@ try {{
     }}
     Write-Output ('DNS9_PHASE_B3_LASTRUN_OBSERVED='+([int][bool]$observedRun))
     Write-Output ('DNS9_PHASE_B3_FRESH_STATUS_OBSERVED='+([int][bool]$freshStatus))
+    $phase='validate_result'
     if([string]$pilot.State -eq 'Running'){{throw 'dns9_phase_b3_task_timeout'}}
     if($freshStatus -and [string]$status.state -eq 'error'){{
         # Do not expose raw exception text or any credential material.
@@ -366,6 +372,14 @@ try {{
         result_code=$status.result_code
         collector_updated_at=[int64]$status.updated_at
     }} | ConvertTo-Json -Compress | ForEach-Object {{Write-Output ('DNS9_PHASE_B3_REMOTE_JSON='+$_)}}
+}}
+catch {{
+    $category=[string]$_.CategoryInfo.Category
+    $allowedCategories=@('ObjectNotFound','PermissionDenied','InvalidOperation','InvalidData','ReadError','ResourceUnavailable','OperationTimeout','NotSpecified')
+    if($category -notin $allowedCategories){{$category='other'}}
+    Write-Output ('DNS9_PHASE_B3_CONTROL_FAILURE_PHASE='+$phase)
+    Write-Output ('DNS9_PHASE_B3_CONTROL_FAILURE_CATEGORY='+$category)
+    throw
 }}
 finally {{
     if($created){{

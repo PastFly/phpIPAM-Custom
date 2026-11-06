@@ -72,6 +72,8 @@ if(Test-Path -LiteralPath $Status -PathType Leaf){{
 $log=Get-WinEvent -ListLog 'Microsoft-Windows-TaskScheduler/Operational' -ErrorAction SilentlyContinue
 $events=@()
 $candidate=@()
+$recentCandidates=@()
+$recentEvents=@()
 $oldest=$null
 $newest=$null
 $logRecordCount=$null
@@ -97,6 +99,17 @@ if($null -ne $log){{
     }}
 }}
 if($null -ne $log -and $log.IsEnabled){{
+    $recentCandidates=@(Get-WinEvent -FilterHashtable @{{LogName='Microsoft-Windows-TaskScheduler/Operational';StartTime=(Get-Date).AddHours(-2)}} -MaxEvents 1000 -ErrorAction SilentlyContinue)
+    foreach($evt in $recentCandidates){{
+        $matched=$false
+        foreach($prop in @($evt.Properties)){{
+            if(([string]$prop.Value).Contains({ps_quote(PILOT_PREFIX)})){{$matched=$true;break}}
+        }}
+        if($matched){{
+            $recentEvents += [PSCustomObject][ordered]@{{id=[int]$evt.Id;time=$evt.TimeCreated.ToUniversalTime().ToString('o')}}
+            if($recentEvents.Count -ge 30){{break}}
+        }}
+    }}
     $start=[datetime]'2026-10-27T07:45:00Z'
     $end=[datetime]'2026-10-27T08:20:00Z'
     $candidate=@(Get-WinEvent -FilterHashtable @{{LogName='Microsoft-Windows-TaskScheduler/Operational';StartTime=$start;EndTime=$end}} -MaxEvents 2000 -ErrorAction SilentlyContinue)
@@ -150,6 +163,8 @@ if($null -ne $log -and $log.IsEnabled){{
     operational_candidate_limit_reached=[bool](@($candidate).Count -ge 2000)
     operational_event_count=@($events).Count
     operational_events=@($events)
+    recent_pilot_events=@($recentEvents)
+    recent_candidate_limit_reached=[bool](@($recentCandidates).Count -ge 1000)
 }} | ConvertTo-Json -Depth 8 -Compress | ForEach-Object {{Write-Output ('DNS9_PHASE_B3_DIAG_JSON='+$_)}}
 """
     # Compress the read-only PowerShell source in memory to stay below Windows

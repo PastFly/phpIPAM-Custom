@@ -37,6 +37,7 @@ jobs:
           python3 tests/dns1/boundary.test.py
           python3 tests/dns1/phpipam-host-source.test.py
           node --check layers/dns1/app/admin/integrations/dns/config.js
+          node tests/dns1/pending-feedback.test.js
       - name: Real MariaDB transactions and configuration mutex
         env:
           DNS1_TEST_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=phpipam_dns1_test;charset=utf8mb4'

@@ -112,7 +112,7 @@ final class IntegrationDnsAdminView
         $assignmentRevision=(int)($runtime['assignment_revision']??0);
         $enabled=($c['enabled']??false)===true;
 
-        $html.='<div class="well well-sm" data-dns-runtime>'.
+        $html.='<div class="alert alert-info" data-dns-runtime>'.
             '<strong>Автоматический сбор:</strong> '.($enabled?'включён':'выключен').'<br>'.
             '<strong>Сборщик:</strong> '.($assigned&&!$revoked?self::h($collectorName??'назначен'):'не назначен или недоступен').'<br>'.
             '<strong>Проверка доступа:</strong> '.self::h(self::jobLabel($runtime['test_connection']??null)).'<br>'.
