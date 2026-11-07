@@ -5,6 +5,7 @@ require $root.'/layers/dns1/functions/classes/class.IntegrationDnsConfigReposito
 require $root.'/layers/dns3/functions/classes/class.IntegrationDnsCollectorControlRepository.php';
 require $root.'/layers/dns3/functions/classes/class.IntegrationDnsCollectorControlService.php';
 require $root.'/layers/dns9/functions/classes/class.IntegrationDnsAutonomousAdminService.php';
+require $root.'/layers/dns1/functions/classes/class.IntegrationDnsAdminController.php';
 require $root.'/tests/dns1/memory-repository.php';
 require $root.'/tests/dns3/control-memory-repository.php';
 // Configuration service is unused here; production admin and control services run unchanged.
@@ -104,4 +105,17 @@ $transactions=$hookRepo->transactions;
 $disabled=$admin->setCollectionEnabled($id,7,false,17);
 enableCheck(!$disabled['enabled'] && $disabled['revision']===8,'disable succeeds without assignment');
 enableCheck($hookRepo->transactions===$transactions,'disable retains config-only transaction');
+$controller=new IntegrationDnsAdminController(static fn()=> $admin);
+$request=['method'=>'POST','authenticated'=>true,'admin'=>true,'actor_id'=>17,'https'=>true,'csrf_valid'=>true,
+    'input'=>['action'=>'set_collection_enabled','data'=>['id'=>$id,'expected_revision'=>7,'enabled'=>true]]];
+$reset();unset($inner->assignments[$id]);$response=$controller->handle($request);
+enableCheck($response['status']===400 && $response['body']['error']==='assignment_unavailable','HTTP reports missing assignment');
+$reset();$inner->collectors[$collectorId]['revoked']=true;$response=$controller->handle($request);
+enableCheck($response['status']===400 && $response['body']['error']==='collector_unavailable','HTTP reports revoked collector');
+$reset();$inner->assignments[$id]['collector_id']=null;$response=$controller->handle($request);
+enableCheck($response['status']===400 && $response['body']['error']==='collector_unavailable','HTTP reports invalid collector');
+$reset();$request['input']['data']['expected_revision']=99;$response=$controller->handle($request);
+enableCheck($response['status']===409 && $response['body']['error']==='revision_conflict','HTTP reports stale revision');
+$reset();$request['admin']=false;$response=$controller->handle($request);
+enableCheck($response['status']===403 && !$configRepo->connections[$id]['enabled'],'HTTP denies non-admin before mutation');
 printf("DNS9_ENABLE_GUARD_ASSERTIONS=%d\nDNS9_ENABLE_GUARD_TEST_OK=1\n",$n);
