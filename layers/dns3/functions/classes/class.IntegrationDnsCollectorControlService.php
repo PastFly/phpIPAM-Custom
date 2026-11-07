@@ -292,40 +292,51 @@ final class IntegrationDnsCollectorControlService
         });
     }
 
-    public function revokeCollector(string $id,int $expectedRevision,int $actor): void
+    public function revokeCollector(string $id,int $expectedRevision,int $actor,?callable $guardedConfig=null): void
     {
         self::actor($actor);
         $id=self::id($id);
-        if ($expectedRevision<1) throw new DomainException('revision_conflict');
+        if ($expectedRevision<1 && $guardedConfig===null) throw new DomainException('revision_conflict');
 
-        $this->repo->transaction(function() use($id,$expectedRevision,$actor) {
+        $this->repo->transaction(function() use($id,$expectedRevision,$actor,$guardedConfig) {
             $row=$this->repo->collector($id);
             if ($row===null) throw new DomainException('not_found');
             if (($row['revision']??null)!==$expectedRevision) throw new DomainException('revision_conflict');
             if (($row['revoked']??false)===true) throw new DomainException('collector_unavailable');
 
-            $now=$this->now();
-            $row['revoked']=true;
-            $row['revision']=self::next($row['revision']);
-            $row['control_epoch']=self::next($row['control_epoch']);
-            $row['updated_at']=$now;
-            $row['updated_by']=$actor;
-            $this->repo->putCollector($row);
+            $revoke=function() use($row,$id,$actor): void {
+                $now=$this->now();
+                $row['revoked']=true;
+                $row['revision']=self::next($row['revision']);
+                $row['control_epoch']=self::next($row['control_epoch']);
+                $row['updated_at']=$now;
+                $row['updated_by']=$actor;
+                $this->repo->putCollector($row);
 
-            foreach ($this->repo->assignments() as $assignment) {
-                if (($assignment['collector_id']??null)===$id) {
-                    $this->repo->removeAssignment($assignment['connection_id']);
+                foreach ($this->repo->assignments() as $assignment) {
+                    if (($assignment['collector_id']??null)===$id) {
+                        $this->repo->removeAssignment($assignment['connection_id']);
+                    }
                 }
-            }
-            foreach ($this->repo->jobs() as $job) {
-                if (($job['collector_id']??null)===$id && in_array($job['state']??null,['pending','running'],true)) {
-                    $job['state']='obsolete';
-                    $job['updated_at']=$now;
-                    $job['updated_by']=$actor;
-                    $this->repo->putJob($job);
+                foreach ($this->repo->jobs() as $job) {
+                    if (($job['collector_id']??null)===$id && in_array($job['state']??null,['pending','running'],true)) {
+                        $job['state']='obsolete';
+                        $job['updated_at']=$now;
+                        $job['updated_by']=$actor;
+                        $this->repo->putJob($job);
+                    }
                 }
+                $this->event('collector_revoked',$id,$actor);
+            };
+            if ($guardedConfig===null) $revoke();
+            else {
+                $didRevoke=false;
+                $guardedConfig($this->repo,function() use(&$didRevoke,$revoke): void {
+                    if ($didRevoke) throw new DomainException('control_unavailable');
+                    $didRevoke=true;$revoke();
+                });
+                if (!$didRevoke) throw new DomainException('control_unavailable');
             }
-            $this->event('collector_revoked',$id,$actor);
         });
     }
 }

@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'layers/dns3/**'
+      - 'layers/dns1/functions/classes/class.IntegrationDnsPhpIpamConfigRepository.php'
+      - 'layers/dns9/functions/classes/class.IntegrationDnsAutonomousAdminService.php'
       - 'database/dns1/**'
       - 'database/dns3/**'
       - 'tests/dns3/**'

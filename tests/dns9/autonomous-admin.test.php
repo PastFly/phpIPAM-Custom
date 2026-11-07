@@ -29,6 +29,7 @@ $cipher=new IntegrationDnsCipher('test-key',['test-key'=>$key]);
 $configRepo=new DnsMemoryRepository();
 $config=new IntegrationDnsConfigService($configRepo,$cipher);
 $controlRepo=new Dns3MemoryRepository();
+$controlRepo->joinedConfig=$configRepo;
 
 $resolver=static function(string $id) use($configRepo): ?array {
     return $configRepo->transaction(static function() use($configRepo,$id): ?array {

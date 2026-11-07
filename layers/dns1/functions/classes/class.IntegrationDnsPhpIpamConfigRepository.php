@@ -63,6 +63,15 @@ final class IntegrationDnsPhpIpamConfigRepository implements IntegrationDnsConfi
         if (!$this->ownedTransaction) throw new DomainException('configuration_unavailable');
     }
 
+    /** Join a control transaction only when both adapters share its guarded DB. */
+    public function joinControlTransaction(object $control,callable $work): mixed
+    {
+        if ($this->ownedTransaction || !is_callable([$control,'ownsTransactionFor']) ||
+            $control->ownsTransactionFor($this->db)!==true) throw new DomainException('configuration_unavailable');
+        $this->ownedTransaction=true;
+        try { return $work(); } finally { $this->ownedTransaction=false; }
+    }
+
     private static function field(mixed $row,string $name): mixed
     {
         if (is_array($row)) return $row[$name]??null;

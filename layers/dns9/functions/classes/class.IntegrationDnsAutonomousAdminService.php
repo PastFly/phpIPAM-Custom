@@ -175,25 +175,12 @@ final class IntegrationDnsAutonomousAdminService
         self::actor($actor);
         self::id($id);
 
-        $snapshot=$this->control->snapshot();
-        $target=null;
-        foreach($snapshot['collectors']??[] as $collector) {
-            if(($collector['id']??null)===$id) {$target=$collector; break;}
-        }
-        if($target===null) throw new DomainException('not_found');
-        if(($target['revision']??null)!==$expectedRevision) throw new DomainException('revision_conflict');
-        if(($target['revoked']??true)===true) throw new DomainException('collector_unavailable');
-
-        $connectionIds=[];
-        foreach($snapshot['assignments']??[] as $assignment) {
-            if(($assignment['collector_id']??null)===$id && is_string($assignment['connection_id']??null)) {
-                $connectionIds[]=$assignment['connection_id'];
-            }
-        }
-
-        if($connectionIds) {
-            $this->configRepo->transaction(function() use($connectionIds,$actor) {
-                foreach($connectionIds as $connectionId) {
+        $this->control->revokeCollector($id,$expectedRevision,$actor,function($controlRepo,$revoke) use($id,$actor): void {
+            if(!is_callable([$this->configRepo,'joinControlTransaction'])) throw new DomainException('configuration_unavailable');
+            $this->configRepo->joinControlTransaction($controlRepo,function() use($controlRepo,$revoke,$id,$actor): void {
+                foreach($controlRepo->assignments() as $assignment) {
+                    if(($assignment['collector_id']??null)!==$id || !is_string($assignment['connection_id']??null)) continue;
+                    $connectionId=$assignment['connection_id'];
                     $row=$this->configRepo->connection($connectionId);
                     if($row===null) continue;
                     if(($row['enabled']??false)===true) {
@@ -212,10 +199,9 @@ final class IntegrationDnsAutonomousAdminService
                         'created_at'=>time()
                     ]);
                 }
+                $revoke();
             });
-        }
-
-        $this->control->revokeCollector($id,$expectedRevision,$actor);
+        });
     }
 
     public function queueControlJob(string $id,string $jobType,int $actor): array
