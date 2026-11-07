@@ -34,11 +34,15 @@ function dns3pdo(string $dsn): PDO {
 
 final class Dns3DatabasePdoFixture
 {
+    public ?Closure $beforeConfigRead=null;
     public function __construct(public PDO $pdo) {}
     public function beginTransaction(): bool { return $this->pdo->beginTransaction(); }
     public function commit(): bool { return $this->pdo->commit(); }
     public function rollBack(): bool { return $this->pdo->inTransaction() ? $this->pdo->rollBack() : false; }
     public function getObjectsQuery($table,$sql=null,$values=[],$class='stdClass'): array {
+        if($this->beforeConfigRead!==null && str_contains($sql,'FROM custom_dns_connections WHERE id = ?')) {
+            $hook=$this->beforeConfigRead;$this->beforeConfigRead=null;$hook();
+        }
         $q=$this->pdo->prepare($sql); $q->execute((array)$values);
         return $q->fetchAll(PDO::FETCH_OBJ);
     }
@@ -363,5 +367,33 @@ ok3sql((int)$afterRevoke[0]['enabled']===0 && (int)$afterRevoke[0]['revision']==
 ok3sql((int)$afterRevoke[1]['revoked']===1 && $afterRevoke[2]===false && $afterRevoke[3]['state']==='obsolete',
     'composed revoke commits collector assignment and job changes');
 ok3sql($afterRevoke[4]===$beforeRevoke[4]+1 && $afterRevoke[5]===$beforeRevoke[5]+1,'composed revoke commits both audits');
+
+// Check guard ownership during the enable config read in the disposable DB.
+$enableAssertionsBefore=$n;
+$enableConnection=str_repeat('7',32);$enableCollector=str_repeat('8',32);
+$q=$pdo->prepare('INSERT INTO custom_dns_connections (id,provider,name,server,interval_seconds,credential_mode,profile_id,collector_id,enabled,status,revision,binding_epoch,updated_at,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+$q->execute([$enableConnection,'microsoft_dns','Synthetic enable','dns.example.invalid',300,'collector_identity',null,null,0,'disabled',1,1,$now,17]);
+$repo->transaction(function() use($repo,$enableConnection,$enableCollector,$now): void {
+    $repo->putCollector(['id'=>$enableCollector,'name'=>'Synthetic enable collector','token_digest'=>str_repeat('b',64),
+        'revision'=>1,'control_epoch'=>1,'revoked'=>false,'created_at'=>$now,'created_by'=>17,'updated_at'=>$now,'updated_by'=>17]);
+    $repo->putAssignment(['connection_id'=>$enableConnection,'collector_id'=>$enableCollector,'revision'=>1,'assigned_at'=>$now,'assigned_by'=>17]);
+});
+$blocked=false;$hookCalls=0;
+$db->beforeConfigRead=static function() use($other,&$blocked,&$hookCalls): void {
+    ++$hookCalls;$other->beginTransaction();
+    try {$other->query('SELECT id FROM custom_dns_config_guard WHERE id=1 FOR UPDATE');}
+    catch(PDOException $e) {if((int)($e->errorInfo[1]??0)!==1205)throw $e;$blocked=true;}
+    finally {if($other->inTransaction())$other->rollBack();}
+};
+$enabled=$admin->setCollectionEnabled($enableConnection,1,true,17);
+ok3sql($hookCalls===1 && $blocked && !$other->inTransaction(),'enable holds shared guard through config read');
+ok3sql($enabled['enabled']===true && $enabled['revision']===2 && $enabled['binding_epoch']===2,'enable commits versions under guard');
+$admin->revokeCollector($enableCollector,1,17);
+$q=$pdo->prepare('SELECT enabled,status,revision,binding_epoch FROM custom_dns_connections WHERE id=?');$q->execute([$enableConnection]);
+$disabledAfterRevoke=$q->fetch(PDO::FETCH_ASSOC);
+ok3sql((int)$disabledAfterRevoke['enabled']===0 && $disabledAfterRevoke['status']==='collector_revoked' &&
+    (int)$disabledAfterRevoke['revision']===3 && (int)$disabledAfterRevoke['binding_epoch']===3,'revoke after enable disables connection');
+reject3sql(fn()=> $admin->setCollectionEnabled($enableConnection,3,true,17),'assignment_unavailable');
+echo 'DNS9_ENABLE_GUARD_MYSQL_ASSERTIONS='.($n-$enableAssertionsBefore)."\n";
 
 echo "DNS3_MYSQL_ASSERTIONS=$n\nDNS3_MYSQL_TESTS_OK=1\n";
