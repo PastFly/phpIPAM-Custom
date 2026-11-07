@@ -211,6 +211,21 @@ final class IntegrationDnsCollectorControlService
         });
     }
 
+    /** Execute an enable operation while its current assignment is guarded. */
+    public function withActiveAssignment(string $connectionId,callable $work): mixed
+    {
+        $connectionId=self::id($connectionId);
+        return $this->repo->transaction(function() use($connectionId,$work): mixed {
+            $assignment=$this->repo->assignment($connectionId);
+            if($assignment===null) throw new DomainException('assignment_unavailable');
+            $collectorId=$assignment['collector_id']??null;
+            if(!is_string($collectorId)) throw new DomainException('collector_unavailable');
+            $collector=$this->repo->collector($collectorId);
+            if($collector===null || ($collector['revoked']??true)!==false) throw new DomainException('collector_unavailable');
+            return $work($this->repo);
+        });
+    }
+
     public function saveAssignment(array $input,int $actor): array
     {
         self::actor($actor);
