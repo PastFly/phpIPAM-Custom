@@ -1,0 +1,84 @@
+name: DNS10 selected-zone snapshot validation
+
+on:
+  pull_request:
+    paths:
+      - 'layers/dns10/**'
+      - 'tests/dns10/**'
+      - 'database/dns10/**'
+      - 'database/dns1/**'
+      - 'database/dns3/**'
+      - 'database/dns4/**'
+      - 'database/dns6/**'
+      - 'database/dns9/**'
+      - 'design/DNS10_ZONE_SNAPSHOT_VALIDATION.md'
+      - '.github/workflows/dns10-snapshot-validator.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot-validator:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Verify PHP syntax and source contracts
+        run: |
+          php -l layers/dns10/functions/classes/class.IntegrationDnsZoneSnapshotValidator.php
+          php -l layers/dns10/functions/classes/class.IntegrationDnsZonePublicationPolicy.php
+          php -l layers/dns10/functions/classes/class.IntegrationDnsZoneUploadHttpController.php
+          php -l layers/dns10/functions/classes/class.IntegrationDnsZoneUploadToken.php
+          php -l layers/dns10/functions/classes/class.IntegrationDnsZonePublicationRepository.php
+          php -l layers/dns10/functions/classes/class.IntegrationDnsZonePublicationService.php
+          php -l layers/dns10/functions/classes/class.IntegrationDnsZonePublicationPhpIpamRepository.php
+          php -l layers/dns10/functions/classes/class.IntegrationDnsZoneSelectionRepository.php
+          php -l layers/dns10/functions/classes/class.IntegrationDnsZoneSelectionService.php
+          php -l layers/dns10/functions/classes/class.IntegrationDnsZoneSelectionPhpIpamRepository.php
+          php -l layers/dns10/functions/classes/class.IntegrationDnsZoneSelectionAdminController.php
+          php -l tests/dns10/snapshot-validator.test.php
+          php -l tests/dns10/publication-policy.test.php
+          php -l tests/dns10/upload-http.test.php
+          php -l tests/dns10/upload-token.test.php
+          php -l tests/dns10/publication-memory-repository.php
+          php -l tests/dns10/publication-service.test.php
+          php -l tests/dns10/selection-memory-repository.php
+          php -l tests/dns10/selection-service.test.php
+          php -l tests/dns10/selection-admin-controller.test.php
+          php -l tests/dns10/selection-audit-retention.test.php
+          php tests/dns10/snapshot-validator.test.php
+          php tests/dns10/publication-policy.test.php
+          php tests/dns10/upload-http.test.php
+          php tests/dns10/upload-token.test.php
+          php tests/dns10/publication-service.test.php
+          php tests/dns10/selection-service.test.php
+          php tests/dns10/selection-admin-controller.test.php
+          php tests/dns10/selection-audit-retention.test.php
+
+  mariadb-schema:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: fixture-only-not-a-production-secret
+          MARIADB_DATABASE: phpipam_dns10_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Install test-only PHP MySQL driver
+        run: sudo apt-get update && sudo apt-get install -y php-cli php-mysql
+      - name: Verify isolated schema, foreign keys and transactional rollback
+        env:
+          DNS10_TEST_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=phpipam_dns10_test;charset=utf8mb4'
+          DNS10_TEST_USER: root
+          DNS10_TEST_PASSWORD: fixture-only-not-a-production-secret
+        run: |
+          php -l tests/dns10/mysql.test.php
+          php tests/dns10/mysql.test.php

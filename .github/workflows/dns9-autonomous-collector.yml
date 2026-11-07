@@ -1,0 +1,123 @@
+name: DNS9 autonomous Windows collector source
+
+on:
+  pull_request:
+    paths:
+      - 'collectors/windows/dns/Install-PhpIpamDnsCollector.ps1'
+      - 'collectors/windows/dns/Invoke-PhpIpamDnsCollectorScheduled.ps1'
+      - 'collectors/windows/dns/Get-PhpIpamDnsCollectorStatus.ps1'
+      - 'collectors/windows/dns/Uninstall-PhpIpamDnsCollector.ps1'
+      - 'tests/dns9/**'
+      - 'design/DNS9_AUTONOMOUS_WINDOWS_COLLECTOR.md'
+      - 'layers/dns9/**'
+      - 'layers/dns1/app/admin/integrations/dns-config-action.php'
+      - 'layers/dns1/app/admin/integrations/dns-config-panel.php'
+      - 'layers/dns1/app/admin/integrations/dns/config.js'
+      - 'layers/dns1/functions/classes/class.IntegrationDnsAdminController.php'
+      - 'layers/dns1/functions/classes/class.IntegrationDnsAdminView.php'
+      - 'layers/dns3/functions/classes/class.IntegrationDnsCollectorControlService.php'
+      - 'database/dns9/**'
+      - 'deploy/dns9/**'
+      - 'tools/live/dns9-source-accept.sh'
+      - 'tools/live/dns9-build-test-bundle.sh'
+      - 'tools/live/dns9-windows-fixture-stage.py'
+      - 'tools/live/dns9-production-preflight.py'
+      - 'tests/dns9/phase-b-preflight-source.test.py'
+      - 'tools/live/dns9-phase-b-preflight.py'
+      - 'tests/dns9/phase-b3-source.test.py'
+      - 'tools/live/dns9-phase-b3-first-cycle.py'
+      - 'tests/dns9/winrm-client-source.test.py'
+      - 'tools/live/dns9-winrm-client-install.py'
+      - 'tests/dns9/winrm-bootstrap-source.test.py'
+      - 'tests/dns9/winrm-stage-chunk.test.py'
+      - 'tools/live/dns9-winrm-bootstrap.py'
+      - 'tools/live/dns9-winrm-md4-selftest.py'
+      - 'tools/live/dns9-winrm-remote-accept.py'
+      - 'tools/live/dns9_winrm_common.py'
+      - 'tools/live/dns9-server-post-install-accept.py'
+      - 'tools/live/dns9-server-rollback.py'
+      - 'tools/live/dns9-server-install.py'
+      - '.github/workflows/dns9-autonomous-collector.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  source-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - run: bash tools/live/dns9-source-accept.sh
+      - run: php -l layers/dns9/functions/classes/class.IntegrationDnsAutonomousScheduler.php
+      - run: php -l layers/dns9/functions/scripts/dns-autonomous-scheduler.php
+      - run: php -l layers/dns9/functions/classes/class.IntegrationDnsAutonomousAdminService.php
+      - run: php -l layers/dns1/functions/classes/class.IntegrationDnsAdminController.php
+      - run: php -l layers/dns1/functions/classes/class.IntegrationDnsAdminView.php
+      - run: php -l layers/dns1/app/admin/integrations/dns-config-action.php
+      - run: php -l layers/dns1/app/admin/integrations/dns-config-panel.php
+      - run: php tests/dns9/autonomous-scheduler.test.php
+      - run: php tests/dns9/autonomous-admin.test.php
+      - run: node --check layers/dns1/app/admin/integrations/dns/config.js
+
+  windows-powershell-51:
+    runs-on: windows-2022
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: DNS9 Windows PowerShell 5.1 fixture
+        shell: powershell
+        run: |
+          & .\tests\dns9\autonomous-windows.test.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Parse transport probe in Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $source = Get-Content -Raw 'tools/live/dns9-phase-b3-transport-probe.py'
+          $match = [regex]::Match($source, "(?s)POWERSHELL=r'''(.*?)'''")
+          if (-not $match.Success) { throw 'transport probe source missing' }
+          $tokens = $null; $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseInput($match.Groups[1].Value, [ref]$tokens, [ref]$errors)
+          if (@($errors).Count -ne 0) { throw 'transport probe PowerShell parse failed' }
+      - name: Verify runner TLS and restoration
+        shell: powershell
+        run: .\tests\dns9\runner-tls.test.ps1
+      - name: Verify runner replacement and backup
+        shell: powershell
+        run: .\tests\dns9\runner-tls-upgrade.test.ps1
+      - name: Parse B3 control script in Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $encoded = & python tests/dns9/phase-b3-control-fixture.py
+          if ($LASTEXITCODE -ne 0) { throw 'B3 fixture generator failed' }
+          $source = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($encoded))
+          $tokens=$null; $errors=$null
+          [void][System.Management.Automation.Language.Parser]::ParseInput($source,[ref]$tokens,[ref]$errors)
+          if (@($errors).Count -ne 0) { throw 'B3 control PowerShell parse failed' }
+      - name: Exercise B3 control and safe cleanup
+        shell: powershell
+        run: .\tests\dns9\phase-b3-control.test.ps1
+      - name: Exercise isolated SYSTEM diagnostic
+        shell: powershell
+        run: .\tests\dns9\system-probe.test.ps1
+      - name: Verify read-only activation preflight
+        shell: powershell
+        run: .\tests\dns9\activation-preflight.test.ps1
+      - name: Exercise activation task control
+        shell: powershell
+        run: .\tests\dns9\activation-task-control.test.ps1
+      - name: Exercise diagnostic task cleanup
+        shell: powershell
+        run: .\tests\dns9\system-probe-control.test.ps1
+      - name: Parse post-PDO SYSTEM preflight
+        shell: powershell
+        run: |
+          $encoded = & python tests/dns9/after-pdo-preflight-fixture.py
+          if ($LASTEXITCODE -ne 0) { throw 'preflight fixture generator failed' }
+          $source=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($encoded))
+          $tokens=$null; $errors=$null
+          [void][System.Management.Automation.Language.Parser]::ParseInput($source,[ref]$tokens,[ref]$errors)
+          if (@($errors).Count -ne 0) { throw 'SYSTEM preflight PowerShell parse failed' }
+      - name: Exercise post-PDO SYSTEM preflight
+        shell: powershell
+        run: .\tests\dns9\after-pdo-preflight.test.ps1

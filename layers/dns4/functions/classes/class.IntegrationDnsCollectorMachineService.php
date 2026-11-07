@@ -84,6 +84,8 @@ final class IntegrationDnsCollectorMachineService
     {
         $kept=[];
         foreach($jobs as $j) {
+            // A newer deployment may introduce job types this worker cannot safely interpret.
+            if (!in_array($j['job_type']??null,['test_connection','list_zones'],true)) {$kept[]=$j;continue;}
             $state=$j['state']??'';
             if(in_array($state,['succeeded','failed','expired','obsolete'],true) &&
                (int)($j['finished_at']??$j['updated_at']??0) <= $now-86400) {
@@ -128,6 +130,7 @@ final class IntegrationDnsCollectorMachineService
             usort($jobs,static fn($a,$b)=>[$a['created_at'],$a['id']]<=>[$b['created_at'],$b['id']]);
             foreach($jobs as $job) {
                 if(($job['collector_id']??null)!==$collector['id']||($job['state']??null)!=='pending') continue;
+                if(!in_array($job['job_type']??null,['test_connection','list_zones'],true)) continue;
                 $current=$this->currentOrObsolete($job,$collector,$now);
                 if(isset($current['error'])) return $current;
                 $lease=bin2hex(random_bytes(16));
@@ -155,6 +158,7 @@ final class IntegrationDnsCollectorMachineService
 
     private static function sanitizeResult(array $input,string $type): array
     {
+        if(!in_array($type,['test_connection','list_zones'],true)) throw new DomainException('result_invalid');
         $allowed=$type==='list_zones'?['ok','error_code','zones']:['ok','error_code'];
         if(array_diff(array_keys($input),$allowed)||!is_bool($input['ok']??null)||
            !array_key_exists('error_code',$input)) throw new DomainException('result_invalid');
@@ -194,6 +198,7 @@ final class IntegrationDnsCollectorMachineService
             $job=null;
             foreach($this->repo->jobs() as $candidate) if(($candidate['id']??null)===$jobId){$job=$candidate;break;}
             if($job===null||($job['collector_id']??null)!==$collector['id']) throw new DomainException('job_not_found');
+            if(!in_array($job['job_type']??null,['test_connection','list_zones'],true)) throw new DomainException('result_invalid');
             if(($job['state']??null)!=='running') throw new DomainException('job_not_running');
             if(!is_string($job['lease_id']??null)||!hash_equals($job['lease_id'],$leaseId)) throw new DomainException('lease_invalid');
             if((int)($job['lease_expires_at']??0)<$now||(int)($job['expires_at']??0)<$now) {

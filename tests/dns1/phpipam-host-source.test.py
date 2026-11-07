@@ -37,7 +37,9 @@ ok("csrf_cookie('create','integration_microsoft_dns_config')" in panel,"panel cr
 ok("new IntegrationDnsPhpIpamConfigRepository($Database)" in panel,"panel uses phpIPAM database bridge")
 ok("IntegrationDnsCipher::fromKeyringFile()" in panel,"panel fails closed on DNS keyring")
 ok("IntegrationDnsAdminView" in panel and "->render(" in panel,"panel renders tested view")
-ok("secret_envelope" not in panel and "password" not in panel.lower(),"panel has no saved-secret handling")
+ok(panel.count("['secret_envelope']")==1 and "$profile['secret_envelope']===null" in panel and
+   "password" not in panel.lower() and "->open(" not in panel,
+   "panel only checks whether the saved credential exists")
 
 ok("PHPIPAM_CUSTOM_DNS1_CONFIG_INDEX_APPEND_V1" in append,"append has deterministic marker")
 ok("dns-config-panel.php" in append,"append includes DNS panel")

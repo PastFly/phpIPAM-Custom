@@ -17,7 +17,7 @@ compact=re.sub(r'(?m)^\s*#.*$','',src)
 
 for required in [
     "[CmdletBinding()]","System.Management.Automation.PSCredential","Get-DnsServerZone",
-    "Get-DnsServerResourceRecord","New-CimSession","-Authentication Kerberos",
+    "Get-DnsServerResourceRecord","New-CimSession",
     "Remove-CimSession","Import-Module DnsServer","-RRType",
     "A","AAAA","CNAME","PTR","OutputPath","ConvertTo-Json"
 ]:
@@ -35,12 +35,12 @@ for forbidden in [
     check(forbidden not in compact,"preview forbids: "+forbidden)
 
 check("srv-dc01.rbank.local" not in compact,"source host is not hardcoded")
+check(re.search(r"Authentication\s*=\s*'Kerberos'",compact) is not None and "New-CimSession @sessionArgs" in compact,"remote session enforces Kerberos")
 check("srv-dhcp01.rbank.local" not in compact,"dhcp host is not hardcoded")
 check("param(" in compact and "Server" in compact and "Credential" in compact,"server and credential are inputs")
 check("ValidatePattern" in compact,"server input constrained as FQDN")
 check("Get-Item -LiteralPath $LiteralPath -Force" in compact and "dns_preview_output_exists" in compact,"existing output path is refused")
 check("Set-Content -LiteralPath $LiteralPath" in compact,"validated helper path is the written path")
-check("Test-Path -LiteralPath $LiteralPath" in compact and "dns_preview_output_exists" in compact,"preview output refuses overwrite")
 check("Resolve-DnsName" not in compact,"no external name resolution")
 check("ConvertTo-Json -InputObject $Value" in compact,"multi-zone output stays one JSON document")
 check("complete" in compact and "supported_types" in compact,"normalized preview metadata present")

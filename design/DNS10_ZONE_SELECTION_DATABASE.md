@@ -1,0 +1,9 @@
+# DNS10 — selected-zone administration database adapter
+
+Status: source-only adapter and disposable MariaDB tests. It is not connected to a live endpoint, browser, scheduler or production database. Deploying the DNS10 schema or PHP files requires a separate Owner-approved plan and must preserve the currently running DNS9 zone-list cycle.
+
+The adapter composes the existing DNS10 publication repository on the same phpIPAM `Database_PDO` connection and its shared `custom_dns_config_guard` transaction. It reads the latest successful `list_zones` result and authoritative source, collector and assignment fields inside that guard. It returns only bounded zone metadata and relevant revisions, never credential ciphertext, password or token. Stored discovery JSON must be no more than 65,536 bytes and byte-for-byte match the canonical JSON produced by the DNS4 result sanitizer; malformed, duplicate-key, noncanonical or non-object content fails closed rather than authorizing a selection.
+
+Selecting an eligible current zone, enabling/disabling its record collection, updating optimistic revision and writing the administrative audit occur atomically. Dataset identity fields (source, canonical zone, default instance/scope and creation identity) are immutable. Deselection and disabling never delete generations, records or replay/sequence state. Existing domain credentials can be absent while disabling or deselecting; an enable action must resolve the current source, collector, assignment, credential version and recent successful discovery.
+
+The adapter is not an authorization boundary by itself. A future phpIPAM host route must enforce HTTPS, administrator session, CSRF and applicable recent reauthentication. A future worker/scheduler must honor both dataset flags and all bound revisions. No job is created, no DNS write or native IPAM mutation occurs, and no real upload credential is provisioned by these source tests.

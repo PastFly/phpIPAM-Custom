@@ -86,7 +86,8 @@ final class IntegrationDnsCollectorControlService
     {
         return array_intersect_key($row,array_flip([
             'id','collector_id','connection_id','assignment_revision','job_type','state','configuration_revision',
-            'binding_epoch','credential_version','created_at','expires_at','updated_at','updated_by'
+            'binding_epoch','credential_version','attempt_count','result_code','finished_at',
+            'created_at','expires_at','updated_at','updated_by'
         ]));
     }
 
@@ -162,14 +163,51 @@ final class IntegrationDnsCollectorControlService
         }
     }
 
-    public function snapshot(): array
+    private static function zoneResult(array $job): ?array
     {
-        return $this->repo->transaction(function() {
-            return [
+        if (($job['job_type']??null)!=='list_zones' || ($job['state']??null)!=='succeeded' ||
+            ($job['result_code']??null)!=='ok' || !is_string($job['result_payload']??null) ||
+            strlen($job['result_payload'])>65536) return null;
+        try { $payload=json_decode($job['result_payload'],true,32,JSON_THROW_ON_ERROR); }
+        catch (JsonException $e) { return null; }
+        if (!is_array($payload) || array_keys($payload)!==['zones'] ||
+            !is_array($payload['zones']) || !array_is_list($payload['zones']) || count($payload['zones'])>1024) return null;
+        $zones=[];
+        foreach ($payload['zones'] as $zone) {
+            if (!is_array($zone) || count($zone)!==4 || array_diff(array_keys($zone),['name','zone_type','ds_integrated','reverse_lookup']) ||
+                !is_string($zone['name']??null) || strlen($zone['name'])>255 ||
+                !is_string($zone['zone_type']??null) || strlen($zone['zone_type'])>32 ||
+                !is_bool($zone['ds_integrated']??null) || !is_bool($zone['reverse_lookup']??null)) return null;
+            $zones[]=['name'=>$zone['name'],'zone_type'=>$zone['zone_type'],
+                'ds_integrated'=>$zone['ds_integrated'],'reverse_lookup'=>$zone['reverse_lookup']];
+        }
+        return self::publicJob($job)+['zones'=>$zones];
+    }
+
+    public function snapshot(bool $includeZoneResults=false): array
+    {
+        return $this->repo->transaction(function() use($includeZoneResults) {
+            $jobs=$this->repo->jobs();
+            $snapshot=[
                 'collectors'=>array_map([self::class,'publicCollector'],$this->repo->collectors()),
                 'assignments'=>array_map([self::class,'publicAssignment'],$this->repo->assignments()),
-                'jobs'=>array_map([self::class,'publicJob'],$this->repo->jobs())
+                'jobs'=>array_map([self::class,'publicJob'],$jobs)
             ];
+            if ($includeZoneResults) {
+                // Decode at most the newest successful payload per connection. Old
+                // jobs remain in the queue for retention, and decoding all of them
+                // can multiply memory use for frequently collected zones.
+                $newest=[];
+                foreach ($jobs as $job) {
+                    if (($job['job_type']??null)!=='list_zones' || ($job['state']??null)!=='succeeded' ||
+                        ($job['result_code']??null)!=='ok' || !is_string($job['connection_id']??null)) continue;
+                    $key=$job['connection_id']; $previous=$newest[$key]??null;
+                    if ($previous===null || [(int)($job['created_at']??0),(string)($job['id']??'')] >
+                        [(int)($previous['created_at']??0),(string)($previous['id']??'')]) $newest[$key]=$job;
+                }
+                $snapshot['zone_results']=array_values(array_filter(array_map([self::class,'zoneResult'],$newest),static fn($x)=>$x!==null));
+            }
+            return $snapshot;
         });
     }
 
@@ -254,40 +292,51 @@ final class IntegrationDnsCollectorControlService
         });
     }
 
-    public function revokeCollector(string $id,int $expectedRevision,int $actor): void
+    public function revokeCollector(string $id,int $expectedRevision,int $actor,?callable $guardedConfig=null): void
     {
         self::actor($actor);
         $id=self::id($id);
-        if ($expectedRevision<1) throw new DomainException('revision_conflict');
+        if ($expectedRevision<1 && $guardedConfig===null) throw new DomainException('revision_conflict');
 
-        $this->repo->transaction(function() use($id,$expectedRevision,$actor) {
+        $this->repo->transaction(function() use($id,$expectedRevision,$actor,$guardedConfig) {
             $row=$this->repo->collector($id);
             if ($row===null) throw new DomainException('not_found');
             if (($row['revision']??null)!==$expectedRevision) throw new DomainException('revision_conflict');
             if (($row['revoked']??false)===true) throw new DomainException('collector_unavailable');
 
-            $now=$this->now();
-            $row['revoked']=true;
-            $row['revision']=self::next($row['revision']);
-            $row['control_epoch']=self::next($row['control_epoch']);
-            $row['updated_at']=$now;
-            $row['updated_by']=$actor;
-            $this->repo->putCollector($row);
+            $revoke=function() use($row,$id,$actor): void {
+                $now=$this->now();
+                $row['revoked']=true;
+                $row['revision']=self::next($row['revision']);
+                $row['control_epoch']=self::next($row['control_epoch']);
+                $row['updated_at']=$now;
+                $row['updated_by']=$actor;
+                $this->repo->putCollector($row);
 
-            foreach ($this->repo->assignments() as $assignment) {
-                if (($assignment['collector_id']??null)===$id) {
-                    $this->repo->removeAssignment($assignment['connection_id']);
+                foreach ($this->repo->assignments() as $assignment) {
+                    if (($assignment['collector_id']??null)===$id) {
+                        $this->repo->removeAssignment($assignment['connection_id']);
+                    }
                 }
-            }
-            foreach ($this->repo->jobs() as $job) {
-                if (($job['collector_id']??null)===$id && in_array($job['state']??null,['pending','running'],true)) {
-                    $job['state']='obsolete';
-                    $job['updated_at']=$now;
-                    $job['updated_by']=$actor;
-                    $this->repo->putJob($job);
+                foreach ($this->repo->jobs() as $job) {
+                    if (($job['collector_id']??null)===$id && in_array($job['state']??null,['pending','running'],true)) {
+                        $job['state']='obsolete';
+                        $job['updated_at']=$now;
+                        $job['updated_by']=$actor;
+                        $this->repo->putJob($job);
+                    }
                 }
+                $this->event('collector_revoked',$id,$actor);
+            };
+            if ($guardedConfig===null) $revoke();
+            else {
+                $didRevoke=false;
+                $guardedConfig($this->repo,function() use(&$didRevoke,$revoke): void {
+                    if ($didRevoke) throw new DomainException('control_unavailable');
+                    $didRevoke=true;$revoke();
+                });
+                if (!$didRevoke) throw new DomainException('control_unavailable');
             }
-            $this->event('collector_revoked',$id,$actor);
         });
     }
 }

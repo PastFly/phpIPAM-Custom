@@ -121,6 +121,6 @@ ok(!str_contains($html,'<script>alert(1)</script>') && str_contains($html,'&lt;s
 ok(!str_contains($html,$raw) && !str_contains($html,'secret_envelope'),'HTML contains no secret');
 ok(str_contains($html,'password_action') && str_contains($html,'unchanged') && str_contains($html,'replace'),'explicit password UI');
 ok(str_contains($html,'name="password"') && !preg_match('/name="password"[^>]*value="[^"]+"/',$html),'password input never prefilled');
-ok(str_contains($html,'data-dns-action="save_connection"') && str_contains($html,'disabled'),'connection form and disabled collection visible');
+ok(str_contains($html,'data-dns-action="save_connection"') && !str_contains($html,'data-dns-operation="set_collection_enabled"'),'new connection form has no collection control');
 $viewReflection=new ReflectionClass($view); ok($viewReflection->isFinal(),'view narrow extension boundary');
 printf("DNS1_CONFIG_ASSERTIONS=%d\nDNS1_CONFIG_TESTS_OK=1\n",$n);

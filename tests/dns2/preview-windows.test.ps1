@@ -48,7 +48,7 @@ function global:Get-DnsServerZone {
     )
 }
 function New-Dns2Record {
-    param([string]$Host,[string]$Type,[string]$Data,[DateTime]$Timestamp=[DateTime]::MinValue)
+    param([string]$RecordHost,[string]$Type,[string]$Data,[DateTime]$Timestamp=[DateTime]::MinValue)
     $recordData = switch ($Type) {
         'A' { [pscustomobject]@{IPv4Address=[System.Net.IPAddress]::Parse($Data)} }
         'AAAA' { [pscustomobject]@{IPv6Address=[System.Net.IPAddress]::Parse($Data)} }
@@ -56,7 +56,7 @@ function New-Dns2Record {
         'PTR' { [pscustomobject]@{PtrDomainName=$Data} }
     }
     return [pscustomobject]@{
-        HostName=$Host
+        HostName=$RecordHost
         RecordData=$recordData
         TimeToLive=[TimeSpan]::FromSeconds(300)
         Timestamp=$Timestamp
@@ -117,7 +117,7 @@ try {
     Assert-Dns2 ($aaaa.owner -eq 'hostv6.example.invalid.' -and $aaaa.rdata -eq '2001:db8::1') 'IPv6 canonicalized'
     Assert-Dns2 ($cname.owner -eq '_service.example.invalid.' -and $cname.rdata -eq 'target.example.invalid.') 'underscore CNAME normalized'
     Assert-Dns2 ($ptr.owner -eq '40.30.20.10.in-addr.arpa.' -and $ptr.rdata -eq 'host.example.invalid.') 'PTR normalized'
-    Assert-Dns2 (($records | Where-Object {$_.ttl_seconds -ne 300}).Count -eq 0) 'TTL preserved'
+    Assert-Dns2 (@($records | Where-Object {$_.ttl_seconds -ne 300}).Count -eq 0) 'TTL preserved'
     Assert-Dns2 (-not ((Get-Content -LiteralPath $temp -Raw) -match 'fixture-only')) 'password absent from preview output'
     Assert-Dns2 ($global:DNS2_RemoveSessionCount -eq 2) 'collection session removed'
 }

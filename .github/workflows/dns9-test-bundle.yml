@@ -1,0 +1,172 @@
+name: DNS9 exact-SHA operator bundle
+
+on:
+  push:
+    branches:
+      - feature/microsoft-dns-autonomous-collector
+    paths:
+      - 'tools/live/dns9-build-test-bundle.sh'
+      - 'tests/dns9/bundle-immutable-inputs.test.py'
+      - 'tools/live/dns9-test-bundle-run.sh'
+      - 'tools/live/dns9-phase-b3-diagnose.py'
+      - 'tools/live/dns9-phase-b3-first-cycle.py'
+      - 'tools/live/dns9-phase-b3-recover.py'
+      - 'tools/live/dns9-phase-b3-post-check.py'
+      - 'tools/live/dns9-phase-b3-transport-probe.py'
+      - 'tests/dns9/phase-b3-transport-probe.test.py'
+      - 'tools/live/dns9-runner-tls-upgrade.py'
+      - 'tests/dns9/runner-tls-upgrade.test.py'
+      - 'collectors/windows/dns/Invoke-PhpIpamDnsCollectorScheduled.ps1'
+      - 'tools/live/dns9-b3-auto-once.py'
+      - 'tools/live/dns9-b3-after-pdo.py'
+      - 'tools/live/dns9-b4-list-zones.py'
+      - 'tests/dns9/b4-list-zones.test.py'
+      - 'tools/live/dns9-ui-deploy.py'
+      - 'tools/live/dns9-scheduler-deploy.py'
+      - 'tools/live/dns9-activation-preflight.py'
+      - 'tools/live/dns9-activation-preflight.ps1'
+      - 'tools/live/dns9-activation-coordinator.py'
+      - 'tools/live/dns9-activation-task-control.ps1'
+      - 'tests/dns9/activation-coordinator.test.py'
+      - 'tools/live/dns9-autonomous-observe.py'
+      - 'tests/dns9/autonomous-observe.test.py'
+      - 'tools/live/dns9-activation-queue.sql'
+      - 'tools/live/dns9-activation-mutex.php'
+      - 'tests/dns9/activation-mutex.test.php'
+      - 'tests/dns9/activation-preflight.test.py'
+      - 'deploy/dns9/phpipam-dns-autonomous.service'
+      - 'deploy/dns9/phpipam-dns-autonomous.timer'
+      - 'tests/dns9/scheduler-deploy.test.py'
+      - 'tests/dns9/autonomous-scheduler.test.php'
+      - 'layers/dns9/functions/classes/class.IntegrationDnsAutonomousScheduler.php'
+      - 'layers/dns9/functions/scripts/dns-autonomous-scheduler.php'
+      - 'tools/live/dns9-ui-smoke.php'
+      - 'tests/dns9/ui-deploy.test.py'
+      - 'tests/dns9/ui-smoke.test.php'
+      - 'tests/dns9/b3-after-pdo.test.py'
+      - 'tools/live/dns9-queue-cli.php'
+      - 'tests/dns9/b3-auto-once.test.py'
+      - 'tests/dns9/b3-retry-guard.test.py'
+      - 'tests/dns9/queue-cli.test.php'
+      - 'tools/live/dns9-system-probe.py'
+      - 'tools/live/dns9-system-probe.ps1'
+      - 'tools/live/dns9-system-probe-control.ps1'
+      - 'tests/dns9/system-probe.test.py'
+      - 'tools/live/dns9-pdo-hotfix.py'
+      - 'tools/live/dns9-cold-db-check.php'
+      - 'tests/dns9/pdo-hotfix.test.py'
+      - 'tests/dns9/lazy-database.test.php'
+      - 'layers/dns1/functions/classes/class.IntegrationDnsPhpIpamConfigRepository.php'
+      - 'layers/dns3/functions/classes/class.IntegrationDnsCollectorControlPhpIpamRepository.php'
+      - 'tools/live/dns9_winrm_common.py'
+      - 'tests/dns9/phase-b3-diagnose-source.test.py'
+      - '.github/workflows/dns9-test-bundle.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Validate read-only diagnostic source
+        run: |
+          python3 tests/dns9/bundle-immutable-inputs.test.py
+          python3 tests/dns9/phase-b3-diagnose-source.test.py
+          python3 tests/dns9/phase-b3-transport-probe.test.py
+          python3 tests/dns9/runner-tls-upgrade.test.py
+          python3 tests/dns9/b3-auto-once.test.py
+          python3 tests/dns9/b3-after-pdo.test.py
+          python3 tests/dns9/b4-list-zones.test.py
+          python3 tests/dns9/ui-deploy.test.py
+          python3 tests/dns9/scheduler-deploy.test.py
+          python3 tests/dns9/activation-preflight.test.py
+          python3 tests/dns9/activation-coordinator.test.py
+          python3 tests/dns9/autonomous-observe.test.py
+          php tests/dns9/autonomous-scheduler.test.php
+          php -l tools/live/dns9-activation-mutex.php
+          php tests/dns9/activation-mutex.test.php
+          php -l tools/live/dns9-ui-smoke.php
+          php tests/dns9/ui-smoke.test.php
+          python3 tests/dns9/b3-retry-guard.test.py
+          python3 tests/dns9/system-probe.test.py
+          python3 tests/dns9/pdo-hotfix.test.py
+          php -l tools/live/dns9-cold-db-check.php
+          php tests/dns9/lazy-database.test.php
+          php -l tools/live/dns9-queue-cli.php
+          php tests/dns9/queue-cli.test.php
+      - name: Build exact-SHA bundle
+        run: bash tools/live/dns9-build-test-bundle.sh
+      - name: Verify archive and execute source portion of runner
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/dns9-bundle-check
+          tar -xzf dist/phpipam-dns9-test-"${GITHUB_SHA:0:12}".tar.gz -C /tmp/dns9-bundle-check
+          cd /tmp/dns9-bundle-check
+          test "$(cat EXPECTED_SHA)" = "$GITHUB_SHA"
+          sha256sum --status -c SHA256SUMS
+          python3 tests/dns9/phase-b3-diagnose-source.test.py
+          python3 tests/dns9/phase-b3-transport-probe.test.py
+          python3 tests/dns9/runner-tls-upgrade.test.py
+          python3 tests/dns9/b3-auto-once.test.py
+          python3 tests/dns9/b3-after-pdo.test.py
+          python3 tests/dns9/b4-list-zones.test.py
+          python3 tests/dns9/ui-deploy.test.py
+          python3 tests/dns9/scheduler-deploy.test.py
+          python3 tests/dns9/activation-preflight.test.py
+          python3 tests/dns9/activation-coordinator.test.py
+          python3 tests/dns9/autonomous-observe.test.py
+          php tests/dns9/autonomous-scheduler.test.php
+          php -l tools/live/dns9-activation-mutex.php
+          php tests/dns9/activation-mutex.test.php
+          php -l tools/live/dns9-ui-smoke.php
+          php tests/dns9/ui-smoke.test.php
+          python3 tests/dns9/b3-retry-guard.test.py
+          python3 tests/dns9/system-probe.test.py
+          python3 tests/dns9/pdo-hotfix.test.py
+          php -l tools/live/dns9-cold-db-check.php
+          php tests/dns9/lazy-database.test.php
+          php -l tools/live/dns9-queue-cli.php
+          php tests/dns9/queue-cli.test.php
+          bash -n tools/live/dns9-test-bundle-run.sh
+          python3 -c "import pathlib; p=pathlib.Path('tools/live/dns9-phase-b3-first-cycle.py'); compile(p.read_text(),str(p),'exec')"
+          python3 -c "import pathlib; p=pathlib.Path('tools/live/dns9-phase-b3-recover.py'); compile(p.read_text(),str(p),'exec')"
+          python3 -c "import pathlib; p=pathlib.Path('tools/live/dns9-phase-b3-post-check.py'); compile(p.read_text(),str(p),'exec')"
+          cd "$GITHUB_WORKSPACE"
+          RUN="dist/phpipam-dns9-test-${GITHUB_SHA:0:12}.run"
+          test -f "$RUN"
+          chmod +x "$RUN"
+          MARK="$(awk '/^__ARCHIVE_BELOW__$/ {print NR+1;exit}' "$RUN")"
+          test -n "$MARK"
+          mkdir -p /tmp/dns9-run-check
+          tail -n +"$MARK" "$RUN" | tar -xz -C /tmp/dns9-run-check
+          (cd /tmp/dns9-run-check && sha256sum --status -c SHA256SUMS)
+          cmp /tmp/dns9-run-check/EXPECTED_SHA /tmp/dns9-bundle-check/EXPECTED_SHA
+      - name: Upload CI artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dns9-test-${{ github.sha }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish immutable exact SHA release
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/feature/microsoft-dns-autonomous-collector'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="dns9-test-${GITHUB_SHA}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release already exists; not replacing assets"
+            exit 0
+          fi
+          gh release create "$TAG" dist/* \
+            --target "$GITHUB_SHA" \
+            --title "DNS9 operator bundle ${GITHUB_SHA:0:12}" \
+            --notes "Exact source SHA: $GITHUB_SHA. Stages have different effects: --b3-tls-upgrade replaces the Windows runner with backup; other explicitly selected stages may also mutate state. Review the requested stage before use." \
+            --prerelease
