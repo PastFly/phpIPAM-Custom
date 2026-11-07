@@ -10,6 +10,7 @@ UNINSTALL=ROOT/"collectors/windows/dns/Uninstall-PhpIpamDnsCollector.ps1"
 DESIGN=ROOT/"design/DNS9_AUTONOMOUS_WINDOWS_COLLECTOR.md"
 ENABLE_SQL=ROOT/"database/dns9/001-autonomous-enable.sql"
 ADMIN=ROOT/"layers/dns9/functions/classes/class.IntegrationDnsAutonomousAdminService.php"
+CONTROL=ROOT/"layers/dns3/functions/classes/class.IntegrationDnsCollectorControlService.php"
 CONTROLLER=ROOT/"layers/dns1/functions/classes/class.IntegrationDnsAdminController.php"
 VIEW=ROOT/"layers/dns1/functions/classes/class.IntegrationDnsAdminView.php"
 UI=ROOT/"layers/dns1/app/admin/integrations/dns/config.js"
@@ -24,7 +25,7 @@ def ok(v,label):
     if not v:
         raise AssertionError(label)
 
-for path in (INSTALL,RUNNER,PREVIEW,STATUS,UNINSTALL,DESIGN,ENABLE_SQL,ADMIN,CONTROLLER,VIEW,UI,SYSTEMD_SERVICE,SYSTEMD_TIMER,WINDOWS_FIXTURE):
+for path in (INSTALL,RUNNER,PREVIEW,STATUS,UNINSTALL,DESIGN,ENABLE_SQL,ADMIN,CONTROL,CONTROLLER,VIEW,UI,SYSTEMD_SERVICE,SYSTEMD_TIMER,WINDOWS_FIXTURE):
     ok(path.is_file(),path.name+" exists")
 
 install=INSTALL.read_text()
@@ -35,6 +36,7 @@ uninstall=UNINSTALL.read_text()
 design=DESIGN.read_text()
 enable_sql=ENABLE_SQL.read_text()
 admin=ADMIN.read_text()
+control=CONTROL.read_text()
 controller=CONTROLLER.read_text()
 view=VIEW.read_text()
 ui=UI.read_text()
@@ -146,10 +148,11 @@ for required in [
     "revokeCollector",
     "collector_control_available",
     "connection_runtime",
-    "assignment_unavailable",
-    "collector_unavailable",
 ]:
     ok(required in admin,"admin composition: "+required)
+ok("withActiveAssignment" in admin,"admin delegates active assignment check")
+for required in ["assignment_unavailable", "collector_unavailable"]:
+    ok(required in control,"control assignment boundary: "+required)
 
 for required in [
     "register_collector",
