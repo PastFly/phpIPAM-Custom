@@ -15,7 +15,10 @@ assert m.NEW_CONFIG.encode() in context and m.NEW_DATA.encode() in context
 assert b'/etc/phpipam-custom/vmware-inventory.json' not in context
 assert p['release']['tools/phase5g4-rollout.py']==(ROOT/'tools/phase5g4-rollout.py').read_bytes()
 assert b'new IntegrationVmwareInventoryPerformance(' in p['release']['layers/phase5g3/functions/classes/class.IntegrationVmwareInventoryMetricSource.php']
-assert b'new IntegrationVmwareInventoryGuestNetwork(' in p['release']['layers/phase5g/functions/classes/class.IntegrationVmwareInventorySource.php']
+source=p['release']['layers/phase5g/functions/classes/class.IntegrationVmwareInventorySource.php']
+assert b'new IntegrationVmwareInventoryGuestNetwork(' in source
+assert b'ManagedObjectNotFound' in source and b"throw new RuntimeException('mirror_membership_changed');" in source
+assert b'ManagedObjectNotFound' not in (ROOT/'layers/phase5g/functions/classes/class.IntegrationVmwareInventorySource.php').read_bytes()
 for name,unit in p['units'].items():
     if name.endswith('service'):
         assert m.NEW_RELEASE.encode() in unit and m.NEW_CONFIG.encode() in unit and m.NEW_DATA.encode() in unit
@@ -32,6 +35,7 @@ with tempfile.TemporaryDirectory(prefix='recovery-generated-') as tmp:
         out=root/'app-source'/rel;out.parent.mkdir(parents=True,exist_ok=True);out.write_bytes(data)
         if rel.endswith('.php'):subprocess.run(['php','-l',str(out)],check=True,stdout=subprocess.DEVNULL)
     subprocess.run(['php',str(ROOT/'tests/phase5g5-runtime-policy.test.php'),str(root)],check=True)
+    subprocess.run(['php',str(ROOT/'tests/phase5g5-stale-host-membership.test.php'),str(root)],check=True)
     subprocess.run(['php',str(ROOT/'tests/phase5g2-native.test.php'),str(root/'app-source')],check=True)
     subprocess.run(['php',str(ROOT/'tests/phase5g5-recovery-ui.test.php'),str(root/'app-source')],check=True)
     for path,data in p['units'].items():(root/Path(path).name).write_bytes(data)
