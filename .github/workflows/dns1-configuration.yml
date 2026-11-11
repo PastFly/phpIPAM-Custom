@@ -1,0 +1,57 @@
+name: DNS1 configuration and profiles
+on:
+  pull_request:
+    paths:
+      - 'layers/dns1/**'
+      - 'database/dns1/**'
+      - 'tests/dns1/**'
+      - '.github/workflows/dns1-configuration.yml'
+permissions:
+  contents: read
+jobs:
+  php-and-mariadb:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: fixture-only-not-a-production-secret
+          MARIADB_DATABASE: phpipam_dns1_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Install test-only PHP extensions
+        run: sudo apt-get update && sudo apt-get install -y php-cli php-mysql
+      - name: Syntax and domain/security contracts
+        run: |
+          find layers/dns1 tests/dns1 -name '*.php' -print0 | xargs -0 -n1 php -l
+          php tests/dns1/config.test.php
+          sudo php tests/dns1/keyring.test.php
+          php tests/dns1/phpipam-bridge.test.php
+          php tests/dns1/phpipam-repository.test.php
+          python3 tests/dns1/boundary.test.py
+          python3 tests/dns1/phpipam-host-source.test.py
+          node --check layers/dns1/app/admin/integrations/dns/config.js
+      - name: Real MariaDB transactions and configuration mutex
+        env:
+          DNS1_TEST_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=phpipam_dns1_test;charset=utf8mb4'
+          DNS1_TEST_USER: root
+          DNS1_TEST_PASSWORD: fixture-only-not-a-production-secret
+        run: php tests/dns1/mysql.test.php
+  browser-component:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - run: sudo apt-get update && sudo apt-get install -y php-cli
+      - run: python3 -m venv .dns1-test-venv && .dns1-test-venv/bin/pip install playwright==1.51.1
+      - run: .dns1-test-venv/bin/python -m playwright install --with-deps chromium
+      - name: Offline Chromium component and real PHP service
+        run: |
+          export CHROMIUM_PATH="$(.dns1-test-venv/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()')"
+          .dns1-test-venv/bin/python tests/dns1/browser.test.py
