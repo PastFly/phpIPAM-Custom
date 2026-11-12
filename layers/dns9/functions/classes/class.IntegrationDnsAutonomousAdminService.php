@@ -220,18 +220,7 @@ final class IntegrationDnsAutonomousAdminService
         self::id($id);
         self::expected($expected);
 
-        if($enabled) {
-            $snapshot=$this->control->snapshot();
-            [$collectors,$assignments,$_latest]=$this->controlIndex($snapshot);
-            $assignment=$assignments[$id]??null;
-            if($assignment===null) throw new DomainException('assignment_unavailable');
-            $collector=$collectors[$assignment['collector_id']]??null;
-            if($collector===null||($collector['revoked']??true)!==false) {
-                throw new DomainException('collector_unavailable');
-            }
-        }
-
-        return $this->configRepo->transaction(function() use($id,$expected,$enabled,$actor) {
+        $update=function() use($id,$expected,$enabled,$actor) {
             $row=$this->configRepo->connection($id);
             if($row===null) throw new DomainException('not_found');
             if(($row['revision']??null)!==$expected) throw new DomainException('revision_conflict');
@@ -261,6 +250,11 @@ final class IntegrationDnsAutonomousAdminService
                 'created_at'=>time()
             ]);
             return $row;
+        };
+        if(!$enabled) return $this->configRepo->transaction($update);
+        return $this->control->withActiveAssignment($id,function($controlRepo) use($update): array {
+            if(!is_callable([$this->configRepo,'joinControlTransaction'])) throw new DomainException('configuration_unavailable');
+            return $this->configRepo->joinControlTransaction($controlRepo,$update);
         });
     }
 }
