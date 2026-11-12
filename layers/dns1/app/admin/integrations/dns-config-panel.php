@@ -15,6 +15,10 @@ require_once(dirname(__FILE__).'/../../../functions/classes/class.IntegrationDns
 require_once(dirname(__FILE__).'/../../../functions/classes/class.IntegrationDnsConfigService.php');
 require_once(dirname(__FILE__).'/../../../functions/classes/class.IntegrationDnsPhpIpamConfigRepository.php');
 require_once(dirname(__FILE__).'/../../../functions/classes/class.IntegrationDnsAdminView.php');
+require_once(dirname(__FILE__).'/../../../functions/classes/class.IntegrationDnsCollectorControlRepository.php');
+require_once(dirname(__FILE__).'/../../../functions/classes/class.IntegrationDnsCollectorControlPhpIpamRepository.php');
+require_once(dirname(__FILE__).'/../../../functions/classes/class.IntegrationDnsCollectorControlService.php');
+require_once(dirname(__FILE__).'/../../../functions/classes/class.IntegrationDnsAutonomousAdminService.php');
 
 try {
     $csrf=$User->Crypto->csrf_cookie('create','integration_microsoft_dns_config');
@@ -22,7 +26,33 @@ try {
 
     $cipher=IntegrationDnsCipher::fromKeyringFile();
     $repo=new IntegrationDnsPhpIpamConfigRepository($Database);
-    $service=new IntegrationDnsConfigService($repo,$cipher);
+    $config=new IntegrationDnsConfigService($repo,$cipher);
+    $controlRepo=new IntegrationDnsCollectorControlPhpIpamRepository($Database);
+    $resolver=static function(string $id) use ($repo): ?array {
+        return $repo->transaction(static function() use ($repo,$id): ?array {
+            $connection=$repo->connection($id);
+            if($connection===null) return null;
+            $credentialVersion=null;
+            if($connection['credential_mode']==='profile') {
+                $profileId=$connection['profile_id'];
+                if(!is_string($profileId)) return null;
+                $profile=$repo->profile($profileId);
+                if($profile===null||$profile['secret_envelope']===null) return null;
+                $credentialVersion=(int)$profile['secret_version'];
+            }
+            return [
+                'id'=>$connection['id'],
+                'revision'=>(int)$connection['revision'],
+                'binding_epoch'=>(int)$connection['binding_epoch'],
+                'credential_mode'=>$connection['credential_mode'],
+                'profile_id'=>$connection['profile_id'],
+                'credential_version'=>$credentialVersion,
+                'enabled'=>(bool)$connection['enabled']
+            ];
+        });
+    };
+    $control=new IntegrationDnsCollectorControlService($controlRepo,$resolver);
+    $service=new IntegrationDnsAutonomousAdminService($config,$repo,$control);
     $state=$service->snapshot();
     $view=new IntegrationDnsAdminView();
     echo $view->render($state,$csrf);

@@ -26,6 +26,14 @@ final class IntegrationDnsPhpIpamConfigRepository implements IntegrationDnsConfi
         if ($this->ownedTransaction) throw new DomainException('configuration_unavailable');
         $begun=false;
         try {
+            // phpIPAM connects lazily, but beginTransaction() assumes a connection.
+            if (method_exists($this->db,'isConnected')) {
+                if (!is_callable([$this->db,'isConnected']) || !is_callable([$this->db,'connect'])) {
+                    throw new DomainException('configuration_unavailable');
+                }
+                if ($this->db->isConnected()!==true) $this->db->connect();
+                if ($this->db->isConnected()!==true) throw new DomainException('configuration_unavailable');
+            }
             if ($this->db->beginTransaction()!==true) throw new DomainException('configuration_unavailable');
             $begun=true;
             $lock=$this->db->getObjectsQuery(
@@ -53,6 +61,15 @@ final class IntegrationDnsPhpIpamConfigRepository implements IntegrationDnsConfi
     private function guard(): void
     {
         if (!$this->ownedTransaction) throw new DomainException('configuration_unavailable');
+    }
+
+    /** Join a control transaction only when both adapters share its guarded DB. */
+    public function joinControlTransaction(object $control,callable $work): mixed
+    {
+        if ($this->ownedTransaction || !is_callable([$control,'ownsTransactionFor']) ||
+            $control->ownsTransactionFor($this->db)!==true) throw new DomainException('configuration_unavailable');
+        $this->ownedTransaction=true;
+        try { return $work(); } finally { $this->ownedTransaction=false; }
     }
 
     private static function field(mixed $row,string $name): mixed

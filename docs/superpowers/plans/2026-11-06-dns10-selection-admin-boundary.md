@@ -1,0 +1,5 @@
+# DNS10 selection admin boundary
+
+Build a source-only controller behind a trusted phpIPAM host bridge. The bridge must establish session, administrator, HTTPS, CSRF and fresh reauthentication context; untrusted JSON must never supply these facts. All actions are POST, small, closed-schema and actor-bound. Selection or enablement requires fresh reauthentication; disabling and deselecting remain available to an authenticated administrator if reauthentication cannot be performed. The boundary performs no job creation or production wiring. Preserve the DNS9 admin route unchanged until a separate integration and rollout have been tested.
+
+Implement tests first for failed authorization before service construction, exact field/type checks, both selection and separate enable actions, redacted failures and safe service result projection. Then implement the controller and run the source-only PHP checks in local WebAssembly and native PHP CI. Live admin wiring and its server-derived recent-reauth proof remain separate work.

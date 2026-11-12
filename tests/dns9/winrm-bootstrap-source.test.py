@@ -1,0 +1,170 @@
+#!/usr/bin/env python3
+import ast
+from pathlib import Path
+
+ROOT=Path(__file__).resolve().parents[2]
+COMMON=ROOT/"tools/live/dns9_winrm_common.py"
+ACCEPT=ROOT/"tools/live/dns9-winrm-remote-accept.py"
+BOOT=ROOT/"tools/live/dns9-winrm-bootstrap.py"
+SELFTEST=ROOT/"tools/live/dns9-winrm-md4-selftest.py"
+
+n=0
+def ok(v,label):
+    global n
+    n+=1
+    if not v:
+        raise AssertionError(label)
+
+for path in (COMMON,ACCEPT,BOOT,SELFTEST):
+    ok(path.is_file(),path.name+" exists")
+    ast.parse(path.read_text())
+    ok(True,path.name+" python syntax")
+
+common=COMMON.read_text()
+accept=ACCEPT.read_text()
+boot=BOOT.read_text()
+selftest=SELFTEST.read_text()
+
+for required in [
+    'endpoint=f"http://{server}:5985/wsman"',
+    'transport="ntlm"',
+    'message_encryption="always"',
+    'os.environ[key]=",".join(values)',
+    '"NO_PROXY","no_proxy"',
+    "env_vars",
+    "Get-FileHash -Algorithm SHA256",
+    "DNS9_REMOTE_STAGE_CLEAN=1",
+    "remote_stage_verify_failed",
+    "remote_stage_source_too_large",
+    "DNS9_STAGE_CHUNK_OK=1",
+    "DNS9_STAGE_INIT_OK=1",
+    "$env:PHPIPAM_DNS9_STAGE_CHUNK=$null",
+    "env_vars={\"PHPIPAM_DNS9_STAGE_CHUNK\":encoded}",
+    "STAGE_MAX_BYTES=2*1024*1024",
+    "STAGE_CHUNK_RAW_BYTES=3072",
+    'ensure_ntlm_md4_runtime()',
+    'env["DNS9_OPENSSL_LEGACY_REEXEC"]="1"',
+    'env["OPENSSL_CONF"]="/proc/self/fd/"+str(fd)',
+    'os.set_inheritable(fd,True)',
+    'os.memfd_create("phpipam-dns9-openssl",flags=0)',
+    'OPENSSL_LEGACY_CONFIG',
+]:
+    ok(required in common,"common transport contract: "+required)
+
+for forbidden in [
+    "FromBase64String({ps_quote(b64)})",
+    "b64=base64.b64encode(data).decode",
+    "send_command_input",
+    "stdin_data",
+    "proxy=None",
+    "/run/phpipam-dns9-openssl",
+    "tempfile.mkstemp",
+    "/etc/ssl/openssl.cnf",
+    'transport="basic"',
+    'message_encryption="never"',
+    "AllowUnencrypted",
+    "server_cert_validation='ignore'",
+]:
+    ok(forbidden not in common,"common insecure transport absent: "+forbidden)
+
+for required in [
+    "--username",
+    "getpass.getpass",
+    "winrm_ntlm_message_encryption",
+    "DNS9_WINDOWS_FIXTURE_TASK_CREATED=0",
+    "DNS9_WINDOWS_FIXTURE_TOKEN_PRINTED=0",
+    "DNS9_WINDOWS_FIXTURE_OK=1",
+    "production_collector_present_before",
+    "bootstrap_identity_recorded",
+    "DNS9_WINRM_ACCEPT_TOKEN_USED=0",
+    "ps_quote",
+    "windows_fixture_sha256",
+    'name.startswith("collectors/windows/dns/")',
+    "DNS9_WINRM_ACCEPT_PACKAGE_FILES=",
+    "DNS9_WINRM_ACCEPT_MD4_PROVIDER=",
+    "DNS9_WINRM_ACCEPT_STAGE_CLEANED_AFTER_FAILURE=1",
+    "DNS9_WINRM_ACCEPT_STAGE_CLEANED_AFTER_FAILURE=0",
+    "stage_cleaned=True",
+    "DNS9_WINRM_ACCEPT_OK=1",
+]:
+    ok(required in accept,"WinRM accept contract: "+required)
+
+ok("TOKEN_FILE" not in accept,"acceptance never reads collector token")
+ok("control-token.dpapi" not in accept,"acceptance never reads DPAPI token")
+ok("Register-ScheduledTask" not in accept,"acceptance has no task registration")
+ok("DNS9_WINRM_ACCEPT_PASSWORD" not in accept,"acceptance never prints password marker")
+
+for required in [
+    "--acceptance-receipt",
+    "--apply",
+    "getpass.getpass",
+    "/root/phpipam-dns-e2e-pilot-token",
+    "st_nlink!=1",
+    "winrm_ntlm_message_encryption",
+    'env_vars={"PHPIPAM_DNS9_CONTROL_TOKEN":control_token}',
+    "$env:PHPIPAM_DNS9_CONTROL_TOKEN=$null",
+    "-PrincipalMode System",
+    "-DnsCredentialMode CollectorIdentity",
+    "DNS9_AUTONOMOUS_TASK_ENABLED=0",
+    "DNS9_AUTONOMOUS_START_NOW=0",
+    "DNS9_AUTONOMOUS_TOKEN_PRINTED=0",
+    "remote_task_not_disabled",
+    "ps_quote(uninstall_path)",
+    "installed_disabled",
+    "control_token_recorded",
+    "bootstrap_identity_recorded",
+    "DNS9_WINRM_BOOTSTRAP_TASK_ENABLED=0",
+    "DNS9_WINRM_BOOTSTRAP_TASK_STARTED=0",
+    "DNS9_WINRM_BOOTSTRAP_TOKEN_PRINTED=0",
+    "DNS9_WINRM_BOOTSTRAP_MD4_PROVIDER=",
+    "if install_invoked:",
+    "install_invoked=True",
+    "DNS9_WINRM_BOOTSTRAP_TOKEN_BOUNDARY_OK=1",
+    "DNS9_WINRM_BOOTSTRAP_TOKEN_READ=0",
+    "DNS9_WINRM_BOOTSTRAP_ACCEPTANCE_RECEIPT_OK=1",
+    "stage+chr(92)+Path(name).name",
+    "\"collectors/windows/dns/Invoke-PhpIpamDnsWorkerOnce.ps1\"",
+    "\"collectors/windows/dns/Install-PhpIpamDnsCollector.ps1\"",
+    "DNS9_WINRM_BOOTSTRAP_OK=1",
+]:
+    ok(required in boot,"WinRM bootstrap contract: "+required)
+
+ok(boot.index('if not args.apply:') < boot.index('control_token=token()'),
+   "dry-run returns before token() read")
+ok(boot.index('stage_bytes(p,bootstrap_path') < boot.index('control_token=token()'),
+   "token read deferred until remote precheck and staging complete")
+ok(boot.index('acceptance(Path(args.acceptance_receipt)') < boot.index('if not args.apply:'),
+   "acceptance receipt validated before dry-run success")
+ok('manifest["Invoke-PhpIpamDnsWorkerOnce.ps1"]' not in boot,
+   "bootstrap manifest does not use basename keys")
+
+for required in [
+    "ensure_ntlm_md4_runtime",
+    'hashlib.new("md4",b"dns9")',
+    "DNS9_WINRM_MD4_CONFIG_MEMFD=1",
+    "DNS9_WINRM_MD4_PERSISTENT_FILE_MUTATION=0",
+    "DNS9_WINRM_MD4_SYSTEM_OPENSSL_CONFIG_MUTATION=0",
+    "DNS9_WINRM_MD4_SELFTEST_OK=1",
+]:
+    ok(required in selftest,"MD4 selftest contract: "+required)
+
+for forbidden in [
+    "print(control_token",
+    "print(password",
+    "password_recorded",
+    '"control_token_recorded":true',
+    "-EnableTask",
+    "-StartNow",
+    "systemctl",
+    "ALTER TABLE",
+    "UPDATE custom_dns_",
+    "INSERT INTO custom_dns_",
+    "DELETE FROM custom_dns_",
+    "Set-DnsServer",
+    "Add-DnsServer",
+    "Remove-DnsServer",
+]:
+    ok(forbidden not in boot,"WinRM bootstrap forbidden: "+forbidden)
+
+print(f"DNS9_WINRM_BOOTSTRAP_SOURCE_ASSERTIONS={n}")
+print("DNS9_WINRM_BOOTSTRAP_SOURCE_TESTS_OK=1")

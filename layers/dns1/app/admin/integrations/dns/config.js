@@ -27,6 +27,23 @@
                         interval_seconds: Number(read(form, 'interval_seconds')), credential_mode: mode,
                         profile_id: mode === 'profile' ? read(form, 'profile_id') || null : null,
                         share_profile: form.elements.namedItem('share_profile').checked});
+                } else if (action === 'register_collector') {
+                    data = {name: read(form, 'name')};
+                } else if (action === 'save_assignment') {
+                    var collectorId = read(form, 'collector_assignment');
+                    if (!collectorId) { message.textContent = 'Выберите Windows-сборщик.'; return; }
+                    data = {connection_id: read(form, 'id'), collector_id: collectorId,
+                        expected_revision: Number(read(form, 'assignment_revision'))};
+                } else if (action === 'revoke_collector') {
+                    if (!global.confirm('Отозвать этот Windows-сборщик? Его активные задания станут недействительными.')) return;
+                    data = {id: read(form, 'id'), expected_revision: Number(read(form, 'expected_revision'))};
+                } else if (action === 'queue_test_connection' || action === 'queue_list_zones') {
+                    data = {id: read(form, 'id')};
+                } else if (action === 'set_collection_enabled') {
+                    var button = form.__dnsClickedButton;
+                    var enable = button && button.dataset.dnsEnabled === '1';
+                    if (!global.confirm(enable ? 'Включить автоматический сбор для этого подключения?' : 'Отключить автоматический сбор для этого подключения?')) return;
+                    data = {id: read(form, 'id'), expected_revision: Number(read(form, 'expected_revision')), enabled: enable};
                 } else {
                     if (!['revoke_profile', 'delete_profile', 'delete_connection'].includes(action)) throw new Error();
                     if (!global.confirm('Подтвердить действие с указанным профилем или подключением?')) return;
@@ -42,9 +59,29 @@
                         'X-Phpipam-Dns-Csrf': root.dataset.csrf}, body: body});
                 body = null;
                 var result = await response.json();
-                if (response.status === 409) { message.textContent = 'Данные изменились или затронуты другие подключения. Обновите страницу и повторите проверку.'; return; }
+                if (response.status === 409) {
+                    message.textContent = result && result.error === 'job_already_pending'
+                        ? 'Такое задание уже находится в очереди или выполняется. Повторно запускать его не нужно.'
+                        : 'Данные изменились или затронуты другие подключения. Обновите страницу и повторите проверку.';
+                    return;
+                }
                 if (!response.ok || !result || result.ok !== true) { message.textContent = 'Не удалось подтвердить сохранение. Проверьте поля, права и состояние хранилища; при сомнении обновите страницу.'; return; }
-                message.textContent = 'Сохранено. Сбор данных не запущен.';
+                if (action === 'register_collector') {
+                    var token = result.data && result.data.control_token;
+                    var enrollment = root.querySelector('[data-dns-enrollment]');
+                    var tokenBox = root.querySelector('[data-dns-enrollment-token]');
+                    if (typeof token !== 'string' || !token || !enrollment || !tokenBox) throw new Error();
+                    tokenBox.textContent = token;
+                    enrollment.hidden = false;
+                    message.textContent = 'Сборщик создан. Control token показан один раз — используйте его для первичной установки.';
+                    return;
+                }
+                if (action === 'queue_test_connection') message.textContent = 'Проверка доступа поставлена в очередь.';
+                else if (action === 'queue_list_zones') message.textContent = 'Получение зон поставлено в очередь.';
+                else if (action === 'save_assignment') message.textContent = 'Windows-сборщик назначен.';
+                else if (action === 'revoke_collector') message.textContent = 'Windows-сборщик отозван.';
+                else if (action === 'set_collection_enabled') message.textContent = data.enabled ? 'Автоматический сбор включён.' : 'Автоматический сбор отключён.';
+                else message.textContent = 'Сохранено.';
                 if (typeof afterSave === 'function') afterSave(result.data); else global.location.reload();
             } catch (_) { message.textContent = 'Ответ не получен. Обновите страницу для проверки результата; пароль повторно не отправлялся.'; }
             finally { if (passwordInput) passwordInput.value = ''; delete root.dataset.dnsBusy; }
@@ -55,7 +92,12 @@
         });
         root.addEventListener('click', function (event) {
             var button = event.target.closest('[data-dns-operation]');
-            if (button && root.contains(button) && !button.disabled) { event.preventDefault(); send(button.closest('form'), button.dataset.dnsOperation); }
+            if (button && root.contains(button) && !button.disabled) {
+                event.preventDefault();
+                var form = button.closest('form');
+                form.__dnsClickedButton = button;
+                send(form, button.dataset.dnsOperation).finally(function () { delete form.__dnsClickedButton; });
+            }
         });
     }
     global.PhpIpamDnsConfig = Object.freeze({mount: mount});

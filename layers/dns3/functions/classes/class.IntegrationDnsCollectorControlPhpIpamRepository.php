@@ -37,6 +37,14 @@ final class IntegrationDnsCollectorControlPhpIpamRepository implements Integrati
         if ($this->ownedTransaction) throw new DomainException('control_unavailable');
         $begun=false;
         try {
+            // phpIPAM connects lazily, but beginTransaction() assumes a connection.
+            if (method_exists($this->db,'isConnected')) {
+                if (!is_callable([$this->db,'isConnected']) || !is_callable([$this->db,'connect'])) {
+                    throw new DomainException('control_unavailable');
+                }
+                if ($this->db->isConnected()!==true) $this->db->connect();
+                if ($this->db->isConnected()!==true) throw new DomainException('control_unavailable');
+            }
             if ($this->db->beginTransaction()!==true) throw new DomainException('control_unavailable');
             $begun=true;
             $guard=$this->db->getObjectsQuery(
@@ -64,6 +72,12 @@ final class IntegrationDnsCollectorControlPhpIpamRepository implements Integrati
     private function guard(): void
     {
         if (!$this->ownedTransaction) throw new DomainException('control_unavailable');
+    }
+
+    /** Only a configuration adapter using this exact DB may join the guarded transaction. */
+    public function ownsTransactionFor(object $db): bool
+    {
+        return $this->ownedTransaction && $this->db===$db;
     }
 
     private static function field(mixed $row,string $field): mixed
@@ -149,6 +163,24 @@ final class IntegrationDnsCollectorControlPhpIpamRepository implements Integrati
     public function jobs(): array
     {
         return $this->selectRows('custom_dns_control_jobs',self::JOB_COLUMNS,512);
+    }
+
+    /** An audit record is required before treating a job as automatically created. */
+    public function autonomousJobIds(): array
+    {
+        $this->guard();
+        $rows=$this->db->getObjectsQuery('no_html_escape',
+            "SELECT DISTINCT j.id FROM custom_dns_control_jobs j ".
+            "JOIN custom_dns_control_events e ON e.object_id=j.id ".
+            "WHERE j.job_type='list_zones' AND e.action='autonomous_job_queued' AND e.actor_id=0 LIMIT 513",[]);
+        if (!is_array($rows) || count($rows)>512) throw new DomainException('control_unavailable');
+        $ids=[];
+        foreach ($rows as $row) {
+            $id=self::field($row,'id');
+            if (!is_string($id) || !preg_match('/^[0-9a-f]{32}$/D',$id)) throw new DomainException('control_unavailable');
+            $ids[$id]=true;
+        }
+        return $ids;
     }
 
     private function put(string $table,array $columns,array $row): void

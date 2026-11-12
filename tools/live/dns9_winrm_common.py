@@ -1,0 +1,208 @@
+#!/usr/bin/env python3
+import base64
+import hashlib
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+OPENSSL_LEGACY_CONFIG="""openssl_conf = openssl_init
+
+[openssl_init]
+providers = provider_sect
+
+[provider_sect]
+default = default_sect
+legacy = legacy_sect
+
+[default_sect]
+activate = 1
+
+[legacy_sect]
+activate = 1
+"""
+
+def _md4_ready()->bool:
+    try:
+        hashlib.new("md4",b"dns9")
+        return True
+    except (ValueError,TypeError):
+        return False
+
+def ensure_ntlm_md4_runtime()->str:
+    if _md4_ready():
+        return "legacy_process" if os.environ.get("DNS9_OPENSSL_LEGACY_REEXEC")=="1" else "native"
+    if os.environ.get("DNS9_OPENSSL_LEGACY_REEXEC")=="1":
+        raise RuntimeError("ntlm_md4_unavailable_after_legacy_provider")
+    if os.geteuid()!=0:
+        raise RuntimeError("ntlm_md4_legacy_provider_requires_root")
+    if not hasattr(os,"memfd_create"):
+        raise RuntimeError("ntlm_md4_memfd_unavailable")
+    fd=os.memfd_create("phpipam-dns9-openssl",flags=0)
+    os.set_inheritable(fd,True)
+    os.write(fd,OPENSSL_LEGACY_CONFIG.encode("ascii"))
+    os.lseek(fd,0,os.SEEK_SET)
+    env=dict(os.environ)
+    env["OPENSSL_CONF"]="/proc/self/fd/"+str(fd)
+    env["DNS9_OPENSSL_LEGACY_REEXEC"]="1"
+    env["DNS9_OPENSSL_LEGACY_FD"]=str(fd)
+    os.execve(sys.executable,[sys.executable,*sys.argv],env)
+    raise RuntimeError("ntlm_md4_reexec_failed")
+
+def sha256(data: bytes)->str:
+    return hashlib.sha256(data).hexdigest()
+
+def regular(path: Path)->bytes:
+    st=path.lstat()
+    if path.is_symlink() or not path.is_file():
+        raise RuntimeError("file_boundary_invalid:"+str(path))
+    return path.read_bytes()
+
+def ps_quote(value: str)->str:
+    return "'" + value.replace("'","''") + "'"
+
+def load_protocol():
+    try:
+        from winrm.protocol import Protocol
+    except Exception as exc:
+        raise RuntimeError("pywinrm_unavailable") from exc
+    return Protocol
+
+def protocol(server: str, username: str, password: str):
+    ensure_ntlm_md4_runtime()
+    if not re.fullmatch(r"(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?",server):
+        raise RuntimeError("server_invalid")
+    if not username or len(username)>256 or any(x in username for x in "\r\n\0"):
+        raise RuntimeError("username_invalid")
+    Protocol=load_protocol()
+    for key in ("NO_PROXY","no_proxy"):
+        current=os.environ.get(key,"")
+        values=[x.strip() for x in current.split(",") if x.strip()]
+        if server not in values:
+            values.append(server)
+        os.environ[key]=",".join(values)
+    return Protocol(
+        endpoint=f"http://{server}:5985/wsman",
+        transport="ntlm",
+        username=username,
+        password=password,
+        message_encryption="always",
+        operation_timeout_sec=20,
+        read_timeout_sec=30,
+    )
+
+def _decode(data: bytes)->str:
+    return data.decode("utf-8","replace").replace("\x00","")
+
+def run(protocol_obj, executable: str, arguments=(), env_vars: dict[str,str]|None=None):
+    shell_id=None
+    command_id=None
+    try:
+        shell_id=protocol_obj.open_shell(codepage=65001,env_vars=env_vars)
+        command_id=protocol_obj.run_command(
+            shell_id,executable,arguments,
+            console_mode_stdin=True,skip_cmd_shell=True
+        )
+        out,err,rc=protocol_obj.get_command_output(shell_id,command_id)
+        return int(rc),_decode(out),_decode(err)
+    finally:
+        if shell_id is not None and command_id is not None:
+            try: protocol_obj.cleanup_command(shell_id,command_id)
+            except Exception: pass
+        if shell_id is not None:
+            try: protocol_obj.close_shell(shell_id)
+            except Exception: pass
+
+def run_ps(protocol_obj, script: str, env_vars: dict[str,str]|None=None):
+    encoded=base64.b64encode(script.encode("utf-16le")).decode("ascii")
+    return run(protocol_obj,"powershell.exe",[
+        "-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass",
+        "-EncodedCommand",encoded
+    ],env_vars=env_vars)
+
+STAGE_CHUNK_RAW_BYTES=3072
+STAGE_MAX_BYTES=2*1024*1024
+
+def stage_bytes(protocol_obj, remote_path: str, data: bytes)->str:
+    if len(data)>STAGE_MAX_BYTES:
+        raise RuntimeError("remote_stage_source_too_large:"+remote_path)
+    expected=sha256(data)
+
+    init_script=f"""
+$ErrorActionPreference='Stop'
+$path={ps_quote(remote_path)}
+$parent=Split-Path -Parent $path
+if(-not (Test-Path -LiteralPath $parent -PathType Container)){{
+    New-Item -ItemType Directory -Path $parent -Force | Out-Null
+}}
+if(Test-Path -LiteralPath $path){{throw 'dns9_stage_target_exists'}}
+[IO.File]::WriteAllBytes($path,[byte[]]@())
+Write-Output 'DNS9_STAGE_INIT_OK=1'
+"""
+    rc,out,err=run_ps(protocol_obj,init_script)
+    if rc!=0 or "DNS9_STAGE_INIT_OK=1" not in out:
+        raise RuntimeError("remote_stage_init_failed:"+remote_path+":"+err[:512])
+
+    for offset in range(0,len(data),STAGE_CHUNK_RAW_BYTES):
+        chunk=data[offset:offset+STAGE_CHUNK_RAW_BYTES]
+        encoded=base64.b64encode(chunk).decode("ascii")
+        chunk_script=f"""
+$ErrorActionPreference='Stop'
+$path={ps_quote(remote_path)}
+$encoded=[string]$env:PHPIPAM_DNS9_STAGE_CHUNK
+$env:PHPIPAM_DNS9_STAGE_CHUNK=$null
+if([string]::IsNullOrEmpty($encoded)){{throw 'dns9_stage_chunk_missing'}}
+$bytes=[Convert]::FromBase64String($encoded)
+$stream=$null
+try {{
+    $stream=[IO.File]::Open($path,[IO.FileMode]::Append,[IO.FileAccess]::Write,[IO.FileShare]::None)
+    $stream.Write($bytes,0,$bytes.Length)
+}}
+finally {{
+    if($null -ne $stream){{$stream.Dispose()}}
+    if($null -ne $bytes){{[Array]::Clear($bytes,0,$bytes.Length)}}
+    $encoded=$null
+}}
+Write-Output 'DNS9_STAGE_CHUNK_OK=1'
+"""
+        rc,out,err=run_ps(
+            protocol_obj,
+            chunk_script,
+            env_vars={"PHPIPAM_DNS9_STAGE_CHUNK":encoded}
+        )
+        encoded=""
+        if rc!=0 or "DNS9_STAGE_CHUNK_OK=1" not in out:
+            raise RuntimeError("remote_stage_chunk_failed:"+remote_path+":"+err[:512])
+
+    verify_script=f"""
+$ErrorActionPreference='Stop'
+$path={ps_quote(remote_path)}
+$actual=(Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLowerInvariant()
+if($actual -cne {ps_quote(expected)}){{throw 'dns9_stage_hash_mismatch'}}
+Write-Output ('DNS9_STAGE_SHA256='+$actual)
+"""
+    rc,out,err=run_ps(protocol_obj,verify_script)
+    if rc!=0 or ("DNS9_STAGE_SHA256="+expected) not in out:
+        raise RuntimeError("remote_stage_verify_failed:"+remote_path+":"+err[:512])
+    return expected
+
+def remove_tree(protocol_obj, remote_path: str)->None:
+    script=f"""
+$ErrorActionPreference='Stop'
+$path={ps_quote(remote_path)}
+if(Test-Path -LiteralPath $path){{
+    Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction Stop
+}}
+Write-Output 'DNS9_REMOTE_STAGE_CLEAN=1'
+"""
+    rc,out,err=run_ps(protocol_obj,script)
+    if rc!=0 or "DNS9_REMOTE_STAGE_CLEAN=1" not in out:
+        raise RuntimeError("remote_stage_cleanup_failed:"+err[:512])
+
+def json_line(output: str, prefix: str):
+    for line in output.splitlines():
+        line=line.strip()
+        if line.startswith(prefix):
+            return json.loads(line[len(prefix):])
+    raise RuntimeError("remote_json_marker_missing:"+prefix)

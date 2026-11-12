@@ -5,6 +5,7 @@ final class Dns3MemoryRepository implements IntegrationDnsCollectorControlReposi
 {
     public array $collectors=[],$assignments=[],$jobs=[],$events=[];
     public ?int $failAt=null;
+    public ?object $joinedConfig=null;
     private int $writes=0;
     private bool $in=false;
 
@@ -20,6 +21,7 @@ final class Dns3MemoryRepository implements IntegrationDnsCollectorControlReposi
         if(!$this->in) throw new LogicException('outside_transaction');
         if($write && ++$this->writes===$this->failAt) throw new RuntimeException('injected_write_failure');
     }
+    public function ownsTransactionFor(object $db): bool {return $this->in && $this->joinedConfig===$db;}
     public function collectors(): array { $this->guard(); return array_values($this->collectors); }
     public function collector(string $id): ?array { $this->guard(); return $this->collectors[$id]??null; }
     public function putCollector(array $row): void { $this->guard(true); $this->collectors[$row['id']]=$row; }

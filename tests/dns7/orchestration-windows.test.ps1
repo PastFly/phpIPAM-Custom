@@ -8,10 +8,10 @@ if ($PSVersionTable.PSVersion.Major -ne 5) {
 
 $root=Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $worker=Join-Path $root 'collectors\windows\dns\Invoke-PhpIpamDnsWorkerOnce.ps1'
-$n=0
+$global:DNS7_Assertions=0
 function Assert-Dns7 {
     param([bool]$Value,[string]$Label)
-    $script:n++
+    $global:DNS7_Assertions++
     if (-not $Value) { throw $Label }
 }
 
@@ -31,32 +31,31 @@ function global:New-CimSession {
         [string]$ComputerName,
         [PSCredential]$Credential,
         [string]$Authentication,
-        [uint32]$OperationTimeoutSec,
-        [string]$ErrorAction
+        [uint32]$OperationTimeoutSec
     )
     $global:DNS7_SessionCredentialMarker = if ($null -eq $Credential) { '<current>' } else { $Credential.UserName }
     if ($Authentication -ne 'Kerberos') { throw 'kerberos_required' }
     return [pscustomobject]@{ Id='fixture-session' }
 }
 function global:Remove-CimSession {
-    [CmdletBinding()] param($CimSession,[string]$ErrorAction)
+    [CmdletBinding()] param($CimSession)
     $global:DNS7_RemoveSessionCount++
 }
 function global:Get-DnsServerZone {
-    [CmdletBinding()] param($CimSession,[string]$ErrorAction)
+    [CmdletBinding()] param($CimSession)
     return @(
         [pscustomobject]@{ZoneName='Example.Invalid';ZoneType='Primary';IsDsIntegrated=$true;IsReverseLookupZone=$false},
         [pscustomobject]@{ZoneName='30.20.10.in-addr.arpa';ZoneType='Primary';IsDsIntegrated=$true;IsReverseLookupZone=$true}
     )
 }
 function global:Get-DnsServerResourceRecord {
-    [CmdletBinding()] param($CimSession,[string]$ZoneName,[string]$RRType,[string]$ErrorAction)
+    [CmdletBinding()] param($CimSession,[string]$ZoneName,[string]$RRType)
     return @()
 }
 function global:Invoke-RestMethod {
     [CmdletBinding()] param(
         [Uri]$Uri,[string]$Method,[hashtable]$Headers,[string]$ContentType,
-        [string]$Body,[int]$TimeoutSec,[string]$ErrorAction
+        [string]$Body,[int]$TimeoutSec
     )
     Assert-Dns7 ($Method -eq 'Post') 'HTTP method is POST'
     Assert-Dns7 ($Uri.Scheme -eq 'https') 'HTTPS endpoint'
@@ -147,5 +146,5 @@ finally {
     }
 }
 
-Write-Host ('DNS7_ORCHESTRATION_WINDOWS_ASSERTIONS='+$n)
+Write-Host ('DNS7_ORCHESTRATION_WINDOWS_ASSERTIONS='+$global:DNS7_Assertions)
 Write-Host 'DNS7_ORCHESTRATION_WINDOWS_TESTS_OK=1'
